@@ -1,0 +1,242 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  background: #050404;
+  color: #f7f2ea;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: #050404;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+  background:
+    linear-gradient(180deg, rgba(5, 4, 4, 0.58), rgba(5, 4, 4, 0.94)),
+    url("/app-bg.png") center top / cover fixed;
+  color: #f7f2ea;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea,
+select {
+  color: #f7f2ea;
+  background: rgba(8, 6, 6, 0.94);
+  border: 1px solid rgba(214, 179, 106, 0.16);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, background 180ms ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+textarea:focus,
+select:focus,
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  border-color: rgba(255, 52, 69, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(255, 52, 69, 0.26),
+    0 0 20px rgba(255, 52, 69, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.login-field input {
+  appearance: none;
+  background: transparent;
+  caret-color: #f2ece7;
+}
+
+.login-field input:-webkit-autofill,
+.login-field input:-webkit-autofill:hover,
+.login-field input:-webkit-autofill:focus,
+.login-field input:-webkit-autofill:active {
+  -webkit-text-fill-color: #f2ece7 !important;
+  box-shadow: 0 0 0 1000px #0d0d0d inset !important;
+  -webkit-box-shadow: 0 0 0 1000px #0d0d0d inset !important;
+  background-color: #0d0d0d !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
+option {
+  background: #1b1212;
+  color: #f7f2ea;
+}
+
+.bg-white {
+  background-color: rgba(12, 8, 9, 0.86) !important;
+  backdrop-filter: blur(18px);
+}
+
+.bg-surface {
+  background-color: rgba(8, 6, 6, 0.78) !important;
+}
+
+.border-line {
+  border-color: rgba(214, 179, 106, 0.16) !important;
+}
+
+.text-muted {
+  color: #b4a293 !important;
+}
+
+.text-brand {
+  color: #ff3948 !important;
+}
+
+.bg-brand {
+  background: linear-gradient(180deg, #ff2a3a 0%, #b80f1d 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 0 1px rgba(255, 103, 114, 0.16),
+    0 10px 28px rgba(193, 18, 31, 0.36);
+}
+
+.shadow-soft {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.02),
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 18px 48px rgba(0, 0, 0, 0.52),
+    0 0 28px rgba(193, 18, 31, 0.18);
+}
+
+.ui-panel {
+  background:
+    linear-gradient(180deg, rgba(13, 9, 10, 0.94), rgba(8, 6, 6, 0.92)),
+    radial-gradient(circle at top, rgba(255, 46, 61, 0.08), transparent 56%);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(214, 179, 106, 0.12);
+  border-radius: 22px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 0 0 1px rgba(255, 72, 88, 0.08),
+    0 18px 48px rgba(0, 0, 0, 0.5),
+    0 0 32px rgba(193, 18, 31, 0.16);
+  overflow: hidden;
+}
+
+.app-shell {
+  min-height: 100dvh;
+  padding: 1rem 0 6.5rem;
+  color: #f7f2ea;
+}
+
+.app-shell > div {
+  width: min(100%, 390px);
+  margin-left: auto;
+  margin-right: auto;
+  padding-inline: 0.6rem;
+}
+
+@media (min-width: 768px) {
+  .app-shell {
+    padding-top: 1.25rem;
+  }
+}
+
+.ui-chip {
+  background: linear-gradient(180deg, rgba(28, 16, 17, 0.96), rgba(14, 10, 10, 0.96));
+  border: 1px solid rgba(214, 179, 106, 0.16);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.toast-message {
+  animation: toast-fade 5s ease forwards;
+}
+
+.login-shell {
+  animation: login-shell-in 420ms ease-out both;
+}
+
+.login-hero {
+  animation: login-kenburns 18s ease-in-out infinite alternate;
+  transform-origin: center center;
+}
+
+.login-field {
+  animation: login-field-in 360ms ease-out both;
+}
+
+.login-field:nth-of-type(2) {
+  animation-delay: 90ms;
+}
+
+.login-submit {
+  animation: login-field-in 360ms ease-out 150ms both;
+}
+
+@keyframes toast-fade {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -0.25rem);
+  }
+
+  10%,
+  80% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -0.25rem);
+  }
+}
+
+@keyframes login-shell-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes login-field-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-kenburns {
+  from {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: scale(1.045) translate3d(0, -0.6%, 0);
+  }
+}
