@@ -68,17 +68,17 @@ type ReportPhoto = FileRow & {
 };
 
 const statusLabels: Record<string, string> = {
-  planned: "Запланирована",
-  opened: "Открыта",
-  closed: "Закрыта",
-  auto_closed: "Автозакрыта",
-  cancelled: "Отменена",
-  correction_required: "Нужна проверка",
+  planned: "Р—Р°РїР»Р°РЅРёСЂРѕРІР°РЅР°",
+  opened: "РћС‚РєСЂС‹С‚Р°",
+  closed: "Р—Р°РєСЂС‹С‚Р°",
+  auto_closed: "РђРІС‚РѕР·Р°РєСЂС‹С‚Р°",
+  cancelled: "РћС‚РјРµРЅРµРЅР°",
+  correction_required: "РќСѓР¶РЅР° РїСЂРѕРІРµСЂРєР°",
 };
 
 const participantLabels: Record<string, string> = {
-  primary_seller: "Основной продавец",
-  secondary_seller: "Второй продавец",
+  primary_seller: "РћСЃРЅРѕРІРЅРѕР№ РїСЂРѕРґР°РІРµС†",
+  secondary_seller: "Р’С‚РѕСЂРѕР№ РїСЂРѕРґР°РІРµС†",
 };
 
 function formatDate(value: string) {
@@ -91,7 +91,7 @@ function formatDate(value: string) {
 
 function formatDateTime(value: string | null) {
   if (!value) {
-    return "Не указано";
+    return "РќРµ СѓРєР°Р·Р°РЅРѕ";
   }
 
   return new Intl.DateTimeFormat("ru-RU", {
@@ -210,14 +210,14 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-5xl">
-        <SectionHeader icon={ReceiptText} title="Отчет смены" showBack />
+        <SectionHeader icon={ReceiptText} title="РћС‚С‡РµС‚ СЃРјРµРЅС‹" showBack />
 
         <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-lg font-semibold">{formatDate(shift.shift_date)}</p>
               <p className="mt-1 flex items-center gap-2 text-sm text-muted">
-                <Store size={16} /> {shift.stores?.name ?? "Магазин не указан"}
+                <Store size={16} /> {shift.stores?.name ?? "РњР°РіР°Р·РёРЅ РЅРµ СѓРєР°Р·Р°РЅ"}
               </p>
             </div>
             <span className="rounded-md bg-surface px-2 py-1 text-xs font-medium">
@@ -225,14 +225,14 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
             </span>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Metric label="Открыта" value={formatDateTime(shift.opened_at)} />
-            <Metric label="Закрыта" value={formatDateTime(shift.closed_at)} />
+            <Metric label="РћС‚РєСЂС‹С‚Р°" value={formatDateTime(shift.opened_at)} />
+            <Metric label="Р—Р°РєСЂС‹С‚Р°" value={formatDateTime(shift.closed_at)} />
           </div>
         </section>
 
         <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
           <h2 className="flex items-center gap-2 text-base font-semibold">
-            <UserRound size={18} /> Продавцы
+            <UserRound size={18} /> РџСЂРѕРґР°РІС†С‹
           </h2>
           <div className="mt-3 grid gap-2">
             {shift.shift_participants.map((participant) => (
@@ -241,7 +241,7 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
                 className="flex items-center justify-between gap-3 rounded-md bg-surface p-3 text-sm"
               >
                 <div>
-                  <p className="font-semibold">{participant.employees?.full_name ?? "Сотрудник не указан"}</p>
+                  <p className="font-semibold">{participant.employees?.full_name ?? "РЎРѕС‚СЂСѓРґРЅРёРє РЅРµ СѓРєР°Р·Р°РЅ"}</p>
                   <p className="text-muted">{participantLabels[participant.participant_role]}</p>
                 </div>
                 <span className="font-semibold">{Number(participant.sales_percent) * 100}%</span>
@@ -252,39 +252,39 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
 
         <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
           <h2 className="flex items-center gap-2 text-base font-semibold">
-            <Banknote size={18} /> Касса
+            <Banknote size={18} /> РљР°СЃСЃР°
           </h2>
           {report ? (
             <>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Metric label="Выручка наличными" value={`${formatMoney(report.cash_revenue)} ?`} />
-                <Metric label="Выручка безналом" value={`${formatMoney(report.card_revenue)} ?`} />
-                <Metric label="Возвраты наличными" value={`${formatMoney(report.cash_returns)} ?`} />
-                <Metric label="Возвраты безналом" value={`${formatMoney(report.card_returns)} ?`} />
-                <Metric label="Выручка итого" value={`${formatMoney(report.gross_revenue)} ?`} />
-                <Metric label="Выручка после возвратов" value={`${formatMoney(report.net_revenue)} ?`} />
-                <Metric label="Количество чеков" value={String(report.receipt_count)} />
-                <Metric label="Глубина чека" value={report.check_depth ? String(report.check_depth) : "Не указано"} />
-                <Metric label="Количество товаров" value={report.items_sold_count ? String(report.items_sold_count) : "Не указано"} />
-                <Metric label="Инкассация" value={`${formatMoney(report.cash_collection_amount)} ?`} />
-                <Metric label="Аванс" value={`${formatMoney(report.advance_amount)} ?`} />
-                <Metric label="Отчет заполнен" value={formatDateTime(report.created_at)} />
+                <Metric label="Р’С‹СЂСѓС‡РєР° РЅР°Р»РёС‡РЅС‹РјРё" value={`${formatMoney(report.cash_revenue)} ?`} />
+                <Metric label="Р’С‹СЂСѓС‡РєР° Р±РµР·РЅР°Р»РѕРј" value={`${formatMoney(report.card_revenue)} ?`} />
+                <Metric label="Р’РѕР·РІСЂР°С‚С‹ РЅР°Р»РёС‡РЅС‹РјРё" value={`${formatMoney(report.cash_returns)} ?`} />
+                <Metric label="Р’РѕР·РІСЂР°С‚С‹ Р±РµР·РЅР°Р»РѕРј" value={`${formatMoney(report.card_returns)} ?`} />
+                <Metric label="Р’С‹СЂСѓС‡РєР° РёС‚РѕРіРѕ" value={`${formatMoney(report.gross_revenue)} ?`} />
+                <Metric label="Р’С‹СЂСѓС‡РєР° РїРѕСЃР»Рµ РІРѕР·РІСЂР°С‚РѕРІ" value={`${formatMoney(report.net_revenue)} ?`} />
+                <Metric label="РљРѕР»РёС‡РµСЃС‚РІРѕ С‡РµРєРѕРІ" value={String(report.receipt_count)} />
+                <Metric label="Р“Р»СѓР±РёРЅР° С‡РµРєР°" value={report.check_depth ? String(report.check_depth) : "РќРµ СѓРєР°Р·Р°РЅРѕ"} />
+                <Metric label="РљРѕР»РёС‡РµСЃС‚РІРѕ С‚РѕРІР°СЂРѕРІ" value={report.items_sold_count ? String(report.items_sold_count) : "РќРµ СѓРєР°Р·Р°РЅРѕ"} />
+                <Metric label="РРЅРєР°СЃСЃР°С†РёСЏ" value={`${formatMoney(report.cash_collection_amount)} ?`} />
+                <Metric label="РђРІР°РЅСЃ" value={`${formatMoney(report.advance_amount)} ?`} />
+                <Metric label="РћС‚С‡РµС‚ Р·Р°РїРѕР»РЅРµРЅ" value={formatDateTime(report.created_at)} />
               </div>
               {report.cash_collection_comment ? (
                 <div className="mt-3 rounded-md bg-surface p-3 text-sm">
-                  <p className="text-xs text-muted">Комментарий к выемке / РКО</p>
+                  <p className="text-xs text-muted">РљРѕРјРјРµРЅС‚Р°СЂРёР№ Рє РІС‹РµРјРєРµ / Р РљРћ</p>
                   <p className="mt-1">{report.cash_collection_comment}</p>
                 </div>
               ) : null}
             </>
           ) : (
-            <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">По этой смене отчет кассы еще не заполнен.</p>
+            <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">РџРѕ СЌС‚РѕР№ СЃРјРµРЅРµ РѕС‚С‡РµС‚ РєР°СЃСЃС‹ РµС‰Рµ РЅРµ Р·Р°РїРѕР»РЅРµРЅ.</p>
           )}
         </section>
 
         <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
           <h2 className="flex items-center gap-2 text-base font-semibold">
-            <CalendarDays size={18} /> Покупюрник
+            <CalendarDays size={18} /> РџРѕРєСѓРїСЋСЂРЅРёРє
           </h2>
           {(cashCounts ?? []).length > 0 ? (
             <>
@@ -295,21 +295,21 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
                     className="grid grid-cols-[1fr_80px_120px] gap-2 border-b border-line px-3 py-2 text-sm last:border-b-0"
                   >
                     <span>{formatMoney(row.cash_denominations?.value)} ?</span>
-                    <span className="text-right">{row.quantity} шт.</span>
+                    <span className="text-right">{row.quantity} С€С‚.</span>
                     <span className="text-right font-semibold">{formatMoney(row.line_amount)} ?</span>
                   </div>
                 ))}
               </div>
-              <p className="mt-3 text-right text-sm font-semibold">Итого в покупюрнике: {formatMoney(cashCountTotal)} ?</p>
+              <p className="mt-3 text-right text-sm font-semibold">РС‚РѕРіРѕ РІ РїРѕРєСѓРїСЋСЂРЅРёРєРµ: {formatMoney(cashCountTotal)} ?</p>
             </>
           ) : (
-            <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">Покупюрник по этой смене не заполнен.</p>
+            <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">РџРѕРєСѓРїСЋСЂРЅРёРє РїРѕ СЌС‚РѕР№ СЃРјРµРЅРµ РЅРµ Р·Р°РїРѕР»РЅРµРЅ.</p>
           )}
         </section>
 
         <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
           <h2 className="flex items-center gap-2 text-base font-semibold">
-            <Camera size={18} /> Фото отчета ККМ
+            <Camera size={18} /> Р¤РѕС‚Рѕ РѕС‚С‡РµС‚Р° РљРљРњ
           </h2>
           {photos.length > 0 ? (
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -322,15 +322,15 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
                   rel="noreferrer"
                 >
                   {photo.signedUrl ? (
-                    <img alt="Фото отчета ККМ" className="h-auto w-full" src={photo.signedUrl} />
+                    <img alt="Р¤РѕС‚Рѕ РѕС‚С‡РµС‚Р° РљРљРњ" className="h-auto w-full" src={photo.signedUrl} />
                   ) : (
-                    <span className="block p-4 text-sm text-muted">Не удалось открыть фото.</span>
+                    <span className="block p-4 text-sm text-muted">РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РєСЂС‹С‚СЊ С„РѕС‚Рѕ.</span>
                   )}
                 </a>
               ))}
             </div>
           ) : (
-            <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">Фото отчета ККМ к этой смене не прикреплено.</p>
+            <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">Р¤РѕС‚Рѕ РѕС‚С‡РµС‚Р° РљРљРњ Рє СЌС‚РѕР№ СЃРјРµРЅРµ РЅРµ РїСЂРёРєСЂРµРїР»РµРЅРѕ.</p>
           )}
         </section>
       </div>
