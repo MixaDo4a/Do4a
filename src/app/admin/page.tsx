@@ -580,8 +580,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
                   </form>
                   {employee.is_active &&
                   currentRoleCode &&
-                  roleByEmployeeId.get(employee.id) &&
-                  canDeleteTargetRole(currentRoleCode, roleByEmployeeId.get(employee.id) ?? "") ? (
+                  (currentRoleCode === "developer" || canDeleteTargetRole(currentRoleCode, roleByEmployeeId.get(employee.id) ?? "")) ? (
                     <form action="/admin/employees/delete" className="mt-2" method="post">
                       <input name="employee_id" type="hidden" value={employee.id} />
                       <button className="h-10 w-full rounded-md border border-rose-500 bg-white px-4 font-semibold text-rose-600" type="submit">

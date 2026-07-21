@@ -161,6 +161,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (targetEmployee.is_active && !isActive) {
+    const { error: deleteError } = await supabase.rpc("admin_delete_employee", {
+      p_employee_id: employeeId,
+    });
+
+    if (deleteError) {
+      return NextResponse.redirect(adminUrl(request, "admin-error", deleteError.message), 303);
+    }
+
+    return NextResponse.redirect(adminUrl(request, "employee-deleted"), 303);
+  }
+
   const { error } = await supabase.rpc("admin_update_employee_account", {
     p_employee_id: employeeId,
     p_full_name: fullName,
