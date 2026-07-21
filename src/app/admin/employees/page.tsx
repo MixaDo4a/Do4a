@@ -6,7 +6,7 @@ import { EmployeeRoleStatusFields } from "@/components/employee-role-status-fiel
 import { SectionHeader } from "@/components/section-header";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
-import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, roleRank } from "@/lib/auth/roles";
+import { canDeleteTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, roleRank } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type StoreRow = { id: string; name: string; city: string };
@@ -53,6 +53,7 @@ const pageMessages: Record<string, string> = {
   "employee-created": "Сотрудник создан.",
   "employee-updated": "Сотрудник обновлён.",
   "employee-deleted": "Сотрудник удалён.",
+  "employee-restored": "Сотрудник восстановлен.",
 };
 
 export default async function AdminEmployeesPage({ searchParams }: PageProps) {
@@ -88,6 +89,7 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
   const employees = currentScope.isDeveloper
     ? employeesResult.data
     : employeesResult.data.filter((employee) => {
+        if (!employee.is_active) return false;
         const employeeCity = employee.city?.trim().toLowerCase() ?? "";
         const sameCity = !currentCity || employeeCity === currentCity;
         const hasAccessibleStore = employee.employee_store_assignments.some((assignment) => accessibleStoreIds.has(assignment.store_id));
@@ -157,6 +159,7 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
                 <summary className="cursor-pointer list-none font-semibold">
                   {employeeName(employee)}
                   {roleByEmployeeId.get(employee.id) === "manager" ? ` · ${employeeStatusLabels[employee.employee_status]}` : ""}
+                  {!employee.is_active ? <span className="ml-2 text-xs text-brand">Удалён</span> : null}
                 </summary>
                 <form action="/admin/employees/update" className="mt-3 grid gap-2" method="post">
                   <input name="employee_id" type="hidden" value={employee.id} />
@@ -215,12 +218,25 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
                   </label>
                   <button className="h-10 rounded-md bg-brand px-4 font-semibold text-white">Сохранить сотрудника</button>
                 </form>
-                <form action="/admin/employees/delete" className="mt-2" method="post">
-                  <input name="employee_id" type="hidden" value={employee.id} />
-                  <button className="h-10 w-full rounded-md border border-rose-500 bg-white px-4 font-semibold text-rose-600" type="submit">
-                    Удалить сотрудника
-                  </button>
-                </form>
+                {employee.is_active &&
+                currentRoleCode &&
+                roleByEmployeeId.get(employee.id) &&
+                canDeleteTargetRole(currentRoleCode, roleByEmployeeId.get(employee.id) ?? "") ? (
+                  <form action="/admin/employees/delete" className="mt-2" method="post">
+                    <input name="employee_id" type="hidden" value={employee.id} />
+                    <button className="h-10 w-full rounded-md border border-rose-500 bg-white px-4 font-semibold text-rose-600" type="submit">
+                      Удалить сотрудника
+                    </button>
+                  </form>
+                ) : null}
+                {!employee.is_active && currentScope.isDeveloper ? (
+                  <form action="/admin/employees/restore" className="mt-2" method="post">
+                    <input name="employee_id" type="hidden" value={employee.id} />
+                    <button className="h-10 w-full rounded-md border border-emerald-500 bg-white px-4 font-semibold text-emerald-700" type="submit">
+                      Восстановить сотрудника
+                    </button>
+                  </form>
+                ) : null}
               </details>
             ))}
           </div>

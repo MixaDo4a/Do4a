@@ -5,6 +5,7 @@ export type AccessibleStoreRow = {
   id: string;
   name: string;
   city: string;
+  status?: "active" | "archived";
 };
 
 export type CurrentEmployeeScope = {
@@ -49,7 +50,7 @@ export async function getAccessibleStores() {
       return data as AccessibleStoreRow[];
     }
 
-    const { data: storesData, error: storesError } = await supabase.from("stores").select("id, name, city").order("city").order("name");
+    const { data: storesData, error: storesError } = await supabase.from("stores").select("id, name, city, status").order("city").order("name");
 
     if (!storesError && storesData) {
       return storesData as AccessibleStoreRow[];
@@ -62,7 +63,7 @@ export async function getAccessibleStores() {
 
   const { data, error } = await supabase
     .from("employee_store_assignments")
-    .select("stores(id, name, city)")
+    .select("stores(id, name, city, status)")
     .eq("employee_id", scope.employeeId)
     .or(`valid_to.is.null,valid_to.gte.${new Date().toISOString().slice(0, 10)}`);
 
@@ -75,6 +76,7 @@ export async function getAccessibleStores() {
   return (data
     .map((row) => (Array.isArray(row.stores) ? row.stores[0] : row.stores))
     .filter(Boolean) as AccessibleStoreRow[])
+    .filter((store) => store.status === "active")
     .filter((store) => !employeeCity || store.city.trim().toLowerCase() === employeeCity)
     .filter((store, index, list) => list.findIndex((item) => item.id === store.id) === index);
 }

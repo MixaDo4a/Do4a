@@ -4,7 +4,7 @@ import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
 import { EmployeeRoleStatusFields } from "@/components/employee-role-status-fields";
 import { SectionHeader } from "@/components/section-header";
-import { DEDUCTION_ROLES, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, roleRank } from "@/lib/auth/roles";
+import { canDeleteTargetRole, DEDUCTION_ROLES, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, roleRank } from "@/lib/auth/roles";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -97,6 +97,10 @@ const messages: Record<string, string> = {
   "payroll-adjustment-saved": "Корректировка зарплаты сохранена.",
   "store-updated": "Магазин обновлён.",
   "employee-updated": "Сотрудник обновлён.",
+  "employee-deleted": "Сотрудник удалён.",
+  "employee-restored": "Сотрудник восстановлен.",
+  "store-archived": "Магазин скрыт.",
+  "store-restored": "Магазин восстановлен.",
   "admin-required": "Недостаточно прав.",
   "admin-error": "Что-то пошло не так.",
 };
@@ -274,6 +278,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
   const employees = currentScope.isDeveloper
     ? employeesResult.data
     : employeesResult.data.filter((employee) => {
+        if (!employee.is_active) return false;
         const employeeCity = employee.city?.trim().toLowerCase() ?? "";
         const sameCity = !currentCity || employeeCity === currentCity;
         const hasAccessibleStore = employee.employee_store_assignments.some((assignment) => accessibleStoreIdSet.has(assignment.store_id));
@@ -467,6 +472,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
                 <details key={storeItem.id} className="rounded-md border border-line bg-surface p-3 text-sm">
                   <summary className="cursor-pointer list-none font-semibold">
                     {storeItem.name} · {storeItem.city}
+                    {storeItem.status === "archived" ? <span className="ml-2 text-xs text-brand">Удалён</span> : null}
                   </summary>
                   <form action="/admin/stores/update" className="mt-3 grid gap-2" method="post">
                     <input name="store_id" type="hidden" value={storeItem.id} />
@@ -478,11 +484,33 @@ export default async function AdminPage({ searchParams }: PageProps) {
                       <input className="h-10 rounded-md border border-line px-3" defaultValue={storeItem.workday_end_time ?? ""} name="end_time" type="time" />
                     </div>
                     <select className="h-10 rounded-md border border-line px-3" name="status" defaultValue={storeItem.status}>
-                      <option value="active">Активен</option>
-                      <option value="archived">Архив</option>
+                      {currentScope.isDeveloper ? (
+                        <>
+                          <option value="active">Активен</option>
+                          <option value="archived">Архив</option>
+                        </>
+                      ) : (
+                        <option value={storeItem.status}>Активен</option>
+                      )}
                     </select>
                     <button className="h-10 rounded-md bg-brand px-4 font-semibold text-white">Сохранить магазин</button>
                   </form>
+                  {currentScope.isDeveloper && storeItem.status === "active" ? (
+                    <form action="/admin/stores/delete" className="mt-2" method="post">
+                      <input name="store_id" type="hidden" value={storeItem.id} />
+                      <button className="h-10 w-full rounded-md border border-rose-500 bg-white px-4 font-semibold text-rose-600" type="submit">
+                        Скрыть магазин
+                      </button>
+                    </form>
+                  ) : null}
+                  {currentScope.isDeveloper && storeItem.status === "archived" ? (
+                    <form action="/admin/stores/restore" className="mt-2" method="post">
+                      <input name="store_id" type="hidden" value={storeItem.id} />
+                      <button className="h-10 w-full rounded-md border border-emerald-500 bg-white px-4 font-semibold text-emerald-700" type="submit">
+                        Восстановить магазин
+                      </button>
+                    </form>
+                  ) : null}
                 </details>
               ))}
             </div>
@@ -496,6 +524,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
                   <summary className="cursor-pointer list-none font-semibold">
                     {employeeName(employee)}
                     {roleByEmployeeId.get(employee.id) === "manager" ? ` · ${employeeStatusLabels[employee.employee_status]}` : ""}
+                    {!employee.is_active ? <span className="ml-2 text-xs text-brand">Удалён</span> : null}
                   </summary>
                   <form action="/admin/employees/update" className="mt-3 grid gap-2" method="post">
                     <input name="employee_id" type="hidden" value={employee.id} />
@@ -549,6 +578,25 @@ export default async function AdminPage({ searchParams }: PageProps) {
                     </label>
                     <button className="h-10 rounded-md bg-brand px-4 font-semibold text-white">Сохранить сотрудника</button>
                   </form>
+                  {employee.is_active &&
+                  currentRoleCode &&
+                  roleByEmployeeId.get(employee.id) &&
+                  canDeleteTargetRole(currentRoleCode, roleByEmployeeId.get(employee.id) ?? "") ? (
+                    <form action="/admin/employees/delete" className="mt-2" method="post">
+                      <input name="employee_id" type="hidden" value={employee.id} />
+                      <button className="h-10 w-full rounded-md border border-rose-500 bg-white px-4 font-semibold text-rose-600" type="submit">
+                        Удалить сотрудника
+                      </button>
+                    </form>
+                  ) : null}
+                  {!employee.is_active && currentScope.isDeveloper ? (
+                    <form action="/admin/employees/restore" className="mt-2" method="post">
+                      <input name="employee_id" type="hidden" value={employee.id} />
+                      <button className="h-10 w-full rounded-md border border-emerald-500 bg-white px-4 font-semibold text-emerald-700" type="submit">
+                        Восстановить сотрудника
+                      </button>
+                    </form>
+                  ) : null}
                 </details>
               ))}
             </div>

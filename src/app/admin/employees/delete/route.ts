@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { canManageTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY } from "@/lib/auth/roles";
+import { canDeleteTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY } from "@/lib/auth/roles";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -53,8 +53,8 @@ export async function POST(request: NextRequest) {
   const currentRoleCode = [...ROLE_HIERARCHY].find((role) => roles.includes(role)) ?? null;
   const targetRoleCode = employeeRow?.user_roles?.find((row) => !row.revoked_at)?.roles?.[0]?.code ?? null;
 
-  if (!currentRoleCode || !targetRoleCode || !canManageTargetRole(currentRoleCode, targetRoleCode)) {
-    return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя удалять учётку с более высоким приоритетом."), 303);
+  if (!currentRoleCode || !targetRoleCode || !canDeleteTargetRole(currentRoleCode, targetRoleCode)) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Можно удалять только учётки ниже своей должности."), 303);
   }
 
   const { error } = await supabase.rpc("admin_delete_employee", {

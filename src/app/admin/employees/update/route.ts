@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { canManageTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { canDeleteTargetRole, canManageTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -9,6 +9,7 @@ type ProfileRow = { id: string; employee_id: string | null };
 type UserRoleRow = { roles: { code: RoleCode } | null };
 type TargetEmployeeRow = {
   city: string | null;
+  is_active: boolean;
   employee_store_assignments: { store_id: string }[];
 };
 
@@ -90,6 +91,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", profileError.message), 303);
   }
 
+  let targetRoleCode: RoleCode | null = null;
+
   if (targetProfile?.id) {
     const { data: targetRoles, error: roleLookupError } = await supabase
       .from("user_roles")
@@ -102,7 +105,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(adminUrl(request, "admin-error", roleLookupError.message), 303);
     }
 
-    const targetRoleCode = targetRoles.map((row) => row.roles?.code).find(Boolean) ?? null;
+    targetRoleCode = targetRoles.map((row) => row.roles?.code).find(Boolean) ?? null;
     if (targetRoleCode && !canManageTargetRole(currentRoleCode, targetRoleCode)) {
       return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя менять учётку с более высоким приоритетом."), 303);
     }
@@ -128,18 +131,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Можно редактировать сотрудников только в своём городе."), 303);
   }
 
+  const { data: targetEmployee, error: targetEmployeeError } = await supabase
+    .from("employees")
+    .select("city, is_active, employee_store_assignments(store_id)")
+    .eq("id", employeeId)
+    .maybeSingle()
+    .returns<TargetEmployeeRow>();
+
+  if (targetEmployeeError) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", targetEmployeeError.message), 303);
+  }
+
+  if (!targetEmployee) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Сотрудник не найден."), 303);
+  }
+
+  if (!targetEmployee.is_active && !currentScope.isDeveloper) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Удалённые учётки видит и восстанавливает только разработчик."), 303);
+  }
+
+  const targetRoleForDelete = targetProfile?.id ? targetRoleCode : null;
+  if (targetEmployee.is_active && !isActive && (!targetRoleForDelete || !canDeleteTargetRole(currentRoleCode, targetRoleForDelete))) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Можно удалять только учётки ниже своей должности."), 303);
+  }
+
   if (!currentScope.isDeveloper) {
-    const { data: targetEmployee, error: targetEmployeeError } = await supabase
-      .from("employees")
-      .select("city, employee_store_assignments(store_id)")
-      .eq("id", employeeId)
-      .maybeSingle()
-      .returns<TargetEmployeeRow>();
-
-    if (targetEmployeeError) {
-      return NextResponse.redirect(adminUrl(request, "admin-error", targetEmployeeError.message), 303);
-    }
-
     const targetCity = targetEmployee?.city?.trim().toLowerCase() ?? "";
     const targetHasAccessibleStore = targetEmployee?.employee_store_assignments.some((assignment) => accessibleStoreIds.has(assignment.store_id)) ?? false;
     if (!targetEmployee || (currentCity && targetCity !== currentCity) || !targetHasAccessibleStore) {

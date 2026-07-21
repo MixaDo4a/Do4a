@@ -36,14 +36,29 @@ type StoreChecklistSettingRow = {
   weight_padawan: number;
   weight_experienced: number;
 };
+type PageProps = {
+  searchParams: Promise<{
+    message?: string;
+    detail?: string;
+  }>;
+};
 
 const ADVANCED_ROLES = ["super_admin", "developer"];
+const pageMessages: Record<string, string> = {
+  "admin-required": "Заполните обязательные поля.",
+  "admin-error": "Не удалось сохранить данные.",
+  "store-created": "Магазин создан.",
+  "store-updated": "Магазин обновлён.",
+  "store-archived": "Магазин скрыт.",
+  "store-restored": "Магазин восстановлен.",
+};
 
 function money(value: number) {
   return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value);
 }
 
-export default async function AdminStoresPage() {
+export default async function AdminStoresPage({ searchParams }: PageProps) {
+  const { message, detail } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const { data: auth } = await supabase.auth.getUser();
 
@@ -57,6 +72,7 @@ export default async function AdminStoresPage() {
     redirect("/");
   }
 
+  const isDeveloper = roles.includes("developer");
   const canCreateStore = roles.some((role) => ADVANCED_ROLES.includes(role));
   const canEditAdvanced = canCreateStore;
   const accessibleStores = await getAccessibleStores();
@@ -115,6 +131,12 @@ export default async function AdminStoresPage() {
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-5xl">
         <SectionHeader icon={Settings} title="Управление" showBack />
+        {message ? (
+          <div className="mt-4 ui-panel p-3 text-sm text-muted">
+            <p className="font-semibold text-ink">{pageMessages[message] ?? message}</p>
+            {detail ? <p className="mt-1 text-xs text-brand">{detail}</p> : null}
+          </div>
+        ) : null}
 
         {canCreateStore ? (
           <section className="mt-4 ui-panel p-4">
@@ -143,6 +165,7 @@ export default async function AdminStoresPage() {
                 <details key={storeItem.id} className="rounded-md border border-line bg-surface p-3 text-sm">
                   <summary className="cursor-pointer list-none font-semibold">
                     {storeItem.name} · {storeItem.city}
+                    {storeItem.status === "archived" ? <span className="ml-2 text-xs text-brand">Удалён</span> : null}
                   </summary>
 
                   <form action="/admin/stores/update" className="mt-3 grid gap-3" method="post">
@@ -160,10 +183,14 @@ export default async function AdminStoresPage() {
                       <input className="h-10 rounded-md border border-line px-3" defaultValue={storeItem.workday_end_time ?? ""} name="end_time" type="time" />
                     </div>
 
-                    <select className="h-10 rounded-md border border-line px-3" name="status" defaultValue={storeItem.status}>
-                      <option value="active">Активен</option>
-                      <option value="archived">Архив</option>
-                    </select>
+                    {isDeveloper ? (
+                      <select className="h-10 rounded-md border border-line px-3" name="status" defaultValue={storeItem.status}>
+                        <option value="active">Активен</option>
+                        <option value="archived">Архив</option>
+                      </select>
+                    ) : (
+                      <input name="status" type="hidden" value={storeItem.status} />
+                    )}
 
                     <div className="ui-panel p-3">
                       <div className="flex items-center justify-between gap-3">
@@ -277,6 +304,22 @@ export default async function AdminStoresPage() {
 
                     <button className="h-10 rounded-md bg-brand px-4 font-semibold text-white">Сохранить магазин</button>
                   </form>
+                  {isDeveloper && storeItem.status === "active" ? (
+                    <form action="/admin/stores/delete" className="mt-2" method="post">
+                      <input name="store_id" type="hidden" value={storeItem.id} />
+                      <button className="h-10 w-full rounded-md border border-rose-500 bg-white px-4 font-semibold text-rose-600" type="submit">
+                        Скрыть магазин
+                      </button>
+                    </form>
+                  ) : null}
+                  {isDeveloper && storeItem.status === "archived" ? (
+                    <form action="/admin/stores/restore" className="mt-2" method="post">
+                      <input name="store_id" type="hidden" value={storeItem.id} />
+                      <button className="h-10 w-full rounded-md border border-emerald-500 bg-white px-4 font-semibold text-emerald-700" type="submit">
+                        Восстановить магазин
+                      </button>
+                    </form>
+                  ) : null}
                 </details>
               );
             })}

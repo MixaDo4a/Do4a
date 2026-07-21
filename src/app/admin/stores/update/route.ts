@@ -85,7 +85,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя переносить магазин в другой город."), 303);
   }
 
+  const isDeveloper = roles.includes("developer");
   const canEditAdvanced = roles.some((role) => ADVANCED_ROLES.includes(role));
+
+  if (status === "archived" && !isDeveloper) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Скрывать магазины может только разработчик."), 303);
+  }
 
   if (includeAdvanced && !canEditAdvanced) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав для изменения расширенных настроек магазина."), 303);
@@ -105,6 +110,7 @@ export async function POST(request: NextRequest) {
       workday_start_time: startTime,
       workday_end_time: endTime,
       status,
+      archived_at: status === "archived" ? new Date().toISOString() : null,
       ...(salesSharePercent !== null ? { sales_share_percent: salesSharePercent } : {}),
       updated_by: user.id,
     })
