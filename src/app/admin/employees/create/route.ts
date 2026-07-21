@@ -5,7 +5,14 @@ import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores"
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-type RoleCode = "manager" | "auditor" | "store_manager" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer";
+type RoleCode =
+  | "manager"
+  | "auditor"
+  | "store_manager"
+  | "warehouse_manager"
+  | "warehouse_assistant"
+  | "super_admin"
+  | "developer";
 
 function adminUrl(request: NextRequest, message: string, detail?: string) {
   const url = appRedirectUrl(request, "/admin/employees");
@@ -76,7 +83,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав."), 303);
   }
 
-  const currentRoleCode = [...ROLE_HIERARCHY].find((code) => roles.includes(code)) ?? null;
+  const currentRoleCode = ROLE_HIERARCHY.find((code) => roles.includes(code)) ?? null;
   if (!currentRoleCode || !canManageTargetRole(currentRoleCode, employeeRole)) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя назначить должность выше своей или вне иерархии."), 303);
   }
@@ -107,7 +114,6 @@ export async function POST(request: NextRequest) {
 
   const { data: storeRow } = await supabase.from("stores").select("city").eq("id", primaryStoreId).maybeSingle();
   const initialPassword = "Do4aTest345";
-  let createdEmployeeId: string | null = null;
 
   const { data: createdAuthUser, error: authError } = await authSupabase.auth.signUp({
     email,
@@ -125,69 +131,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", authError?.message ?? "Не удалось создать учётку."), 303);
   }
 
-  try {
-    const { data: employee, error: employeeError } = await supabase
-      .from("employees")
-      .insert({
-        full_name: fullName,
-        phone,
-        email,
-        telegram_username: telegramUsername,
-        city: city || (storeRow?.city ?? null),
-        primary_store_id: primaryStoreId || null,
-        employee_status: employeeStatus,
-        hired_at: new Date().toISOString().slice(0, 10),
-        created_by: user.id,
-        updated_by: user.id,
-      })
-      .select("id")
-      .single();
+  const { error: createError } = await supabase.rpc("admin_create_employee_account", {
+    p_auth_user_id: createdAuthUser.user.id,
+    p_full_name: fullName,
+    p_phone: phone,
+    p_email: email,
+    p_telegram_username: telegramUsername,
+    p_city: city || (storeRow?.city ?? ""),
+    p_primary_store_id: primaryStoreId,
+    p_employee_status: employeeStatus,
+    p_role_code: employeeRole,
+    p_store_ids: storeIds,
+  });
 
-    if (employeeError || !employee) {
-      throw new Error(employeeError?.message ?? "Не удалось создать сотрудника.");
-    }
-    createdEmployeeId = employee.id;
-
-    const { error: profileError } = await supabase.from("profiles").insert({
-      id: createdAuthUser.user.id,
-      employee_id: employee.id,
-      telegram_username: telegramUsername,
-      email,
-      full_name: fullName,
-    });
-
-    if (profileError) {
-      throw new Error(profileError.message);
-    }
-
-    const { error: roleError } = await supabase.rpc("admin_set_employee_role", {
-      p_employee_id: employee.id,
-      p_role_code: employeeRole,
-    });
-
-    if (roleError) {
-      throw new Error(roleError.message);
-    }
-
-    const { error: assignmentError } = await supabase.rpc("admin_replace_employee_store_assignments", {
-      p_employee_id: employee.id,
-      p_store_ids: storeIds,
-    });
-
-    if (assignmentError) {
-      throw new Error(assignmentError.message);
-    }
-
-    return NextResponse.redirect(adminUrl(request, "employee-created"), 303);
-  } catch (error) {
-    await supabase.from("profiles").delete().eq("id", createdAuthUser.user.id);
-    if (createdEmployeeId) {
-      await supabase.from("employees").delete().eq("id", createdEmployeeId);
-    }
-
-    return NextResponse.redirect(
-      adminUrl(request, "admin-error", error instanceof Error ? error.message : "Не удалось сохранить данные."),
-      303,
-    );
+  if (createError) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", createError.message), 303);
   }
+
+  return NextResponse.redirect(adminUrl(request, "employee-created"), 303);
 }
