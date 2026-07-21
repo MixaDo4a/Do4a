@@ -11,6 +11,7 @@ set
   description = excluded.description,
   updated_at = now();
 
+drop policy if exists "tasks_warehouse_insert" on public.tasks;
 create policy "tasks_warehouse_insert"
   on public.tasks
   for insert
@@ -26,6 +27,7 @@ create policy "tasks_warehouse_insert"
     )
   );
 
+drop policy if exists "payroll_entries_warehouse_select" on public.payroll_entries;
 create policy "payroll_entries_warehouse_select"
   on public.payroll_entries
   for select
@@ -41,6 +43,7 @@ create policy "payroll_entries_warehouse_select"
     )
   );
 
+drop policy if exists "payroll_adjustments_warehouse_select" on public.payroll_adjustments;
 create policy "payroll_adjustments_warehouse_select"
   on public.payroll_adjustments
   for select
@@ -56,6 +59,7 @@ create policy "payroll_adjustments_warehouse_select"
     )
   );
 
+drop policy if exists "payroll_adjustments_warehouse_insert" on public.payroll_adjustments;
 create policy "payroll_adjustments_warehouse_insert"
   on public.payroll_adjustments
   for insert
