@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   const currentRoleCode = [...ROLE_HIERARCHY].find((role) => roles.includes(role)) ?? null;
   const targetRoleCode = roleCodeFromRelation(employeeRow?.user_roles?.find((row) => !row.revoked_at)?.roles ?? null);
 
-  if (!currentRoleCode || !targetRoleCode || !canDeleteTargetRole(currentRoleCode, targetRoleCode)) {
+  if (!currentRoleCode || (currentRoleCode !== "developer" && (!targetRoleCode || !canDeleteTargetRole(currentRoleCode, targetRoleCode)))) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Можно удалять только учётки ниже своей должности."), 303);
   }
 
