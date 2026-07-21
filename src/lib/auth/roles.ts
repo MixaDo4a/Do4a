@@ -1,5 +1,11 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+export type RoleRelation<T extends string = string> = { code: T } | { code: T }[] | null;
+
+export function roleCodeFromRelation<T extends string = string>(relation: RoleRelation<T>) {
+  return Array.isArray(relation) ? relation[0]?.code ?? null : relation?.code ?? null;
+}
+
 export async function getCurrentRoleCodes() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -15,7 +21,7 @@ export async function getCurrentRoleCodes() {
     .select("roles(code)")
     .eq("profile_id", user.id)
     .is("revoked_at", null)
-    .returns<{ roles: { code: string } | null }[]>();
+    .returns<{ roles: RoleRelation }[]>();
 
   if (error) {
     throw new Error(error.message);
@@ -23,7 +29,7 @@ export async function getCurrentRoleCodes() {
 
   return {
     user,
-    roles: data.map((row) => row.roles?.code).filter((role): role is string => Boolean(role)),
+    roles: data.map((row) => roleCodeFromRelation(row.roles)).filter((role): role is string => Boolean(role)),
   };
 }
 

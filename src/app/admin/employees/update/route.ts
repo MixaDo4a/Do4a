@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { canDeleteTargetRole, canManageTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { canDeleteTargetRole, canManageTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, RoleRelation, roleCodeFromRelation } from "@/lib/auth/roles";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type RoleCode = "manager" | "auditor" | "store_manager" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer";
 type ProfileRow = { id: string; employee_id: string | null };
-type UserRoleRow = { roles: { code: RoleCode } | null };
+type UserRoleRow = { roles: RoleRelation<RoleCode> };
 type TargetEmployeeRow = {
   city: string | null;
   is_active: boolean;
@@ -72,9 +72,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав."), 303);
   }
 
-  const currentRoleCode = roles.find((role): role is RoleCode =>
-    ["developer", "super_admin", "store_manager", "warehouse_manager", "auditor", "warehouse_assistant", "manager"].includes(role),
-  );
+  const currentRoleCode = ROLE_HIERARCHY.find((role): role is RoleCode => roles.includes(role));
 
   if (!currentRoleCode) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Не удалось определить вашу должность."), 303);
@@ -105,7 +103,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(adminUrl(request, "admin-error", roleLookupError.message), 303);
     }
 
-    targetRoleCode = targetRoles.map((row) => row.roles?.code).find(Boolean) ?? null;
+    targetRoleCode = targetRoles.map((row) => roleCodeFromRelation(row.roles)).find(Boolean) ?? null;
     if (targetRoleCode && !canManageTargetRole(currentRoleCode, targetRoleCode)) {
       return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя менять учётку с более высоким приоритетом."), 303);
     }
@@ -151,7 +149,7 @@ export async function POST(request: NextRequest) {
   }
 
   const targetRoleForDelete = targetProfile?.id ? targetRoleCode : null;
-  if (targetEmployee.is_active && !isActive && (!targetRoleForDelete || !canDeleteTargetRole(currentRoleCode, targetRoleForDelete))) {
+  if (targetEmployee.is_active && !isActive && currentRoleCode !== "developer" && (!targetRoleForDelete || !canDeleteTargetRole(currentRoleCode, targetRoleForDelete))) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Можно удалять только учётки ниже своей должности."), 303);
   }
 

@@ -6,7 +6,7 @@ import { EmployeeRoleStatusFields } from "@/components/employee-role-status-fiel
 import { SectionHeader } from "@/components/section-header";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
-import { canDeleteTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, roleRank } from "@/lib/auth/roles";
+import { canDeleteTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, RoleRelation, roleCodeFromRelation, roleRank } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type StoreRow = { id: string; name: string; city: string };
@@ -24,7 +24,7 @@ type EmployeeRow = {
   employee_store_assignments: { store_id: string; is_primary: boolean; stores: { name: string; city: string } | null }[];
 };
 type RoleRow = { code: "manager" | "auditor" | "store_manager" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer"; name: string };
-type ProfileRoleRow = { profile_id: string; roles: { code: RoleRow["code"]; name: string } | null };
+type ProfileRoleRow = { profile_id: string; roles: RoleRelation<RoleRow["code"]> };
 type ProfileEmployeeRow = { id: string; employee_id: string | null };
 type PageProps = {
   searchParams: Promise<{
@@ -96,7 +96,7 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
         return sameCity && hasAccessibleStore;
       });
   const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
-  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, row.roles?.code ?? null]));
+  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, roleCodeFromRelation(row.roles)]));
   const roleByEmployeeId = new Map(
     profilesResult.data.map((profile) => [profile.employee_id ?? "", roleByProfileId.get(profile.id) ?? null]),
   );

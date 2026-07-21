@@ -4,7 +4,7 @@ import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
 import { EmployeeRoleStatusFields } from "@/components/employee-role-status-fields";
 import { SectionHeader } from "@/components/section-header";
-import { canDeleteTargetRole, DEDUCTION_ROLES, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, roleRank } from "@/lib/auth/roles";
+import { canDeleteTargetRole, DEDUCTION_ROLES, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, RoleRelation, roleCodeFromRelation, roleRank } from "@/lib/auth/roles";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -44,7 +44,7 @@ type RoleRow = {
 
 type ProfileRoleRow = {
   profile_id: string;
-  roles: { code: RoleRow["code"]; name: string } | null;
+  roles: RoleRelation<RoleRow["code"]>;
 };
 
 type ProfileEmployeeRow = {
@@ -289,7 +289,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
   const payrollAdjustments = adjustmentsResult.data.filter((adjustment) => visibleEmployeeIds.has(adjustment.employee_id));
   const employeeNameById = new Map(employeeLookupResult.data.filter((employee) => visibleEmployeeIds.has(employee.id)).map((employee) => [employee.id, employee.full_name]));
   const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
-  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, row.roles?.code ?? null]));
+  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, roleCodeFromRelation(row.roles)]));
   const roleByEmployeeId = new Map(
     profilesResult.data.map((profile) => [profile.employee_id ?? "", roleByProfileId.get(profile.id) ?? null]),
   );
