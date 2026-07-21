@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
+import { EmployeeRoleStatusFields } from "@/components/employee-role-status-fields";
 import { SectionHeader } from "@/components/section-header";
-import { getAccessibleStores } from "@/lib/auth/stores";
+import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, roleRank } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -22,15 +23,23 @@ type EmployeeRow = {
   stores: { name: string } | null;
   employee_store_assignments: { store_id: string; is_primary: boolean; stores: { name: string; city: string } | null }[];
 };
-type RoleRow = { code: "manager" | "auditor" | "store_manager" | "super_admin" | "developer"; name: string };
+type RoleRow = { code: "manager" | "auditor" | "store_manager" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer"; name: string };
 type ProfileRoleRow = { profile_id: string; roles: { code: RoleRow["code"]; name: string } | null };
 type ProfileEmployeeRow = { id: string; employee_id: string | null };
+type PageProps = {
+  searchParams: Promise<{
+    message?: string;
+    detail?: string;
+  }>;
+};
 
 const roleHierarchy: RoleRow["code"][] = [...ROLE_HIERARCHY];
 const roleLabels: Record<RoleRow["code"], string> = {
   manager: "Менеджер",
   auditor: "Проверяющий",
   store_manager: "Управляющий",
+  warehouse_manager: "Кладовщик",
+  warehouse_assistant: "Помощник кладовщика",
   super_admin: "Супер-админ",
   developer: "Разработчик",
 };
@@ -38,8 +47,16 @@ const employeeStatusLabels: Record<EmployeeRow["employee_status"], string> = {
   padawan: "Падаван",
   experienced: "Бывалый",
 };
+const pageMessages: Record<string, string> = {
+  "admin-required": "Заполните все обязательные поля.",
+  "admin-error": "Не удалось сохранить данные.",
+  "employee-created": "Сотрудник создан.",
+  "employee-updated": "Сотрудник обновлён.",
+  "employee-deleted": "Сотрудник удалён.",
+};
 
-export default async function AdminEmployeesPage() {
+export default async function AdminEmployeesPage({ searchParams }: PageProps) {
+  const { message, detail } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect("/login");
@@ -47,7 +64,7 @@ export default async function AdminEmployeesPage() {
   const { roles } = await getCurrentRoleCodes();
   if (!hasAnyRole(roles, MANAGE_ROLES)) redirect("/");
 
-  const accessibleStores = await getAccessibleStores();
+  const [accessibleStores, currentScope] = await Promise.all([getAccessibleStores(), getCurrentEmployeeScope()]);
 
   const [employeesResult, profilesResult, userRolesResult] = await Promise.all([
     supabase
@@ -66,9 +83,21 @@ export default async function AdminEmployeesPage() {
   if (userRolesResult.error) throw new Error(userRolesResult.error.message);
 
   const activeStores = accessibleStores;
-  const employees = employeesResult.data;
+  const accessibleStoreIds = new Set(activeStores.map((store) => store.id));
+  const currentCity = currentScope.city?.trim().toLowerCase() ?? "";
+  const employees = currentScope.isDeveloper
+    ? employeesResult.data
+    : employeesResult.data.filter((employee) => {
+        const employeeCity = employee.city?.trim().toLowerCase() ?? "";
+        const sameCity = !currentCity || employeeCity === currentCity;
+        const hasAccessibleStore = employee.employee_store_assignments.some((assignment) => accessibleStoreIds.has(assignment.store_id));
+        return sameCity && hasAccessibleStore;
+      });
   const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
   const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, row.roles?.code ?? null]));
+  const roleByEmployeeId = new Map(
+    profilesResult.data.map((profile) => [profile.employee_id ?? "", roleByProfileId.get(profile.id) ?? null]),
+  );
   const currentRoleCode = [...ROLE_HIERARCHY].find((code) => roles.includes(code)) ?? null;
   const canEditAuthAccount = roles.some((role) => ["super_admin", "developer"].includes(role));
   const assignableRoleCodes = currentRoleCode ? roleHierarchy.filter((code) => roleRank(code) >= roleRank(currentRoleCode)) : [];
@@ -77,6 +106,12 @@ export default async function AdminEmployeesPage() {
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-5xl">
         <SectionHeader icon={Settings} title="Управление" showBack />
+        {message ? (
+          <div className="mt-4 ui-panel p-3 text-sm text-muted">
+            <p className="font-semibold text-ink">{pageMessages[message] ?? message}</p>
+            {detail ? <p className="mt-1 text-xs text-brand">{detail}</p> : null}
+          </div>
+        ) : null}
 
         <section className="mt-4 ui-panel p-4">
           <SectionHeader icon={UserPlus} title="Создать сотрудника" />
@@ -86,18 +121,7 @@ export default async function AdminEmployeesPage() {
             <input className="h-10 rounded-md border border-line px-3" name="email" placeholder="Email / логин" required />
             <input className="h-10 rounded-md border border-line px-3" name="telegram_username" placeholder="Telegram username" required />
             <input className="h-10 rounded-md border border-line px-3" name="city" placeholder="Город" required />
-            <select className="h-10 rounded-md border border-line px-3" name="employee_status" defaultValue="padawan">
-              <option value="padawan">Падаван</option>
-              <option value="experienced">Бывалый</option>
-            </select>
-            <select className="h-10 rounded-md border border-line px-3" name="employee_role" defaultValue={assignableRoleCodes[0] ?? ""} required>
-              <option value="">Должность</option>
-              {assignableRoleCodes.map((code) => (
-                <option key={code} value={code}>
-                  {roleLabels[code]}
-                </option>
-              ))}
-            </select>
+            <EmployeeRoleStatusFields assignableRoleCodes={assignableRoleCodes} defaultStatus="padawan" roleLabels={roleLabels} />
             <p className="text-xs text-muted">Пароль для всех тестовых учёток: Do4aTest345</p>
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-2">
@@ -131,7 +155,8 @@ export default async function AdminEmployeesPage() {
             {employees.map((employee) => (
               <details key={employee.id} className="rounded-md border border-line bg-surface p-3 text-sm">
                 <summary className="cursor-pointer list-none font-semibold">
-                  {employeeName(employee)} · {employeeStatusLabels[employee.employee_status]}
+                  {employeeName(employee)}
+                  {roleByEmployeeId.get(employee.id) === "manager" ? ` · ${employeeStatusLabels[employee.employee_status]}` : ""}
                 </summary>
                 <form action="/admin/employees/update" className="mt-3 grid gap-2" method="post">
                   <input name="employee_id" type="hidden" value={employee.id} />
@@ -152,24 +177,17 @@ export default async function AdminEmployeesPage() {
                   {canEditAuthAccount ? <input className="h-10 rounded-md border border-line px-3" name="new_password" placeholder="Новый пароль" type="password" /> : null}
                   <input className="h-10 rounded-md border border-line px-3" name="telegram_username" defaultValue={employee.telegram_username ?? ""} placeholder="Telegram username" required />
                   <input className="h-10 rounded-md border border-line px-3" name="city" defaultValue={employee.city ?? ""} placeholder="Город" required />
-                  <select className="h-10 rounded-md border border-line px-3" name="employee_status" defaultValue={employee.employee_status}>
-                    <option value="padawan">Падаван</option>
-                    <option value="experienced">Бывалый</option>
-                  </select>
                   {currentRoleCode ? (
-                    <select
-                      className="h-10 rounded-md border border-line px-3"
-                      name="employee_role"
-                      defaultValue={profileIdByEmployeeId.get(employee.id) ? roleByProfileId.get(profileIdByEmployeeId.get(employee.id) ?? "") ?? "" : ""}
-                    >
-                        <option value="">Не менять</option>
-                        {assignableRoleCodes.map((code) => (
-                        <option key={code} value={code}>
-                          {roleLabels[code]}
-                        </option>
-                      ))}
-                    </select>
-                  ) : null}
+                    <EmployeeRoleStatusFields
+                      assignableRoleCodes={assignableRoleCodes}
+                      currentRoleCode={roleByEmployeeId.get(employee.id)}
+                      defaultStatus={employee.employee_status}
+                      keepCurrentOption
+                      roleLabels={roleLabels}
+                    />
+                  ) : (
+                    <input name="employee_status" type="hidden" value={employee.employee_status} />
+                  )}
                   <div className="grid gap-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs text-muted">Магазины доступа</span>

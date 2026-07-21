@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, TASK_CREATOR_ROLES } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function value(formData: FormData, key: string) {
@@ -53,8 +54,44 @@ export async function POST(request: NextRequest) {
   }
 
   const { roles } = await getCurrentRoleCodes();
-  if (!hasAnyRole(roles, MANAGE_ROLES)) {
+  if (!hasAnyRole(roles, TASK_CREATOR_ROLES)) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Недостаточно прав для создания задачи."), 303);
+  }
+
+  const { employeeId } = await getCurrentEmployeeId();
+  const accessibleStores = await getAccessibleStores();
+  const accessibleStoreIds = new Set(accessibleStores.map((store) => store.id));
+  if (!accessibleStoreIds.has(storeId)) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Можно ставить задачи только по доступным магазинам."), 303);
+  }
+
+  const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !hasAnyRole(roles, MANAGE_ROLES);
+  if (warehouseAssistantOnly && assigneeEmployeeId !== employeeId) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Помощник кладовщика может ставить задачи только себе."), 303);
+  }
+
+  const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
+  if (warehouseManagerOnly) {
+    const { data: assigneeProfile, error: assigneeError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("employee_id", assigneeEmployeeId)
+      .maybeSingle<{ id: string }>();
+
+    if (assigneeError || !assigneeProfile) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Сотрудник не найден."), 303);
+    }
+
+    const { data: assigneeRoles, error: assigneeRolesError } = await supabase
+      .from("user_roles")
+      .select("roles(code)")
+      .eq("profile_id", assigneeProfile.id)
+      .is("revoked_at", null)
+      .returns<{ roles: { code: string } | null }[]>();
+
+    if (assigneeRolesError || !assigneeRoles.some((row) => row.roles?.code === "warehouse_assistant")) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Кладовщик может ставить задачи только помощнику кладовщика."), 303);
+    }
   }
 
   const { data, error } = await supabase

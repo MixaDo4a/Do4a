@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
+import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const ADVANCED_ROLES = ["super_admin", "developer"];
 
 function adminUrl(request: NextRequest, message: string, detail?: string) {
-  const url = new URL("/admin/stores", request.url);
+  const url = appRedirectUrl(request, "/admin/stores");
   url.searchParams.set("message", message);
 
   if (detail) {
@@ -63,13 +65,24 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url), 303);
+    return NextResponse.redirect(appRedirectUrl(request, "/login"), 303);
   }
 
   const { roles } = await getCurrentRoleCodes();
 
   if (!hasAnyRole(roles, MANAGE_ROLES)) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав."), 303);
+  }
+
+  const [accessibleStores, currentScope] = await Promise.all([getAccessibleStores(), getCurrentEmployeeScope()]);
+  const accessibleStore = accessibleStores.find((store) => store.id === storeId);
+  if (!accessibleStore) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Можно изменять только доступные вам магазины."), 303);
+  }
+
+  const currentCity = currentScope.city?.trim().toLowerCase() ?? "";
+  if (!currentScope.isDeveloper && currentCity && city.trim().toLowerCase() !== currentCity) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя переносить магазин в другой город."), 303);
   }
 
   const canEditAdvanced = roles.some((role) => ADVANCED_ROLES.includes(role));
@@ -111,10 +124,10 @@ export async function POST(request: NextRequest) {
         .limit(1)
         .returns<{ id: string; checklist_items: { id: string; checklist_item_weights: { employee_status: "padawan" | "experienced"; weight_amount: number }[] }[] }[]>(),
       supabase
-      .from("store_checklist_item_settings")
-      .select("item_id, is_enabled, custom_title, weight_padawan, weight_experienced")
-      .eq("store_id", storeId)
-      .returns<{ item_id: string; is_enabled: boolean; custom_title: string | null; weight_padawan: number; weight_experienced: number }[]>(),
+        .from("store_checklist_item_settings")
+        .select("item_id, is_enabled, custom_title, weight_padawan, weight_experienced")
+        .eq("store_id", storeId)
+        .returns<{ item_id: string; is_enabled: boolean; custom_title: string | null; weight_padawan: number; weight_experienced: number }[]>(),
     ]);
 
     if (templateResult.error) {
@@ -131,10 +144,8 @@ export async function POST(request: NextRequest) {
 
     const rows = items.map((item) => {
       const existing = existingByItem.get(item.id);
-      const padawanDefault =
-        item.checklist_item_weights.find((weight) => weight.employee_status === "padawan")?.weight_amount ?? 0;
-      const experiencedDefault =
-        item.checklist_item_weights.find((weight) => weight.employee_status === "experienced")?.weight_amount ?? 0;
+      const padawanDefault = item.checklist_item_weights.find((weight) => weight.employee_status === "padawan")?.weight_amount ?? 0;
+      const experiencedDefault = item.checklist_item_weights.find((weight) => weight.employee_status === "experienced")?.weight_amount ?? 0;
 
       const padawanRaw = value(formData, `checklist_padawan_${item.id}`);
       const experiencedRaw = value(formData, `checklist_experienced_${item.id}`);
@@ -147,16 +158,13 @@ export async function POST(request: NextRequest) {
         is_enabled: enabled,
         custom_title: titleRaw || null,
         weight_padawan: padawanRaw ? moneyValue(padawanRaw) ?? padawanDefault : existing?.weight_padawan ?? padawanDefault,
-        weight_experienced:
-          experiencedRaw ? moneyValue(experiencedRaw) ?? experiencedDefault : existing?.weight_experienced ?? experiencedDefault,
+        weight_experienced: experiencedRaw ? moneyValue(experiencedRaw) ?? experiencedDefault : existing?.weight_experienced ?? experiencedDefault,
         created_by: user.id,
         updated_by: user.id,
       };
     });
 
-    const { error: settingsWriteError } = await supabase
-      .from("store_checklist_item_settings")
-      .upsert(rows, { onConflict: "store_id,item_id" });
+    const { error: settingsWriteError } = await supabase.from("store_checklist_item_settings").upsert(rows, { onConflict: "store_id,item_id" });
 
     if (settingsWriteError) {
       return NextResponse.redirect(adminUrl(request, "admin-error", settingsWriteError.message), 303);

@@ -31,7 +31,7 @@ const items = [
     href: "/admin",
     label: "Упр.",
     icon: Settings,
-    roles: ["store_manager", "super_admin", "developer"],
+    roles: ["store_manager", "warehouse_manager", "super_admin", "developer"],
     hideForAuditorOnly: false,
   },
 ];
@@ -62,8 +62,16 @@ export function BottomNav() {
   }, []);
 
   const auditorOnly = roles.includes("auditor") && !roles.some((role) => managementRoles.includes(role));
+  const warehouseManagerOnly = roles.includes("warehouse_manager") && !roles.some((role) => managementRoles.includes(role));
+  const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !roles.some((role) => managementRoles.includes(role));
   const visibleItems = items.filter((item) => {
     if (auditorOnly && item.hideForAuditorOnly) {
+      return false;
+    }
+    if (warehouseManagerOnly && ["/shifts", "/checklists", "/checklists/new"].includes(item.href)) {
+      return false;
+    }
+    if (warehouseAssistantOnly && !["/", "/tasks", "/payroll", "/notifications"].includes(item.href)) {
       return false;
     }
 
@@ -81,6 +89,7 @@ export function BottomNav() {
             pathname === item.href ||
             (item.href !== "/" && item.href !== "/checklists" && pathname.startsWith(item.href));
           const Icon = item.icon;
+          const label = warehouseManagerOnly && item.href === "/admin" ? "Вычеты" : item.label;
           return (
             <Link
               key={item.href}
@@ -92,7 +101,7 @@ export function BottomNav() {
               href={item.href}
             >
               <Icon size={18} />
-              <span>{item.label}</span>
+              <span>{label}</span>
             </Link>
           );
         })}

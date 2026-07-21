@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { canManageTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY } from "@/lib/auth/roles";
+import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+type RoleLookupRow = {
+  user_roles: { revoked_at: string | null; roles: { code: string }[] }[];
+};
+
 function adminUrl(request: NextRequest, message: string, detail?: string) {
-  const url = new URL("/admin/employees", request.url);
+  const url = appRedirectUrl(request, "/admin/employees");
   url.searchParams.set("message", message);
   if (detail) url.searchParams.set("detail", detail);
   return url;
@@ -12,10 +17,6 @@ function adminUrl(request: NextRequest, message: string, detail?: string) {
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
-
-type RoleLookupRow = {
-  user_roles: { revoked_at: string | null; roles: { code: string }[] }[];
-};
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url), 303);
+    return NextResponse.redirect(appRedirectUrl(request, "/login"), 303);
   }
 
   const { roles } = await getCurrentRoleCodes();
@@ -64,5 +65,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", error.message), 303);
   }
 
-  return NextResponse.redirect(adminUrl(request, "employee-updated"), 303);
+  return NextResponse.redirect(adminUrl(request, "employee-deleted"), 303);
 }

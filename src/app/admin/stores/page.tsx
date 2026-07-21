@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { cleanText } from "@/lib/display";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -58,14 +59,19 @@ export default async function AdminStoresPage() {
 
   const canCreateStore = roles.some((role) => ADVANCED_ROLES.includes(role));
   const canEditAdvanced = canCreateStore;
+  const accessibleStores = await getAccessibleStores();
+  const accessibleStoreIds = accessibleStores.map((store) => store.id);
 
   const [storesResult, templatesResult, settingsResult] = await Promise.all([
-    supabase
-      .from("stores")
-      .select("id, city, name, address, workday_start_time, workday_end_time, status, sales_share_percent")
-      .order("city")
-      .order("name")
-      .returns<StoreRow[]>(),
+    accessibleStoreIds.length > 0
+      ? supabase
+          .from("stores")
+          .select("id, city, name, address, workday_start_time, workday_end_time, status, sales_share_percent")
+          .in("id", accessibleStoreIds)
+          .order("city")
+          .order("name")
+          .returns<StoreRow[]>()
+      : Promise.resolve({ data: [] as StoreRow[], error: null }),
     supabase
       .from("checklist_templates")
       .select("id, name, checklist_items(id, title, sort_order, checklist_item_weights(employee_status, weight_amount))")
@@ -73,10 +79,13 @@ export default async function AdminStoresPage() {
       .order("version", { ascending: false })
       .limit(1)
       .returns<{ id: string; name: string; checklist_items: TemplateItemRow[] }[]>(),
-    supabase
-      .from("store_checklist_item_settings")
-      .select("store_id, item_id, is_enabled, custom_title, weight_padawan, weight_experienced")
-      .returns<StoreChecklistSettingRow[]>(),
+    accessibleStoreIds.length > 0
+      ? supabase
+          .from("store_checklist_item_settings")
+          .select("store_id, item_id, is_enabled, custom_title, weight_padawan, weight_experienced")
+          .in("store_id", accessibleStoreIds)
+          .returns<StoreChecklistSettingRow[]>()
+      : Promise.resolve({ data: [] as StoreChecklistSettingRow[], error: null }),
   ]);
 
   if (storesResult.error) {

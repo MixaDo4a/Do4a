@@ -2,9 +2,10 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
+import { EmployeeRoleStatusFields } from "@/components/employee-role-status-fields";
 import { SectionHeader } from "@/components/section-header";
-import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, roleRank } from "@/lib/auth/roles";
-import { getAccessibleStores } from "@/lib/auth/stores";
+import { DEDUCTION_ROLES, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, roleRank } from "@/lib/auth/roles";
+import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -37,7 +38,7 @@ type EmployeeRow = {
 };
 
 type RoleRow = {
-  code: "manager" | "auditor" | "store_manager" | "super_admin" | "developer";
+  code: "manager" | "auditor" | "store_manager" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer";
   name: string;
 };
 
@@ -111,6 +112,8 @@ const roleLabels: Record<RoleRow["code"], string> = {
   manager: "Менеджер",
   auditor: "Проверяющий",
   store_manager: "Управляющий",
+  warehouse_manager: "Кладовщик",
+  warehouse_assistant: "Помощник кладовщика",
   super_admin: "Супер-админ",
   developer: "Разработчик",
 };
@@ -177,11 +180,13 @@ export default async function AdminPage({ searchParams }: PageProps) {
 
   const { roles } = await getCurrentRoleCodes();
 
-  if (!hasAnyRole(roles, MANAGE_ROLES)) {
+  if (!hasAnyRole(roles, DEDUCTION_ROLES)) {
     redirect("/");
   }
+  const fullAdminView = hasAnyRole(roles, MANAGE_ROLES);
+  const warehouseManagerOnly = roles.includes("warehouse_manager") && !fullAdminView;
 
-  const accessibleStores = await getAccessibleStores();
+  const [accessibleStores, currentScope] = await Promise.all([getAccessibleStores(), getCurrentEmployeeScope()]);
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
 
   const storesResult = accessibleStoreIds.length > 0
@@ -220,9 +225,11 @@ export default async function AdminPage({ searchParams }: PageProps) {
       .limit(12)
       .returns<PayrollAdjustmentRow[]>(),
     supabase.from("employees").select("id, full_name").eq("is_active", true).returns<EmployeeLookupRow[]>(),
-    supabase.from("roles").select("code, name").returns<RoleRow[]>(),
-    supabase.from("profiles").select("id, employee_id").returns<ProfileEmployeeRow[]>(),
-    supabase.from("user_roles").select("profile_id, roles(code, name)").is("revoked_at", null).returns<ProfileRoleRow[]>(),
+    fullAdminView ? supabase.from("roles").select("code, name").returns<RoleRow[]>() : Promise.resolve({ data: [] as RoleRow[], error: null }),
+    fullAdminView ? supabase.from("profiles").select("id, employee_id").returns<ProfileEmployeeRow[]>() : Promise.resolve({ data: [] as ProfileEmployeeRow[], error: null }),
+    fullAdminView
+      ? supabase.from("user_roles").select("profile_id, roles(code, name)").is("revoked_at", null).returns<ProfileRoleRow[]>()
+      : Promise.resolve({ data: [] as ProfileRoleRow[], error: null }),
   ]);
 
   if (employeesResult.error) {
@@ -262,19 +269,35 @@ export default async function AdminPage({ searchParams }: PageProps) {
   }
 
   const stores = storesResult.data;
-  const employees = employeesResult.data;
-  const storePlans = storePlansResult.data;
-  const payrollAdjustments = adjustmentsResult.data;
-  const employeeNameById = new Map(employeeLookupResult.data.map((employee) => [employee.id, employee.full_name]));
+  const accessibleStoreIdSet = new Set(accessibleStoreIds);
+  const currentCity = currentScope.city?.trim().toLowerCase() ?? "";
+  const employees = currentScope.isDeveloper
+    ? employeesResult.data
+    : employeesResult.data.filter((employee) => {
+        const employeeCity = employee.city?.trim().toLowerCase() ?? "";
+        const sameCity = !currentCity || employeeCity === currentCity;
+        const hasAccessibleStore = employee.employee_store_assignments.some((assignment) => accessibleStoreIdSet.has(assignment.store_id));
+        return sameCity && hasAccessibleStore;
+      });
+  const visibleEmployeeIds = new Set(employees.map((employee) => employee.id));
+  const storePlans = storePlansResult.data.filter((plan) => accessibleStoreIdSet.has(plan.store_id));
+  const payrollAdjustments = adjustmentsResult.data.filter((adjustment) => visibleEmployeeIds.has(adjustment.employee_id));
+  const employeeNameById = new Map(employeeLookupResult.data.filter((employee) => visibleEmployeeIds.has(employee.id)).map((employee) => [employee.id, employee.full_name]));
   const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
   const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, row.roles?.code ?? null]));
+  const roleByEmployeeId = new Map(
+    profilesResult.data.map((profile) => [profile.employee_id ?? "", roleByProfileId.get(profile.id) ?? null]),
+  );
   const currentRoleCode = [...ROLE_HIERARCHY].find((code) => roles.includes(code)) ?? null;
   const activeStores = stores.filter((storeItem) => storeItem.status === "active");
   const activeEmployees = employees.filter((employee) => employee.is_active);
   const selectedStoreId = selectedStoreParam && activeStores.some((store) => store.id === selectedStoreParam)
     ? selectedStoreParam
     : activeStores[0]?.id ?? "";
-  const scheduleEmployees = activeEmployees.slice(0, 8);
+  const selectedStoreEmployees = activeEmployees.filter((employee) =>
+    employee.employee_store_assignments.some((assignment) => assignment.store_id === selectedStoreId),
+  );
+  const scheduleEmployees = selectedStoreEmployees.slice(0, 8);
   const canCreateStore = roles.some((role) => ["super_admin", "developer"].includes(role));
   const canRunNotificationCron = roles.some((role) => ["super_admin", "developer"].includes(role));
   const canEditAuthAccount = roles.some((role) => ["super_admin", "developer"].includes(role));
@@ -322,6 +345,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
         ) : null}
 
         <section className="mt-4 grid gap-4">
+          {!warehouseManagerOnly ? (
           <form action="/admin/store-plans/save" className="ui-panel p-4" method="post">
             <h2 className="inline-flex items-center gap-2 font-semibold">
               <Store className="text-brand" size={18} /> План магазина
@@ -336,13 +360,14 @@ export default async function AdminPage({ searchParams }: PageProps) {
               </select>
                 <input className="h-11 rounded-md border border-line px-3" name="month" type="month" defaultValue={selectedMonth.slice(0, 7)} />
                 <input className="h-11 rounded-md border border-line px-3" min="0" name="sales_plan_amount" placeholder="Сумма плана" type="number" />
-                <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить план</button>
+              <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить план</button>
             </div>
           </form>
+          ) : null}
 
           <form action="/admin/payroll-adjustments/create" className="ui-panel p-4" method="post">
             <h2 className="inline-flex items-center gap-2 font-semibold">
-              <WalletCards className="text-brand" size={18} /> Премии и вычеты
+              <WalletCards className="text-brand" size={18} /> {warehouseManagerOnly ? "Вычеты" : "Премии и вычеты"}
             </h2>
             <div className="mt-4 grid gap-3">
               <select className="h-11 rounded-md border border-line px-3" name="employee_id" defaultValue="">
@@ -355,8 +380,8 @@ export default async function AdminPage({ searchParams }: PageProps) {
               </select>
               <input className="h-11 rounded-md border border-line px-3" name="month" type="month" defaultValue={selectedMonth.slice(0, 7)} />
               <div className="grid gap-2">
-                <select className="h-11 rounded-md border border-line px-3" name="adjustment_type" defaultValue="bonus">
-                  {Object.entries(adjustmentTypeLabels).map(([value, label]) => (
+                <select className="h-11 rounded-md border border-line px-3" name="adjustment_type" defaultValue={warehouseManagerOnly ? "fine" : "bonus"}>
+                  {Object.entries(adjustmentTypeLabels).filter(([value]) => !warehouseManagerOnly || value !== "bonus").map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
                     </option>
@@ -371,6 +396,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
         </section>
 
         <section className="mt-6 grid gap-4">
+          {!warehouseManagerOnly ? (
           <div className="ui-panel p-4">
             <h2 className="font-semibold">Последние планы магазинов</h2>
             <div className="mt-3 max-h-[170px] grid gap-2 overflow-y-auto pr-1">
@@ -387,6 +413,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
               ))}
             </div>
           </div>
+          ) : null}
 
           <div className="ui-panel p-4">
             <h2 className="font-semibold">Последние корректировки</h2>
@@ -409,6 +436,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </div>
         </section>
 
+        {!warehouseManagerOnly ? (
         <section className="mt-4 grid gap-4">
           <div className="ui-panel p-4">
             <SectionHeader icon={Store} title="Магазины" action="Открыть" href="/admin/stores" />
@@ -419,85 +447,18 @@ export default async function AdminPage({ searchParams }: PageProps) {
             <p className="mt-3 text-sm text-muted">Создание и редактирование сотрудников перенесено в отдельный раздел.</p>
           </div>
         </section>
+        ) : null}
 
+        {!warehouseManagerOnly ? (
         <section className="mt-6 ui-panel p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="font-semibold">График работы</h2>
-              <p className="mt-1 text-sm text-muted">{monthLabel(selectedMonth.slice(0, 7))}</p>
-              <p className="mt-1 text-xs text-muted">Сохраняются только рабочие дни и сотрудники. Статусы и время не показываются.</p>
-            </div>
-            <form className="flex gap-2" method="get">
-              <input className="h-11 rounded-md border border-line px-3" name="month" type="month" defaultValue={selectedMonth.slice(0, 7)} />
-              <select className="h-11 rounded-md border border-line px-3" name="storeId" defaultValue={selectedStoreId}>
-                {activeStores.map((storeItem) => (
-                  <option key={storeItem.id} value={storeItem.id}>
-                    {storeItem.name}, {storeItem.city}
-                  </option>
-                ))}
-              </select>
-              <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Показать</button>
-            </form>
-          </div>
-
-          <form action="/admin/schedules/bulk-save" className="mt-4" method="post">
-            <input name="month" type="hidden" value={selectedMonth.slice(0, 7)} />
-            <input name="storeId" type="hidden" value={selectedStoreId} />
-            <div className="overflow-hidden rounded-md border border-line">
-              <div className="overflow-x-auto">
-                <table className="min-w-[1700px] border-collapse text-xs">
-                  <thead>
-                    <tr>
-                      <th className="sticky left-0 z-20 w-[320px] border border-line bg-white px-3 py-2 text-left">Сотрудник</th>
-                      {scheduleDates.map((cell) => (
-                        <th key={cell.date} className="w-[68px] border border-line bg-surface px-1 py-2 text-center">
-                          <div className="font-semibold">{cell.dayName}</div>
-                          <div className="text-[11px] text-muted">{cell.label}</div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scheduleEmployees.map((employee) => (
-                      <tr key={employee.id}>
-                        <td className="sticky left-0 z-10 w-[320px] border border-line bg-white px-3 py-2 align-top font-medium">
-                          <select className="h-9 w-full rounded border border-line px-2 text-sm" name={`employee_${employee.id}`} defaultValue={employee.id}>
-                            <option value="">—</option>
-                            {activeEmployees.map((candidate) => (
-                              <option key={candidate.id} value={candidate.id}>
-                                {employeeName(candidate)}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        {scheduleDates.map((cell) => {
-                          const schedule = storeSchedule.get(`${employee.id}_${cell.date}`);
-                          const currentStatus = schedule?.status ?? "";
-                          return (
-                            <td key={cell.date} className="border border-line px-1 py-1 align-top">
-                              <select className="h-8 w-full rounded border border-line px-2 text-sm" name={`cell_${employee.id}_${cell.date}`} defaultValue={currentStatus || ""}>
-                                <option value="">—</option>
-                                {Object.entries(dayStatusLabels).map(([value, label]) => (
-                                  <option key={value} value={value}>
-                                    {label}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div className="mt-4 flex justify-end">
-              <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить всё</button>
-            </div>
-          </form>
+          <SectionHeader icon={CalendarPlus} title="График работы" action="Редактировать" href="/admin/schedule" />
+          <p className="mt-3 text-sm text-muted">
+            График вынесен в отдельный редактор с горизонтальной таблицей. В списке сотрудников будут только те, у кого есть доступ к выбранному магазину.
+          </p>
         </section>
+        ) : null}
 
+        {!warehouseManagerOnly ? (
         <section className="mt-6 grid gap-4">
           <div className="ui-panel p-4">
             <SectionHeader icon={Store} title="Магазины" action="Открыть" href="/admin/stores" />
@@ -533,7 +494,8 @@ export default async function AdminPage({ searchParams }: PageProps) {
               {employees.map((employee) => (
                 <details key={employee.id} className="rounded-md border border-line bg-surface p-3 text-sm">
                   <summary className="cursor-pointer list-none font-semibold">
-                    {employeeName(employee)} · {employeeStatusLabels[employee.employee_status]}
+                    {employeeName(employee)}
+                    {roleByEmployeeId.get(employee.id) === "manager" ? ` · ${employeeStatusLabels[employee.employee_status]}` : ""}
                   </summary>
                   <form action="/admin/employees/update" className="mt-3 grid gap-2" method="post">
                     <input name="employee_id" type="hidden" value={employee.id} />
@@ -549,26 +511,17 @@ export default async function AdminPage({ searchParams }: PageProps) {
                     {canEditAuthAccount ? <input className="h-10 rounded-md border border-line px-3" name="new_password" placeholder="Новый пароль" type="password" /> : null}
                     <input className="h-10 rounded-md border border-line px-3" name="telegram_username" defaultValue={employee.telegram_username ?? ""} placeholder="Telegram username" />
                     <input className="h-10 rounded-md border border-line px-3" name="city" defaultValue={employee.city ?? ""} placeholder="Город" />
-                    <select className="h-10 rounded-md border border-line px-3" name="employee_status" defaultValue={employee.employee_status}>
-                      <option value="padawan">Падаван</option>
-                      <option value="experienced">Бывалый</option>
-                    </select>
                     {currentRoleCode ? (
-                      <select
-                        className="h-10 rounded-md border border-line px-3"
-                        name="employee_role"
-                        defaultValue={profileIdByEmployeeId.get(employee.id) ? roleByProfileId.get(profileIdByEmployeeId.get(employee.id) ?? "") ?? "" : ""}
-                      >
-                        <option value="">Не менять</option>
-                        {roleHierarchy
-                          .filter((code) => (currentRoleCode ? roleRank(code) >= roleRank(currentRoleCode) : false))
-                          .map((code) => (
-                            <option key={code} value={code}>
-                              {roleLabels[code]}
-                            </option>
-                          ))}
-                      </select>
-                    ) : null}
+                      <EmployeeRoleStatusFields
+                        assignableRoleCodes={roleHierarchy.filter((code) => roleRank(code) >= roleRank(currentRoleCode))}
+                        currentRoleCode={roleByEmployeeId.get(employee.id)}
+                        defaultStatus={employee.employee_status}
+                        keepCurrentOption
+                        roleLabels={roleLabels}
+                      />
+                    ) : (
+                      <input name="employee_status" type="hidden" value={employee.employee_status} />
+                    )}
                     <div className="grid gap-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs text-muted">Магазины доступа</span>
@@ -602,6 +555,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </div>
 
         </section>
+        ) : null}
       </div>
       <BottomNav />
     </main>

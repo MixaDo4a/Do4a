@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
-import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, TASK_CREATOR_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { cleanText, employeeName } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -27,7 +27,11 @@ type StoreRow = {
 type EmployeeRow = {
   id: string;
   full_name: string;
+  employee_store_assignments: { store_id: string }[];
 };
+
+type ProfileEmployeeRow = { id: string; employee_id: string | null };
+type ProfileRoleRow = { profile_id: string; roles: { code: string } | null };
 
 type PageProps = {
   searchParams: Promise<{ message?: string; detail?: string; storeId?: string; employeeId?: string; dateFrom?: string; dateTo?: string; status?: string }>;
@@ -82,12 +86,14 @@ export default async function TasksPage({ searchParams }: PageProps) {
 
   const { roles } = await getCurrentRoleCodes();
   const { employeeId } = await getCurrentEmployeeId();
-  const canCreateTask = hasAnyRole(roles, MANAGE_ROLES);
-  const canSeeAllTasks = canCreateTask;
+  const canCreateTask = hasAnyRole(roles, TASK_CREATOR_ROLES);
+  const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
+  const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !hasAnyRole(roles, MANAGE_ROLES);
+  const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || warehouseManagerOnly;
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
 
-  const [tasksResult, employeesResult] = await Promise.all([
+  const [tasksResult, employeesResult, profilesResult, userRolesResult] = await Promise.all([
     canSeeAllTasks
       ? (() => {
           let query = supabase
@@ -128,7 +134,14 @@ export default async function TasksPage({ searchParams }: PageProps) {
             .order("created_at", { ascending: false })
             .returns<TaskRow[]>()
         : Promise.resolve({ data: [] as TaskRow[], error: null }),
-    supabase.from("employees").select("id, full_name").eq("is_active", true).order("full_name").returns<EmployeeRow[]>(),
+    supabase
+      .from("employees")
+      .select("id, full_name, employee_store_assignments(store_id)")
+      .eq("is_active", true)
+      .order("full_name")
+      .returns<EmployeeRow[]>(),
+    supabase.from("profiles").select("id, employee_id").returns<ProfileEmployeeRow[]>(),
+    supabase.from("user_roles").select("profile_id, roles(code)").is("revoked_at", null).returns<ProfileRoleRow[]>(),
   ]);
 
   if (tasksResult.error) {
@@ -138,8 +151,27 @@ export default async function TasksPage({ searchParams }: PageProps) {
   if (employeesResult.error) {
     throw new Error(employeesResult.error.message);
   }
+  if (profilesResult.error) {
+    throw new Error(profilesResult.error.message);
+  }
+  if (userRolesResult.error) {
+    throw new Error(userRolesResult.error.message);
+  }
 
   const stores = accessibleStores.map((store) => ({ id: store.id, name: store.name }));
+  const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
+  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, row.roles?.code ?? null]));
+  const employeesInAccessibleStores = employeesResult.data.filter((employee) =>
+    employee.employee_store_assignments.some((assignment) => accessibleStoreIds.includes(assignment.store_id)),
+  );
+  const taskAssignees = warehouseAssistantOnly
+    ? employeesResult.data.filter((employee) => employee.id === employeeId)
+    : warehouseManagerOnly
+      ? employeesInAccessibleStores.filter((employee) => {
+          const profileId = profileIdByEmployeeId.get(employee.id);
+          return profileId ? roleByProfileId.get(profileId) === "warehouse_assistant" : false;
+        })
+      : employeesInAccessibleStores;
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -166,7 +198,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
               </select>
               <select className="h-11 rounded-md border border-line px-3" name="employeeId" defaultValue={selectedEmployeeId ?? ""}>
                 <option value="">Все сотрудники</option>
-                {employeesResult.data.map((employee) => (
+                {taskAssignees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.full_name}
                   </option>
@@ -210,7 +242,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   ))}
                 </select>
                 <select className="h-11 rounded-md border border-line px-3" name="assignee_employee_id">
-                  {employeesResult.data.map((employee) => (
+                  {taskAssignees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
                       {employee.full_name}
                     </option>
@@ -224,14 +256,14 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   <option value="urgent">Срочно</option>
                 </select>
               </div>
-              {stores.length === 0 || employeesResult.data.length === 0 ? (
+              {stores.length === 0 || taskAssignees.length === 0 ? (
                 <p className="rounded-md bg-surface p-3 text-sm text-muted">
                   Для создания задачи нужен хотя бы один активный магазин и один активный сотрудник.
                 </p>
               ) : null}
               <button
                 className="h-11 rounded-md bg-brand px-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={stores.length === 0 || employeesResult.data.length === 0}
+                disabled={stores.length === 0 || taskAssignees.length === 0}
               >
                 Создать задачу
               </button>

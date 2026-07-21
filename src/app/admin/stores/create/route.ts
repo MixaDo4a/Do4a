@@ -1,9 +1,13 @@
-﻿import { NextRequest, NextResponse } from "next/server";
-import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { NextRequest, NextResponse } from "next/server";
+import { getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
+import { getCurrentEmployeeScope } from "@/lib/auth/stores";
+import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+const STORE_CREATE_ROLES = ["super_admin", "developer"];
+
 function adminUrl(request: NextRequest, message: string, detail?: string) {
-  const url = new URL("/admin", request.url);
+  const url = appRedirectUrl(request, "/admin/stores");
   url.searchParams.set("message", message);
 
   if (detail) {
@@ -35,13 +39,18 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url), 303);
+    return NextResponse.redirect(appRedirectUrl(request, "/login"), 303);
   }
 
-  const { roles } = await getCurrentRoleCodes();
+  const [{ roles }, currentScope] = await Promise.all([getCurrentRoleCodes(), getCurrentEmployeeScope()]);
 
-  if (!hasAnyRole(roles, MANAGE_ROLES)) {
+  if (!hasAnyRole(roles, STORE_CREATE_ROLES)) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав."), 303);
+  }
+
+  const currentCity = currentScope.city?.trim().toLowerCase() ?? "";
+  if (!currentScope.isDeveloper && currentCity && city.trim().toLowerCase() !== currentCity) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Можно создавать магазины только в своём городе."), 303);
   }
 
   const { data: storeRow, error: storeError } = await supabase
@@ -64,4 +73,3 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.redirect(adminUrl(request, "store-created"), 303);
 }
-

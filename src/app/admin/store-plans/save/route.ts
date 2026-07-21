@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
+import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function adminUrl(request: NextRequest, message: string, detail?: string) {
-  const url = new URL("/admin", request.url);
+  const url = appRedirectUrl(request, "/admin");
   url.searchParams.set("message", message);
   if (detail) url.searchParams.set("detail", detail);
   return url;
@@ -38,12 +40,17 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url), 303);
+    return NextResponse.redirect(appRedirectUrl(request, "/login"), 303);
   }
 
   const { roles } = await getCurrentRoleCodes();
   if (!hasAnyRole(roles, MANAGE_ROLES)) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав."), 303);
+  }
+
+  const accessibleStores = await getAccessibleStores();
+  if (!accessibleStores.some((store) => store.id === storeId)) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Можно сохранять план только по доступным магазинам."), 303);
   }
 
   const { error } = await supabase.from("store_sales_plans").upsert(

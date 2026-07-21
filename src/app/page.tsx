@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { Metric } from "@/components/metric";
 import { SectionHeader } from "@/components/section-header";
+import { UpcomingScheduleList } from "@/components/upcoming-schedule-list";
 import { cleanText, employeeName } from "@/lib/display";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { redirectInvalidSession } from "@/lib/supabase/errors";
@@ -64,6 +65,8 @@ const roleLabels: Record<string, string> = {
   manager: "Менеджер",
   auditor: "Проверяющий",
   store_manager: "Управляющий",
+  warehouse_manager: "Кладовщик",
+  warehouse_assistant: "Помощник кладовщика",
   super_admin: "Супер-админ",
   developer: "Разработчик",
 };
@@ -360,6 +363,18 @@ export default async function HomePage() {
   }
 
   const schedulePreview = schedulePreviewResult.data;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const upcomingSchedules = schedulePreview
+    .filter((row) => row.shift_date >= todayIso && ["planned", "planned_secondary"].includes(row.status))
+    .sort((left, right) => left.shift_date.localeCompare(right.shift_date))
+    .slice(0, 2)
+    .map((row) => ({
+      id: row.id,
+      shift_date: row.shift_date,
+      status: row.status,
+      stores: row.stores,
+      employeeName: employeeNameById.get(row.employee_id) ?? "Сотрудник",
+    }));
   const scheduleGroups = new Map<
     string,
     {
@@ -474,12 +489,9 @@ export default async function HomePage() {
             </section>
 
             <section className="mt-6">
-              <SectionHeader icon={CalendarDays} title="График" />
-              <div className="mt-3 ui-panel p-4 overflow-hidden">
-                <p className="font-medium">График работы магазинов</p>
-                <p className="mt-1 text-sm text-muted">
-                  Полный график редактируется в управлении. Здесь отображается сводка по всем доступным магазинам.
-                </p>
+              <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
+              <div className="mt-3 ui-panel p-4">
+                <UpcomingScheduleList items={upcomingSchedules} />
               </div>
             </section>
           </>
@@ -521,63 +533,9 @@ export default async function HomePage() {
             </section>
 
             <section className="mt-6">
-              <SectionHeader icon={CalendarDays} title="График" action="Открыть" href="/admin" />
-              <div className="mt-3 overflow-hidden ui-panel p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">График на {monthTitle(selectedMonth.slice(0, 7))}</p>
-                    <p className="mt-1 text-sm text-muted">{accountName}</p>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-4">
-                  {scheduleGroups.size === 0 ? (
-                    <p className="rounded-md bg-surface p-3 text-sm text-muted">На этот месяц график не заполнен.</p>
-                  ) : null}
-                  {[...scheduleGroups.values()].map((group) => (
-                    <div key={group.store?.id ?? "store"} className="overflow-hidden rounded-md border border-line bg-surface p-3">
-                      <div className="mb-3">
-                        <p className="font-semibold">{group.store?.name ?? "Магазин"}</p>
-                        {group.store?.city ? <p className="text-xs text-muted">{group.store.city}</p> : null}
-                      </div>
-                      <div className="relative block max-w-full overflow-x-auto">
-                        <table className="min-w-[1600px] w-full table-fixed border-collapse text-xs">
-                          <thead>
-                            <tr>
-                              <th className="sticky left-0 z-20 w-[260px] border border-line bg-white px-3 py-2 text-left whitespace-nowrap">Сотрудник</th>
-                              {scheduleDates.map((cell) => (
-                                <th key={cell.date} className="w-[44px] border border-line bg-white px-1 py-2 text-center">
-                                  <div className="font-semibold">{cell.weekday}</div>
-                                  <div className="text-[11px] text-muted">{cell.day}</div>
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {[...group.rows.values()].map((employeeRow) => (
-                              <tr key={`${group.store?.id ?? "store"}_${employeeRow.employeeId}`}>
-                                <td className="sticky left-0 z-20 border border-line bg-white px-3 py-2 font-medium whitespace-nowrap">{employeeRow.employeeName}</td>
-                                {scheduleDates.map((cell) => {
-                                  const status = employeeRow.statuses.get(cell.date) ?? "";
-                                  return (
-                                    <td key={cell.date} className="border border-line px-1 py-2 text-center">
-                                      <span
-                                        className={`inline-flex min-w-8 items-center justify-center rounded px-2 py-1 text-xs font-semibold border ${
-                                          statusClasses[status] ?? "bg-slate-200 text-slate-900 border-slate-300"
-                                        }`}
-                                      >
-                                        {scheduleCellLabel(status)}
-                                      </span>
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
+              <div className="mt-3 ui-panel p-4">
+                <UpcomingScheduleList items={upcomingSchedules} />
               </div>
             </section>
           </>
@@ -638,63 +596,9 @@ export default async function HomePage() {
             </section>
 
             <section className="mt-6">
-              <SectionHeader icon={CalendarDays} title="График" />
+              <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium">График на {monthTitle(selectedMonth.slice(0, 7))}</p>
-                    <p className="mt-1 text-sm text-muted">{accountName}</p>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-4">
-                  {scheduleGroups.size === 0 ? (
-                    <p className="rounded-md bg-surface p-3 text-sm text-muted">На этот месяц график не заполнен.</p>
-                  ) : null}
-                  {[...scheduleGroups.values()].map((group) => (
-                    <div key={group.store?.id ?? "store"} className="overflow-hidden rounded-md border border-line bg-surface p-3">
-                      <div className="mb-3">
-                        <p className="font-semibold">{group.store?.name ?? "Магазин"}</p>
-                        {group.store?.city ? <p className="text-xs text-muted">{group.store.city}</p> : null}
-                      </div>
-                      <div className="w-full max-w-full overflow-x-auto">
-                        <table className="w-max min-w-full border-collapse text-xs">
-                          <thead>
-                            <tr>
-                              <th className="sticky left-0 z-10 w-[260px] border border-line bg-white px-3 py-2 text-left">Сотрудник</th>
-                              {scheduleDates.map((cell) => (
-                                <th key={cell.date} className="w-[44px] border border-line bg-white px-1 py-2 text-center">
-                                  <div className="font-semibold">{cell.weekday}</div>
-                                  <div className="text-[11px] text-muted">{cell.day}</div>
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {[...group.rows.values()].map((employeeRow) => (
-                              <tr key={`${group.store?.id ?? "store"}_${employeeRow.employeeId}`}>
-                                <td className="sticky left-0 z-10 border border-line bg-white px-3 py-2 font-medium">{employeeRow.employeeName}</td>
-                                {scheduleDates.map((cell) => {
-                                  const status = employeeRow.statuses.get(cell.date) ?? "";
-                                  return (
-                                    <td key={cell.date} className="border border-line px-1 py-2 text-center">
-                                      <span
-                                        className={`inline-flex min-w-8 items-center justify-center rounded px-2 py-1 text-xs font-semibold border ${
-                                          statusClasses[status] ?? "bg-slate-200 text-slate-900 border-slate-300"
-                                        }`}
-                                      >
-                                        {scheduleCellLabel(status)}
-                                      </span>
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <UpcomingScheduleList items={upcomingSchedules} />
               </div>
             </section>
           </>

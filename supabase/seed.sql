@@ -1,6 +1,8 @@
 -- Local development seed data.
 -- These IDs are stable so the seed can be rerun without duplicating rows.
 
+set search_path = public, extensions, auth, storage, pg_catalog;
+
 insert into public.stores (
   id,
   city,
@@ -304,7 +306,7 @@ select
   'authenticated',
   'authenticated',
   email,
-  crypt('Do4aTest345', gen_salt('bf')),
+  extensions.crypt('Do4aTest345', extensions.gen_salt('bf')),
   now(),
   '',
   '',

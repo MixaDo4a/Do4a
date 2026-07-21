@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { DEDUCTION_ROLES, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
+import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+type TargetEmployeeRow = {
+  city: string | null;
+  employee_store_assignments: { store_id: string }[];
+};
+
 function adminUrl(request: NextRequest, message: string, detail?: string) {
-  const url = new URL("/admin", request.url);
+  const url = appRedirectUrl(request, "/admin");
   url.searchParams.set("message", message);
   if (detail) url.searchParams.set("detail", detail);
   return url;
@@ -41,12 +48,39 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url), 303);
+    return NextResponse.redirect(appRedirectUrl(request, "/login"), 303);
   }
 
   const { roles } = await getCurrentRoleCodes();
-  if (!hasAnyRole(roles, MANAGE_ROLES)) {
+  if (!hasAnyRole(roles, DEDUCTION_ROLES)) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав."), 303);
+  }
+
+  const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
+  if (warehouseManagerOnly && adjustmentType === "bonus") {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Кладовщик может вносить только вычеты."), 303);
+  }
+
+  const [accessibleStores, currentScope] = await Promise.all([getAccessibleStores(), getCurrentEmployeeScope()]);
+  if (!currentScope.isDeveloper) {
+    const accessibleStoreIds = new Set(accessibleStores.map((store) => store.id));
+    const currentCity = currentScope.city?.trim().toLowerCase() ?? "";
+    const { data: targetEmployee, error: targetEmployeeError } = await supabase
+      .from("employees")
+      .select("city, employee_store_assignments(store_id)")
+      .eq("id", employeeId)
+      .maybeSingle()
+      .returns<TargetEmployeeRow>();
+
+    if (targetEmployeeError) {
+      return NextResponse.redirect(adminUrl(request, "admin-error", targetEmployeeError.message), 303);
+    }
+
+    const targetCity = targetEmployee?.city?.trim().toLowerCase() ?? "";
+    const targetHasAccessibleStore = targetEmployee?.employee_store_assignments.some((assignment) => accessibleStoreIds.has(assignment.store_id)) ?? false;
+    if (!targetEmployee || (currentCity && targetCity !== currentCity) || !targetHasAccessibleStore) {
+      return NextResponse.redirect(adminUrl(request, "admin-error", "Можно начислять только сотрудникам своего города и доступных магазинов."), 303);
+    }
   }
 
   const { error } = await supabase.from("payroll_adjustments").insert({
@@ -63,7 +97,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { error: recalcError } = await supabase.rpc("calculate_payroll_period", {
-    p_period_month: `${month}-01`,
+    p_period_month: periodMonth,
   });
 
   if (recalcError) {

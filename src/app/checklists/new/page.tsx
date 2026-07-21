@@ -23,6 +23,16 @@ type EmployeeRow = {
   employee_status: "padawan" | "experienced";
 };
 
+type ProfileEmployeeRow = {
+  id: string;
+  employee_id: string | null;
+};
+
+type ProfileRoleRow = {
+  profile_id: string;
+  roles: { code: string } | null;
+};
+
 type TemplateRow = {
   id: string;
   name: string;
@@ -74,7 +84,7 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
     redirect("/");
   }
 
-  const [storesResult, employeesResult, templatesResult] = await Promise.all([
+  const [storesResult, employeesResult, profilesResult, userRolesResult, templatesResult] = await Promise.all([
     supabase
       .from("stores")
       .select("id, name, city")
@@ -87,6 +97,8 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
       .eq("is_active", true)
       .order("full_name")
       .returns<EmployeeRow[]>(),
+    supabase.from("profiles").select("id, employee_id").returns<ProfileEmployeeRow[]>(),
+    supabase.from("user_roles").select("profile_id, roles(code)").is("revoked_at", null).returns<ProfileRoleRow[]>(),
     supabase
       .from("checklist_templates")
       .select("id, name, checklist_items(id, title, sort_order, checklist_item_weights(employee_status, weight_amount))")
@@ -104,16 +116,27 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
     throw new Error(employeesResult.error.message);
   }
 
+  if (profilesResult.error) {
+    throw new Error(profilesResult.error.message);
+  }
+
+  if (userRolesResult.error) {
+    throw new Error(userRolesResult.error.message);
+  }
+
   if (templatesResult.error) {
     throw new Error(templatesResult.error.message);
   }
 
+  const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
+  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, row.roles?.code ?? null]));
+  const managerEmployees = employeesResult.data.filter((employee) => roleByProfileId.get(profileIdByEmployeeId.get(employee.id) ?? "") === "manager");
   const template = templatesResult.data[0];
   const items = [...(template?.checklist_items ?? [])].sort(
     (left, right) => left.sort_order - right.sort_order,
   );
   const message = params.message ? messages[params.message] : null;
-  const canSubmit = storesResult.data.length > 0 && employeesResult.data.length > 0 && Boolean(template) && items.length > 0;
+  const canSubmit = storesResult.data.length > 0 && managerEmployees.length > 0 && Boolean(template) && items.length > 0;
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -155,7 +178,7 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
                   className="h-11 ui-panel px-3 outline-none focus:border-brand"
                   name="employee_id"
                 >
-                  {employeesResult.data.map((employee) => (
+                  {managerEmployees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
                       {employeeName(employee)} · {statusLabels[employee.employee_status]}
                     </option>
@@ -163,9 +186,9 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
                 </select>
               </label>
             </div>
-            {storesResult.data.length === 0 || employeesResult.data.length === 0 ? (
+            {storesResult.data.length === 0 || managerEmployees.length === 0 ? (
               <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">
-                Для чек-листа нужен активный магазин и активный сотрудник.
+                Для чек-листа нужен активный магазин и активный менеджер.
               </p>
             ) : null}
           </section>
