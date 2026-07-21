@@ -1,8 +1,12 @@
 {
   "name": "Do4a Staff Only",
   "short_name": "Do4a",
+  "id": "/",
   "start_url": "/",
-  "display": "standalone",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "portrait-primary",
   "background_color": "#050000",
   "theme_color": "#120d0d",
   "icons": [
