@@ -151,6 +151,130 @@ option {
   padding-inline: 0.6rem;
 }
 
+.schedule-editor-shell > div {
+  width: min(100%, 1260px);
+  padding-inline: 0.6rem;
+}
+
+.schedule-editor-frame {
+  overflow: hidden;
+  border: 1px solid rgba(214, 179, 106, 0.14);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(10, 7, 7, 0.95), rgba(5, 4, 4, 0.95)),
+    radial-gradient(circle at top, rgba(255, 46, 61, 0.08), transparent 52%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 0 24px rgba(193, 18, 31, 0.12);
+}
+
+.schedule-editor-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-color: rgba(214, 179, 106, 0.42) rgba(7, 5, 5, 0.85);
+}
+
+.schedule-editor-table {
+  min-width: 1710px;
+  width: max-content;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #f7f2ea;
+  font-size: 0.82rem;
+}
+
+.schedule-editor-table th,
+.schedule-editor-table td {
+  border-right: 1px solid rgba(214, 179, 106, 0.1);
+  border-bottom: 1px solid rgba(214, 179, 106, 0.1);
+}
+
+.schedule-editor-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background:
+    linear-gradient(180deg, rgba(12, 8, 9, 0.98), rgba(7, 5, 5, 0.98)),
+    radial-gradient(circle at left, rgba(255, 46, 61, 0.08), transparent 62%);
+  box-shadow: 16px 0 26px rgba(0, 0, 0, 0.28);
+}
+
+.schedule-editor-employee-head {
+  width: 230px;
+  min-width: 230px;
+  height: 62px;
+  padding: 0 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.schedule-editor-employee-cell {
+  width: 230px;
+  min-width: 230px;
+  height: 58px;
+  padding: 8px 10px;
+}
+
+.schedule-editor-day {
+  width: 48px;
+  min-width: 48px;
+  height: 62px;
+  text-align: center;
+  vertical-align: middle;
+  background: rgba(9, 6, 6, 0.92);
+}
+
+.schedule-editor-weekend span,
+.schedule-editor-weekend strong {
+  color: #ff3948;
+}
+
+.schedule-editor-day span,
+.schedule-editor-day strong {
+  display: block;
+  line-height: 1.1;
+}
+
+.schedule-editor-day span {
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.schedule-editor-day strong {
+  margin-top: 3px;
+  font-size: 0.82rem;
+}
+
+.schedule-editor-cell {
+  width: 48px;
+  min-width: 48px;
+  height: 58px;
+  padding: 7px 5px;
+  background: rgba(7, 5, 5, 0.72);
+}
+
+.schedule-editor-table select {
+  width: 100%;
+  height: 40px;
+  border-radius: 9px;
+  border-color: rgba(214, 179, 106, 0.16);
+  background: rgba(9, 7, 7, 0.95);
+  color: #f7f2ea;
+  font-weight: 700;
+}
+
+.schedule-editor-employee-cell select {
+  padding-inline: 12px;
+  text-align: left;
+}
+
+.schedule-editor-cell select {
+  padding: 0 4px;
+  text-align: center;
+  text-align-last: center;
+}
+
 @media (min-width: 768px) {
   .app-shell {
     padding-top: 1.25rem;

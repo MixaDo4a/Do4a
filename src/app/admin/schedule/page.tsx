@@ -1,4 +1,5 @@
 import { CalendarPlus } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
@@ -41,6 +42,7 @@ type ScheduleDate = {
   date: string;
   label: string;
   dayName: string;
+  isWeekend: boolean;
 };
 
 const dayStatusLabels: Record<string, string> = {
@@ -50,6 +52,14 @@ const dayStatusLabels: Record<string, string> = {
   sick_leave: "Б",
   vacation: "О",
 };
+
+const statusLegend = [
+  { label: "Р1", text: "Продавец 1", color: "bg-emerald-500" },
+  { label: "Р2", text: "Продавец 2", color: "bg-blue-500" },
+  { label: "В", text: "Выходной", color: "bg-zinc-400" },
+  { label: "Б", text: "Больничный", color: "bg-violet-500" },
+  { label: "О", text: "Отпуск", color: "bg-sky-500" },
+];
 
 function monthStart(value?: string) {
   if (value && /^\d{4}-\d{2}$/.test(value)) {
@@ -144,10 +154,12 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
   const scheduleDates: ScheduleDate[] = [];
   for (let day = 1; day <= new Date(`${selectedMonthEnd}T00:00:00Z`).getUTCDate(); day += 1) {
     const current = new Date(`${selectedMonth.slice(0, 7)}-${String(day).padStart(2, "0")}T00:00:00Z`);
+    const weekday = current.getUTCDay();
     scheduleDates.push({
       date: current.toISOString().slice(0, 10),
       label: String(day).padStart(2, "0"),
       dayName: new Intl.DateTimeFormat("ru-RU", { weekday: "short" }).format(current),
+      isWeekend: weekday === 0 || weekday === 6,
     });
   }
 
@@ -157,38 +169,40 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
   });
 
   return (
-    <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
-      <div className="mx-auto max-w-6xl">
+    <main className="app-shell schedule-editor-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
+      <div>
         <SectionHeader icon={CalendarPlus} title="Редактирование графика" showBack />
-        <section className="mt-4 ui-panel p-4">
-          <form className="mb-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto]" method="get">
-            <input className="h-11 rounded-md border border-line px-3" name="month" type="month" defaultValue={selectedMonth.slice(0, 7)} />
-            <select className="h-11 rounded-md border border-line px-3" name="storeId" defaultValue={selectedStoreId}>
+
+        <section className="mt-4 ui-panel p-4 sm:p-5">
+          <form className="grid gap-3 sm:grid-cols-[220px_minmax(260px,1fr)_auto]" method="get">
+            <input className="h-12 rounded-md border border-line px-4" name="month" type="month" defaultValue={selectedMonth.slice(0, 7)} />
+            <select className="h-12 rounded-md border border-line px-4" name="storeId" defaultValue={selectedStoreId}>
               {activeStores.map((store) => (
                 <option key={store.id} value={store.id}>
                   {store.name}, {store.city}
                 </option>
               ))}
             </select>
-            <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Показать</button>
+            <button className="h-12 rounded-md bg-brand px-6 font-semibold text-white">Показать</button>
           </form>
 
-          <form action="/admin/schedules/bulk-save" method="post">
+          <form action="/admin/schedules/bulk-save" className="mt-5" method="post">
             <input name="month" type="hidden" value={selectedMonth.slice(0, 7)} />
             <input name="storeId" type="hidden" value={selectedStoreId} />
-            <p className="mb-3 text-sm text-muted">
+            <p className="mb-4 text-sm text-muted">
               {monthLabel(selectedMonth.slice(0, 7))}. В строках доступны только сотрудники выбранного магазина.
             </p>
-            <div className="overflow-hidden rounded-md border border-line">
-              <div className="max-w-full overflow-x-auto">
-                <table className="min-w-[1700px] border-collapse text-xs">
+
+            <div className="schedule-editor-frame">
+              <div className="schedule-editor-scroll">
+                <table className="schedule-editor-table">
                   <thead>
                     <tr>
-                      <th className="sticky left-0 z-20 w-[220px] border border-line bg-white px-3 py-2 text-left">Сотрудник</th>
+                      <th className="schedule-editor-sticky schedule-editor-employee-head">Сотрудник</th>
                       {scheduleDates.map((cell) => (
-                        <th key={cell.date} className="w-[48px] border border-line bg-surface px-1 py-2 text-center">
-                          <div className="font-semibold">{cell.dayName}</div>
-                          <div className="text-[11px] text-muted">{cell.label}</div>
+                        <th key={cell.date} className={cell.isWeekend ? "schedule-editor-day schedule-editor-weekend" : "schedule-editor-day"}>
+                          <span>{cell.dayName}</span>
+                          <strong>{cell.label}</strong>
                         </th>
                       ))}
                     </tr>
@@ -196,8 +210,8 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
                   <tbody>
                     {scheduleRows.map((row) => (
                       <tr key={row.key}>
-                        <td className="sticky left-0 z-10 w-[220px] border border-line bg-white px-2 py-2 align-top">
-                          <select className="h-9 w-full rounded border border-line px-2 text-sm" name={`employee_${row.key}`} defaultValue={row.employee?.id ?? ""}>
+                        <td className="schedule-editor-sticky schedule-editor-employee-cell">
+                          <select name={`employee_${row.key}`} defaultValue={row.employee?.id ?? ""}>
                             <option value="">—</option>
                             {selectedStoreEmployees.map((candidate) => (
                               <option key={candidate.id} value={candidate.id}>
@@ -210,8 +224,8 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
                           const selectedEmployeeId = row.employee?.id ?? "";
                           const schedule = selectedEmployeeId ? storeSchedule.get(`${selectedEmployeeId}_${cell.date}`) : null;
                           return (
-                            <td key={cell.date} className="border border-line px-1 py-1 align-top">
-                              <select className="h-8 w-full rounded border border-line px-1 text-sm" name={`cell_${row.key}_${cell.date}`} defaultValue={schedule?.status ?? ""}>
+                            <td key={cell.date} className="schedule-editor-cell">
+                              <select name={`cell_${row.key}_${cell.date}`} defaultValue={schedule?.status ?? ""}>
                                 <option value="">—</option>
                                 {Object.entries(dayStatusLabels).map(([value, label]) => (
                                   <option key={value} value={value}>
@@ -228,8 +242,23 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
                 </table>
               </div>
             </div>
-            <div className="mt-4 flex justify-end">
-              <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить всё</button>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted">
+                {statusLegend.map((item) => (
+                  <span key={item.label} className="inline-flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${item.color}`} />
+                    {item.label} — {item.text}
+                  </span>
+                ))}
+                <span>— Нет смены</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Link className="inline-flex h-12 items-center justify-center rounded-md border border-line px-6 font-semibold text-ink" href="/admin">
+                  Отмена
+                </Link>
+                <button className="h-12 rounded-md bg-brand px-8 font-semibold text-white">Сохранить всё</button>
+              </div>
             </div>
           </form>
         </section>
