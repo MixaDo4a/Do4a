@@ -1,17 +1,11 @@
+import { scheduleStatusBadgeClass, scheduleStatusLabel } from "@/lib/schedule-status";
+
 type UpcomingScheduleItem = {
   id: string;
   shift_date: string;
   status: string;
   stores: { name: string; city: string } | null;
   employeeName: string;
-};
-
-const statusLabels: Record<string, string> = {
-  planned: "Р1",
-  planned_secondary: "Р2",
-  day_off: "В",
-  sick_leave: "Б",
-  vacation: "О",
 };
 
 function formatDate(value: string) {
@@ -40,7 +34,9 @@ export function UpcomingScheduleList({ items }: { items: UpcomingScheduleItem[] 
               </p>
               <p className="mt-1 text-muted">{item.employeeName}</p>
             </div>
-            <span className="rounded bg-brand px-2 py-1 text-xs font-semibold text-white">{statusLabels[item.status] ?? item.status}</span>
+            <span className={`rounded-lg border px-2 py-1 text-xs font-black ${scheduleStatusBadgeClass(item.status)}`}>
+              {scheduleStatusLabel(item.status)}
+            </span>
           </div>
         </div>
       ))}

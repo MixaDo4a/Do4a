@@ -3,9 +3,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
+import { ScheduleStatusSelect } from "@/components/schedule-status-select";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
+import { SCHEDULE_STATUS_OPTIONS } from "@/lib/schedule-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -43,14 +45,6 @@ type ScheduleDate = {
   label: string;
   dayName: string;
   isWeekend: boolean;
-};
-
-const dayStatusLabels: Record<string, string> = {
-  planned: "Р1",
-  planned_secondary: "Р2",
-  day_off: "В",
-  sick_leave: "Б",
-  vacation: "О",
 };
 
 const statusLegend = [
@@ -232,14 +226,7 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
                             const schedule = selectedEmployeeId ? storeSchedule.get(`${selectedEmployeeId}_${cell.date}`) : null;
                             return (
                               <td key={cell.date} className="schedule-editor-cell">
-                                <select name={`cell_${row.key}_${cell.date}`} defaultValue={schedule?.status ?? ""}>
-                                  <option value="">—</option>
-                                  {Object.entries(dayStatusLabels).map(([value, label]) => (
-                                    <option key={value} value={value}>
-                                      {label}
-                                    </option>
-                                  ))}
-                                </select>
+                                <ScheduleStatusSelect name={`cell_${row.key}_${cell.date}`} defaultValue={schedule?.status ?? ""} />
                               </td>
                             );
                           })}
@@ -252,10 +239,10 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
 
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted">
-                  {statusLegend.map((item) => (
+                  {SCHEDULE_STATUS_OPTIONS.map((item) => (
                     <span key={item.label} className="inline-flex items-center gap-2">
-                      <span className={`h-2.5 w-2.5 rounded-full ${item.color}`} />
-                      {item.label} — {item.text}
+                      <span className={`h-2.5 w-2.5 rounded-full ${statusLegend.find((legend) => legend.label === item.label)?.color ?? ""}`} />
+                      {item.label} — {item.title}
                     </span>
                   ))}
                   <span>— Нет смены</span>

@@ -1,3 +1,5 @@
+import { scheduleStatusBadgeClass, scheduleStatusLabel } from "@/lib/schedule-status";
+
 type ScheduleDate = {
   date: string;
   day: string;
@@ -8,27 +10,6 @@ type ScheduleGroup = {
   store: { id: string; name: string; city: string } | null;
   rows: Map<string, { employeeId: string; employeeName: string; statuses: Map<string, string> }>;
 };
-
-const statusClasses: Record<string, string> = {
-  planned: "bg-orange-500 text-white border-orange-600",
-  planned_secondary: "bg-yellow-400 text-slate-950 border-yellow-500",
-  day_off: "bg-green-500 text-white border-green-600",
-  sick_leave: "bg-violet-500 text-white border-violet-600",
-  vacation: "bg-blue-500 text-white border-blue-600",
-};
-
-const statusLabels: Record<string, string> = {
-  planned: "Р1",
-  planned_secondary: "Р2",
-  day_off: "В",
-  sick_leave: "Б",
-  vacation: "О",
-};
-
-function statusLabel(status: string | null | undefined) {
-  if (!status) return "—";
-  return statusLabels[status] ?? status;
-}
 
 export function ScheduleReadonlyTable({ dates, groups }: { dates: ScheduleDate[]; groups: ScheduleGroup[] }) {
   if (groups.length === 0) {
@@ -69,11 +50,9 @@ export function ScheduleReadonlyTable({ dates, groups }: { dates: ScheduleDate[]
                       return (
                         <td key={cell.date} className="border border-line px-1 py-2 text-center">
                           <span
-                            className={`inline-flex min-w-8 items-center justify-center rounded border px-2 py-1 text-xs font-semibold ${
-                              statusClasses[status] ?? "bg-slate-200 text-slate-950 border-slate-300"
-                            }`}
+                            className={`inline-flex min-w-8 items-center justify-center rounded-lg border px-2 py-1 text-xs font-black ${scheduleStatusBadgeClass(status)}`}
                           >
-                            {statusLabel(status)}
+                            {scheduleStatusLabel(status)}
                           </span>
                         </td>
                       );

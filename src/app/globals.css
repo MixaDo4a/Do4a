@@ -275,6 +275,81 @@ option {
   text-align-last: center;
 }
 
+.schedule-editor-cell .schedule-status-select {
+  border-color: rgba(214, 179, 106, 0.18);
+  background:
+    linear-gradient(180deg, rgba(18, 14, 14, 0.96), rgba(6, 5, 5, 0.98));
+  color: #f7f2ea;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 1px rgba(255, 72, 88, 0.04);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
+}
+
+.schedule-editor-cell .schedule-status-select:focus {
+  outline: none;
+  border-color: rgba(255, 45, 61, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 18px rgba(255, 45, 61, 0.24);
+}
+
+.schedule-editor-cell .schedule-status-select[data-status="empty"] {
+  border-color: rgba(214, 179, 106, 0.18);
+  background:
+    linear-gradient(180deg, rgba(18, 14, 14, 0.96), rgba(6, 5, 5, 0.98));
+  color: #f7f2ea;
+}
+
+.schedule-editor-cell .schedule-status-select[data-status="planned"] {
+  border-color: rgba(251, 146, 60, 0.9);
+  background:
+    linear-gradient(180deg, rgba(251, 146, 60, 0.96), rgba(234, 88, 12, 0.96));
+  color: #fff;
+  box-shadow: 0 0 16px rgba(249, 115, 22, 0.36);
+}
+
+.schedule-editor-cell .schedule-status-select[data-status="planned_secondary"] {
+  border-color: rgba(253, 224, 71, 0.95);
+  background:
+    linear-gradient(180deg, rgba(253, 224, 71, 0.98), rgba(234, 179, 8, 0.98));
+  color: #120b05;
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.34);
+}
+
+.schedule-editor-cell .schedule-status-select[data-status="day_off"] {
+  border-color: rgba(52, 211, 153, 0.9);
+  background:
+    linear-gradient(180deg, rgba(52, 211, 153, 0.94), rgba(5, 150, 105, 0.96));
+  color: #fff;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.3);
+}
+
+.schedule-editor-cell .schedule-status-select[data-status="sick_leave"] {
+  border-color: rgba(167, 139, 250, 0.92);
+  background:
+    linear-gradient(180deg, rgba(167, 139, 250, 0.96), rgba(124, 58, 237, 0.96));
+  color: #fff;
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.32);
+}
+
+.schedule-editor-cell .schedule-status-select[data-status="vacation"] {
+  border-color: rgba(96, 165, 250, 0.92);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.96), rgba(37, 99, 235, 0.96));
+  color: #fff;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.32);
+}
+
+.schedule-editor-cell .schedule-status-select option {
+  background: #090606;
+  color: #f7f2ea;
+}
+
 @media (min-width: 768px) {
   .app-shell {
     padding-top: 1.75rem;
