@@ -1,14 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { canManageTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY } from "@/lib/auth/roles";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 type RoleCode =
   | "manager"
   | "auditor"
   | "store_manager"
+  | "buyer"
   | "warehouse_manager"
   | "warehouse_assistant"
   | "super_admin"
@@ -83,9 +84,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав."), 303);
   }
 
-  const currentRoleCode = ROLE_HIERARCHY.find((code) => roles.includes(code)) ?? null;
+  const currentRoleCode = ROLE_HIERARCHY.find((code): code is RoleCode => roles.includes(code));
   if (!currentRoleCode || !canManageTargetRole(currentRoleCode, employeeRole)) {
-    return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя назначить должность выше своей или вне иерархии."), 303);
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя назначить должность выше своей."), 303);
   }
 
   const [accessibleStores, currentScope] = await Promise.all([getAccessibleStores(), getCurrentEmployeeScope()]);
@@ -99,31 +100,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Можно назначить только доступные вам магазины."), 303);
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.redirect(adminUrl(request, "admin-error", "Не настроены переменные Supabase."), 303);
+  let serviceSupabase: ReturnType<typeof createSupabaseServiceRoleClient>;
+  try {
+    serviceSupabase = createSupabaseServiceRoleClient();
+  } catch {
+    return NextResponse.redirect(
+      adminUrl(request, "admin-error", "Не настроен SUPABASE_SERVICE_ROLE_KEY для создания учёток."),
+      303,
+    );
   }
-
-  const authSupabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
 
   const { data: storeRow } = await supabase.from("stores").select("city").eq("id", primaryStoreId).maybeSingle();
   const initialPassword = "Do4aTest345";
 
-  const { data: createdAuthUser, error: authError } = await authSupabase.auth.signUp({
+  const { data: createdAuthUser, error: authError } = await serviceSupabase.auth.admin.createUser({
     email,
     password: initialPassword,
-    options: {
-      data: {
-        full_name: fullName,
-        employee_role: employeeRole,
-        telegram_username: telegramUsername,
-      },
+    email_confirm: true,
+    user_metadata: {
+      full_name: fullName,
+      employee_role: employeeRole,
+      telegram_username: telegramUsername,
     },
   });
 
@@ -145,6 +142,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (createError) {
+    await serviceSupabase.auth.admin.deleteUser(createdAuthUser.user.id).catch(() => null);
     return NextResponse.redirect(adminUrl(request, "admin-error", createError.message), 303);
   }
 

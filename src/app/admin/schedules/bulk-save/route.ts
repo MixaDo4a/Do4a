@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
       p_employee_id: employeeId,
       p_event_type: "schedule_changed",
       p_title: "График изменён",
-      p_body: `Изменено смен: ${changes}.`,
+      p_body: `Изменено смен: ${changes}. Проверьте график.`,
       p_related_entity_type: "schedule",
       p_related_entity_id: null,
     });

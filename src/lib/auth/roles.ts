@@ -56,7 +56,16 @@ export function hasAnyRole(roles: string[], allowed: string[]) {
   return roles.some((role) => allowed.includes(role));
 }
 
-export const ROLE_HIERARCHY = ["developer", "super_admin", "store_manager", "warehouse_manager", "auditor", "warehouse_assistant", "manager"] as const;
+export const ROLE_HIERARCHY = [
+  "developer",
+  "super_admin",
+  "store_manager",
+  "buyer",
+  "warehouse_manager",
+  "auditor",
+  "warehouse_assistant",
+  "manager",
+] as const;
 
 export function roleRank(role: string) {
   const index = ROLE_HIERARCHY.indexOf(role as (typeof ROLE_HIERARCHY)[number]);
@@ -84,3 +93,4 @@ export const MANAGE_ROLES = ["store_manager", "super_admin", "developer"];
 export const OPEN_SHIFT_ROLES = ["manager", "store_manager", "super_admin", "developer"];
 export const TASK_CREATOR_ROLES = ["store_manager", "super_admin", "developer", "warehouse_manager", "warehouse_assistant"];
 export const DEDUCTION_ROLES = ["store_manager", "super_admin", "developer", "warehouse_manager"];
+export const PROCUREMENT_ROLES = ["buyer", "warehouse_manager", "super_admin", "developer"];

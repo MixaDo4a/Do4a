@@ -140,7 +140,7 @@ option {
 
 .app-shell {
   min-height: 100dvh;
-  padding: 1rem 0 6.5rem;
+  padding: max(4.35rem, calc(env(safe-area-inset-top) + 2.15rem)) 0 6.5rem;
   color: #f7f2ea;
 }
 
@@ -277,7 +277,7 @@ option {
 
 @media (min-width: 768px) {
   .app-shell {
-    padding-top: 1.25rem;
+    padding-top: 1.75rem;
   }
 }
 

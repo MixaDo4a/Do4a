@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { ScheduleReadonlyTable } from "@/components/schedule-readonly-table";
 import { SectionHeader } from "@/components/section-header";
+import { RoleRelation, roleCodeFromRelation } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -15,7 +16,7 @@ type ProfileRow = {
 };
 
 type UserRoleRow = {
-  roles: { code: string; name: string } | null;
+  roles: RoleRelation;
 };
 
 type EmployeeLookupRow = {
@@ -75,9 +76,15 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   if (rolesError) throw new Error(rolesError.message);
   if (employeesLookupResult.error) throw new Error(employeesLookupResult.error.message);
 
-  const roleCodes = roleRows.map((row) => row.roles?.code).filter((code): code is string => Boolean(code));
+  const roleCodes = roleRows.map((row) => roleCodeFromRelation(row.roles)).filter((code): code is string => Boolean(code));
   const auditorOnly = roleCodes.includes("auditor") && !roleCodes.some((role) => managementRoles.includes(role));
-  const managementView = roleCodes.includes("store_manager") || roleCodes.includes("super_admin") || roleCodes.includes("developer") || auditorOnly;
+  const managementView =
+    roleCodes.includes("store_manager") ||
+    roleCodes.includes("super_admin") ||
+    roleCodes.includes("developer") ||
+    roleCodes.includes("warehouse_manager") ||
+    roleCodes.includes("buyer") ||
+    auditorOnly;
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
 

@@ -1,4 +1,4 @@
-﻿import { ReceiptText, Save } from "lucide-react";
+import { ReceiptText, Save } from "lucide-react";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { PhotoFileInput } from "@/components/photo-file-input";
@@ -26,27 +26,27 @@ type ShiftOption = {
 };
 
 const messages: Record<string, string> = {
-  "shift-required": "�������� �����.",
-  "photo-required": "����� �� ����� ���� �������: �������� ���� Z-������.",
-  "cash-comment-required": "����� �� ����� ���� �������: ������� ����������� � ����������.",
-  "cash-counts-required": "����� �� ����� ���� �������: ��������� ���������� ���������.",
-  "number-error": "��������� �������� ����: ����� ������� ������ �����.",
-  "close-error": "�� ������� ������� �����. ��������� ������ ��� ����� �������.",
-  "photo-error": "����� �������, �� ���� ������ ��� �� �����������.",
+  "shift-required": "Выберите смену.",
+  "photo-required": "Смена не может быть закрыта: добавьте фото Z-отчёта.",
+  "cash-comment-required": "Смена не может быть закрыта: укажите комментарий к инкассации.",
+  "cash-counts-required": "Смена не может быть закрыта: заполните покупюрник полностью.",
+  "number-error": "Проверьте числовые поля: суммы должны быть в допустимом диапазоне.",
+  "close-error": "Не удалось закрыть смену. Проверьте данные или права доступа.",
+  "photo-error": "Смена закрыта, но фото отчёта не сохранилось.",
 };
 
 const MONEY_INPUT_MAX = "999999999999.99";
 const COUNT_INPUT_MAX = "999999";
 
 const cashFields = [
-  ["cash_revenue", "������� ���������"],
-  ["card_revenue", "������� ��������"],
-  ["cash_returns", "�������� ���������"],
-  ["card_returns", "�������� ��������"],
-  ["receipt_count", "���������� �����"],
-  ["items_sold_count", "���������� �������"],
-  ["cash_collection_amount", "����������"],
-  ["advance_amount", "�����"],
+  ["cash_revenue", "Выручка наличными"],
+  ["card_revenue", "Выручка безналом"],
+  ["cash_returns", "Возвраты наличными"],
+  ["card_returns", "Возвраты безналом"],
+  ["receipt_count", "Количество чеков"],
+  ["items_sold_count", "Количество товаров"],
+  ["cash_collection_amount", "Инкассация"],
+  ["advance_amount", "Аванс"],
 ] as const;
 
 function formatMoney(value: number) {
@@ -68,12 +68,12 @@ function formatShiftOption(shift: ShiftOption) {
   );
 
   return [
-    shift.stores?.name ?? "������� �� ������",
+    shift.stores?.name ?? "Магазин не найден",
     formatShiftDate(shift.shift_date),
-    primarySeller?.employees?.full_name ? `��������: ${primarySeller.employees.full_name}` : null,
+    primarySeller?.employees?.full_name ? `основной: ${primarySeller.employees.full_name}` : null,
   ]
     .filter(Boolean)
-    .join(" � ");
+    .join(" · ");
 }
 
 export default async function CloseShiftPage({ searchParams }: CloseShiftPageProps) {
@@ -99,9 +99,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
       .returns<Denomination[]>(),
     supabase
       .from("shifts")
-      .select(
-        "id, shift_date, stores(name), shift_participants(participant_role, employees(full_name))",
-      )
+      .select("id, shift_date, stores(name), shift_participants(participant_role, employees(full_name))")
       .in("status", ["opened", "correction_required"])
       .order("shift_date", { ascending: false })
       .returns<ShiftOption[]>(),
@@ -120,27 +118,22 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-4xl">
-        <SectionHeader icon={ReceiptText} title="�������� �����" showBack />
+        <SectionHeader icon={ReceiptText} title="Закрытие смены" showBack />
         {messageText ? (
           <p className="mt-4 ui-panel p-3 text-sm text-danger">
             {messageText}
-            {detail ? <span className="mt-1 block text-xs text-muted">�������: {detail}</span> : null}
+            {detail ? <span className="mt-1 block text-xs text-muted">Причина: {detail}</span> : null}
           </p>
         ) : null}
 
         <form action="/shifts/close/submit" className="mt-4 grid gap-4" encType="multipart/form-data" method="post">
           <section className="ui-panel p-4">
-            <h2 className="text-base font-semibold">�����</h2>
+            <h2 className="text-base font-semibold">Смена</h2>
             <label className="mt-4 grid gap-1 text-sm">
-              <span className="text-muted">�������� �����</span>
-              <select
-                className="h-11 ui-panel px-3 outline-none focus:border-brand"
-                defaultValue={selectedShiftId}
-                name="shift_id"
-                required
-              >
+              <span className="text-muted">Открытая смена</span>
+              <select className="h-11 ui-panel px-3 outline-none focus:border-brand" defaultValue={selectedShiftId} name="shift_id" required>
                 {shiftsResult.data.length === 0 ? (
-                  <option value="">��� �������� ����</option>
+                  <option value="">Нет открытых смен</option>
                 ) : (
                   shiftsResult.data.map((shift) => (
                     <option key={shift.id} value={shift.id}>
@@ -153,7 +146,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
           </section>
 
           <section className="ui-panel p-4">
-            <h2 className="text-base font-semibold">�����</h2>
+            <h2 className="text-base font-semibold">Касса</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {cashFields.map(([name, label]) => {
                 const isCount = name === "receipt_count" || name === "items_sold_count";
@@ -176,7 +169,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
               })}
             </div>
             <label className="mt-3 grid gap-1 text-sm">
-              <span className="text-muted">����������� � ������ / ���</span>
+              <span className="text-muted">Комментарий к выемке / РКО</span>
               <textarea
                 className="min-h-20 ui-panel px-3 py-2 outline-none focus:border-brand"
                 defaultValue={params.cash_collection_comment ?? ""}
@@ -186,13 +179,10 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
           </section>
 
           <section className="ui-panel p-4">
-            <h2 className="text-base font-semibold">����������</h2>
+            <h2 className="text-base font-semibold">Покупюрник</h2>
             <div className="mt-4 grid gap-2">
               {denominationsResult.data.map((denomination) => (
-                <label
-                  key={denomination.id}
-                  className="grid grid-cols-[72px_1fr_96px] items-center gap-2 text-sm"
-                >
+                <label key={denomination.id} className="grid grid-cols-[72px_1fr_96px] items-center gap-2 text-sm">
                   <span>{formatMoney(denomination.value)}</span>
                   <input
                     name={`denomination_${denomination.value}`}
@@ -205,24 +195,20 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
                     step="1"
                     type="number"
                   />
-                  <input
-                    name={`denomination_id_${denomination.value}`}
-                    type="hidden"
-                    value={denomination.id}
-                  />
-                  <span className="text-right text-muted">��.</span>
+                  <input name={`denomination_id_${denomination.value}`} type="hidden" value={denomination.id} />
+                  <span className="text-right text-muted">шт.</span>
                 </label>
               ))}
             </div>
           </section>
 
           <section className="ui-panel p-4">
-            <h2 className="text-base font-semibold">����� ���</h2>
+            <h2 className="text-base font-semibold">Отчёт ККМ</h2>
             <PhotoFileInput name="kkm_report_photo" />
           </section>
 
           <button className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-4 font-semibold text-white">
-            <Save size={18} /> ������� �����
+            <Save size={18} /> Закрыть смену
           </button>
         </form>
       </div>
@@ -230,7 +216,3 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
     </main>
   );
 }
-
-
-
-

@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { PhotoFileInput } from "@/components/photo-file-input";
 import { SectionHeader } from "@/components/section-header";
-import { CHECKLIST_ROLES, getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
+import { CHECKLIST_ROLES, getCurrentRoleCodes, hasAnyRole, RoleRelation, roleCodeFromRelation } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { cleanText, employeeName } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -21,6 +22,7 @@ type EmployeeRow = {
   id: string;
   full_name: string;
   employee_status: "padawan" | "experienced";
+  employee_store_assignments: { store_id: string }[];
 };
 
 type ProfileEmployeeRow = {
@@ -30,7 +32,7 @@ type ProfileEmployeeRow = {
 
 type ProfileRoleRow = {
   profile_id: string;
-  roles: { code: string } | null;
+  roles: RoleRelation;
 };
 
 type TemplateRow = {
@@ -84,16 +86,13 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
     redirect("/");
   }
 
-  const [storesResult, employeesResult, profilesResult, userRolesResult, templatesResult] = await Promise.all([
-    supabase
-      .from("stores")
-      .select("id, name, city")
-      .eq("status", "active")
-      .order("name")
-      .returns<StoreRow[]>(),
+  const accessibleStores = await getAccessibleStores();
+  const accessibleStoreIds = new Set(accessibleStores.map((store) => store.id));
+
+  const [employeesResult, profilesResult, userRolesResult, templatesResult] = await Promise.all([
     supabase
       .from("employees")
-      .select("id, full_name, employee_status")
+      .select("id, full_name, employee_status, employee_store_assignments(store_id)")
       .eq("is_active", true)
       .order("full_name")
       .returns<EmployeeRow[]>(),
@@ -107,10 +106,6 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
       .limit(1)
       .returns<TemplateRow[]>(),
   ]);
-
-  if (storesResult.error) {
-    throw new Error(storesResult.error.message);
-  }
 
   if (employeesResult.error) {
     throw new Error(employeesResult.error.message);
@@ -129,14 +124,18 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
   }
 
   const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
-  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, row.roles?.code ?? null]));
-  const managerEmployees = employeesResult.data.filter((employee) => roleByProfileId.get(profileIdByEmployeeId.get(employee.id) ?? "") === "manager");
+  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, roleCodeFromRelation(row.roles)]));
+  const managerEmployees = employeesResult.data.filter((employee) => {
+    const isManager = roleByProfileId.get(profileIdByEmployeeId.get(employee.id) ?? "") === "manager";
+    const hasAccessibleStore = employee.employee_store_assignments.some((assignment) => accessibleStoreIds.has(assignment.store_id));
+    return isManager && hasAccessibleStore;
+  });
   const template = templatesResult.data[0];
   const items = [...(template?.checklist_items ?? [])].sort(
     (left, right) => left.sort_order - right.sort_order,
   );
   const message = params.message ? messages[params.message] : null;
-  const canSubmit = storesResult.data.length > 0 && managerEmployees.length > 0 && Boolean(template) && items.length > 0;
+  const canSubmit = accessibleStores.length > 0 && managerEmployees.length > 0 && Boolean(template) && items.length > 0;
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -164,7 +163,7 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
                   className="h-11 ui-panel px-3 outline-none focus:border-brand"
                   name="store_id"
                 >
-                  {storesResult.data.map((store) => (
+                  {accessibleStores.map((store: StoreRow) => (
                     <option key={store.id} value={store.id}>
                       {store.name}, {store.city}
                     </option>
@@ -186,7 +185,7 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
                 </select>
               </label>
             </div>
-            {storesResult.data.length === 0 || managerEmployees.length === 0 ? (
+            {accessibleStores.length === 0 || managerEmployees.length === 0 ? (
               <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">
                 Для чек-листа нужен активный магазин и активный менеджер.
               </p>

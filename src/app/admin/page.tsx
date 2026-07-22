@@ -38,7 +38,7 @@ type EmployeeRow = {
 };
 
 type RoleRow = {
-  code: "manager" | "auditor" | "store_manager" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer";
+  code: "manager" | "auditor" | "store_manager" | "buyer" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer";
   name: string;
 };
 
@@ -116,6 +116,7 @@ const roleLabels: Record<RoleRow["code"], string> = {
   manager: "Менеджер",
   auditor: "Проверяющий",
   store_manager: "Управляющий",
+  buyer: "Закупщик",
   warehouse_manager: "Кладовщик",
   warehouse_assistant: "Помощник кладовщика",
   super_admin: "Супер-админ",

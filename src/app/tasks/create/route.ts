@@ -1,5 +1,13 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, TASK_CREATOR_ROLES } from "@/lib/auth/roles";
+import {
+  getCurrentEmployeeId,
+  getCurrentRoleCodes,
+  hasAnyRole,
+  MANAGE_ROLES,
+  RoleRelation,
+  roleCodeFromRelation,
+  TASK_CREATOR_ROLES,
+} from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -65,6 +73,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Можно ставить задачи только по доступным магазинам."), 303);
   }
 
+  const { data: assigneeStoreAssignment, error: assigneeStoreError } = await supabase
+    .from("employee_store_assignments")
+    .select("employee_id")
+    .eq("employee_id", assigneeEmployeeId)
+    .eq("store_id", storeId)
+    .lte("valid_from", new Date().toISOString().slice(0, 10))
+    .or(`valid_to.is.null,valid_to.gte.${new Date().toISOString().slice(0, 10)}`)
+    .maybeSingle<{ employee_id: string }>();
+
+  if (assigneeStoreError || !assigneeStoreAssignment) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Можно ставить задачи только сотрудникам выбранного магазина."), 303);
+  }
+
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !hasAnyRole(roles, MANAGE_ROLES);
   if (warehouseAssistantOnly && assigneeEmployeeId !== employeeId) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Помощник кладовщика может ставить задачи только себе."), 303);
@@ -87,9 +108,9 @@ export async function POST(request: NextRequest) {
       .select("roles(code)")
       .eq("profile_id", assigneeProfile.id)
       .is("revoked_at", null)
-      .returns<{ roles: { code: string } | null }[]>();
+      .returns<{ roles: RoleRelation }[]>();
 
-    if (assigneeRolesError || !assigneeRoles.some((row) => row.roles?.code === "warehouse_assistant")) {
+    if (assigneeRolesError || !assigneeRoles.some((row) => roleCodeFromRelation(row.roles) === "warehouse_assistant")) {
       return NextResponse.redirect(tasksUrl(request, "task-error", "Кладовщик может ставить задачи только помощнику кладовщика."), 303);
     }
   }

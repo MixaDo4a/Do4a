@@ -54,11 +54,11 @@ const dayStatusLabels: Record<string, string> = {
 };
 
 const statusLegend = [
-  { label: "Р1", text: "Продавец 1", color: "bg-emerald-500" },
-  { label: "Р2", text: "Продавец 2", color: "bg-blue-500" },
-  { label: "В", text: "Выходной", color: "bg-zinc-400" },
+  { label: "Р1", text: "Продавец 1", color: "bg-orange-500" },
+  { label: "Р2", text: "Продавец 2", color: "bg-yellow-400" },
+  { label: "В", text: "Выходной", color: "bg-green-500" },
   { label: "Б", text: "Больничный", color: "bg-violet-500" },
-  { label: "О", text: "Отпуск", color: "bg-sky-500" },
+  { label: "О", text: "Отпуск", color: "bg-blue-500" },
 ];
 
 function monthStart(value?: string) {
@@ -117,7 +117,9 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
   }
 
   const activeStores = storesResult.data.filter((store) => store.status === "active");
-  const selectedStoreId = selectedStoreParam && activeStores.some((store) => store.id === selectedStoreParam) ? selectedStoreParam : activeStores[0]?.id ?? "";
+  const selectedStoreId = selectedStoreParam && activeStores.some((store) => store.id === selectedStoreParam)
+    ? selectedStoreParam
+    : activeStores[0]?.id ?? "";
   const selectedMonth = monthStart(month);
   const selectedMonthEnd = monthEnd(selectedMonth);
 
@@ -186,81 +188,87 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
             <button className="h-12 rounded-md bg-brand px-6 font-semibold text-white">Показать</button>
           </form>
 
-          <form action="/admin/schedules/bulk-save" className="mt-5" method="post">
-            <input name="month" type="hidden" value={selectedMonth.slice(0, 7)} />
-            <input name="storeId" type="hidden" value={selectedStoreId} />
-            <p className="mb-4 text-sm text-muted">
-              {monthLabel(selectedMonth.slice(0, 7))}. В строках доступны только сотрудники выбранного магазина.
+          {activeStores.length === 0 ? (
+            <p className="mt-4 rounded-md border border-line p-3 text-sm text-muted">
+              У вас нет доступных активных магазинов для редактирования графика.
             </p>
+          ) : (
+            <form action="/admin/schedules/bulk-save" className="mt-5" method="post">
+              <input name="month" type="hidden" value={selectedMonth.slice(0, 7)} />
+              <input name="storeId" type="hidden" value={selectedStoreId} />
+              <p className="mb-4 text-sm text-muted">
+                {monthLabel(selectedMonth.slice(0, 7))}. В строках доступны только сотрудники выбранного магазина.
+              </p>
 
-            <div className="schedule-editor-frame">
-              <div className="schedule-editor-scroll">
-                <table className="schedule-editor-table">
-                  <thead>
-                    <tr>
-                      <th className="schedule-editor-sticky schedule-editor-employee-head">Сотрудник</th>
-                      {scheduleDates.map((cell) => (
-                        <th key={cell.date} className={cell.isWeekend ? "schedule-editor-day schedule-editor-weekend" : "schedule-editor-day"}>
-                          <span>{cell.dayName}</span>
-                          <strong>{cell.label}</strong>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scheduleRows.map((row) => (
-                      <tr key={row.key}>
-                        <td className="schedule-editor-sticky schedule-editor-employee-cell">
-                          <select name={`employee_${row.key}`} defaultValue={row.employee?.id ?? ""}>
-                            <option value="">—</option>
-                            {selectedStoreEmployees.map((candidate) => (
-                              <option key={candidate.id} value={candidate.id}>
-                                {employeeName(candidate)}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        {scheduleDates.map((cell) => {
-                          const selectedEmployeeId = row.employee?.id ?? "";
-                          const schedule = selectedEmployeeId ? storeSchedule.get(`${selectedEmployeeId}_${cell.date}`) : null;
-                          return (
-                            <td key={cell.date} className="schedule-editor-cell">
-                              <select name={`cell_${row.key}_${cell.date}`} defaultValue={schedule?.status ?? ""}>
-                                <option value="">—</option>
-                                {Object.entries(dayStatusLabels).map(([value, label]) => (
-                                  <option key={value} value={value}>
-                                    {label}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                          );
-                        })}
+              <div className="schedule-editor-frame">
+                <div className="schedule-editor-scroll">
+                  <table className="schedule-editor-table">
+                    <thead>
+                      <tr>
+                        <th className="schedule-editor-sticky schedule-editor-employee-head">Сотрудник</th>
+                        {scheduleDates.map((cell) => (
+                          <th key={cell.date} className={cell.isWeekend ? "schedule-editor-day schedule-editor-weekend" : "schedule-editor-day"}>
+                            <span>{cell.dayName}</span>
+                            <strong>{cell.label}</strong>
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {scheduleRows.map((row) => (
+                        <tr key={row.key}>
+                          <td className="schedule-editor-sticky schedule-editor-employee-cell">
+                            <select name={`employee_${row.key}`} defaultValue={row.employee?.id ?? ""}>
+                              <option value="">—</option>
+                              {selectedStoreEmployees.map((candidate) => (
+                                <option key={candidate.id} value={candidate.id}>
+                                  {employeeName(candidate)}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          {scheduleDates.map((cell) => {
+                            const selectedEmployeeId = row.employee?.id ?? "";
+                            const schedule = selectedEmployeeId ? storeSchedule.get(`${selectedEmployeeId}_${cell.date}`) : null;
+                            return (
+                              <td key={cell.date} className="schedule-editor-cell">
+                                <select name={`cell_${row.key}_${cell.date}`} defaultValue={schedule?.status ?? ""}>
+                                  <option value="">—</option>
+                                  {Object.entries(dayStatusLabels).map(([value, label]) => (
+                                    <option key={value} value={value}>
+                                      {label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted">
-                {statusLegend.map((item) => (
-                  <span key={item.label} className="inline-flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 rounded-full ${item.color}`} />
-                    {item.label} — {item.text}
-                  </span>
-                ))}
-                <span>— Нет смены</span>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted">
+                  {statusLegend.map((item) => (
+                    <span key={item.label} className="inline-flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${item.color}`} />
+                      {item.label} — {item.text}
+                    </span>
+                  ))}
+                  <span>— Нет смены</span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Link className="inline-flex h-12 items-center justify-center rounded-md border border-line px-6 font-semibold text-ink" href="/admin">
+                    Отмена
+                  </Link>
+                  <button className="h-12 rounded-md bg-brand px-8 font-semibold text-white">Сохранить всё</button>
+                </div>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Link className="inline-flex h-12 items-center justify-center rounded-md border border-line px-6 font-semibold text-ink" href="/admin">
-                  Отмена
-                </Link>
-                <button className="h-12 rounded-md bg-brand px-8 font-semibold text-white">Сохранить всё</button>
-              </div>
-            </div>
-          </form>
+            </form>
+          )}
         </section>
       </div>
       <BottomNav />

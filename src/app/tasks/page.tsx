@@ -2,7 +2,15 @@
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
-import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, TASK_CREATOR_ROLES } from "@/lib/auth/roles";
+import {
+  getCurrentEmployeeId,
+  getCurrentRoleCodes,
+  hasAnyRole,
+  MANAGE_ROLES,
+  RoleRelation,
+  roleCodeFromRelation,
+  TASK_CREATOR_ROLES,
+} from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { cleanText, employeeName } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -31,7 +39,7 @@ type EmployeeRow = {
 };
 
 type ProfileEmployeeRow = { id: string; employee_id: string | null };
-type ProfileRoleRow = { profile_id: string; roles: { code: string } | null };
+type ProfileRoleRow = { profile_id: string; roles: RoleRelation };
 
 type PageProps = {
   searchParams: Promise<{ message?: string; detail?: string; storeId?: string; employeeId?: string; dateFrom?: string; dateTo?: string; status?: string }>;
@@ -160,7 +168,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
 
   const stores = accessibleStores.map((store) => ({ id: store.id, name: store.name }));
   const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
-  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, row.roles?.code ?? null]));
+  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, roleCodeFromRelation(row.roles)]));
   const employeesInAccessibleStores = employeesResult.data.filter((employee) =>
     employee.employee_store_assignments.some((assignment) => accessibleStoreIds.includes(assignment.store_id)),
   );

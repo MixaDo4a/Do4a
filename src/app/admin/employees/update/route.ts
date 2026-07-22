@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { canDeleteTargetRole, canManageTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, RoleRelation, roleCodeFromRelation } from "@/lib/auth/roles";
+import {
+  canDeleteTargetRole,
+  canManageTargetRole,
+  getCurrentRoleCodes,
+  hasAnyRole,
+  MANAGE_ROLES,
+  ROLE_HIERARCHY,
+  RoleRelation,
+  roleCodeFromRelation,
+} from "@/lib/auth/roles";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-type RoleCode = "manager" | "auditor" | "store_manager" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer";
+type RoleCode =
+  | "manager"
+  | "auditor"
+  | "store_manager"
+  | "buyer"
+  | "warehouse_manager"
+  | "warehouse_assistant"
+  | "super_admin"
+  | "developer";
+
 type ProfileRow = { id: string; employee_id: string | null };
 type UserRoleRow = { roles: RoleRelation<RoleCode> };
 type TargetEmployeeRow = {
@@ -50,7 +68,16 @@ export async function POST(request: NextRequest) {
   const newPassword = value(formData, "new_password");
   const isActive = value(formData, "is_active") === "true";
 
-  if (!employeeId || !fullName || !phone || !email || !telegramUsername || !city || storeIds.length === 0 || !["padawan", "experienced"].includes(employeeStatus)) {
+  if (
+    !employeeId ||
+    !fullName ||
+    !phone ||
+    !email ||
+    !telegramUsername ||
+    !city ||
+    storeIds.length === 0 ||
+    !["padawan", "experienced"].includes(employeeStatus)
+  ) {
     return NextResponse.redirect(adminUrl(request, "admin-required"), 303);
   }
 
@@ -73,7 +100,6 @@ export async function POST(request: NextRequest) {
   }
 
   const currentRoleCode = ROLE_HIERARCHY.find((role): role is RoleCode => roles.includes(role));
-
   if (!currentRoleCode) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Не удалось определить вашу должность."), 303);
   }
@@ -149,15 +175,26 @@ export async function POST(request: NextRequest) {
   }
 
   const targetRoleForDelete = targetProfile?.id ? targetRoleCode : null;
-  if (targetEmployee.is_active && !isActive && currentRoleCode !== "developer" && (!targetRoleForDelete || !canDeleteTargetRole(currentRoleCode, targetRoleForDelete))) {
+  if (
+    targetEmployee.is_active &&
+    !isActive &&
+    currentRoleCode !== "developer" &&
+    (!targetRoleForDelete || !canDeleteTargetRole(currentRoleCode, targetRoleForDelete))
+  ) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Можно удалять только учётки ниже своей должности."), 303);
   }
 
   if (!currentScope.isDeveloper) {
-    const targetCity = targetEmployee?.city?.trim().toLowerCase() ?? "";
-    const targetHasAccessibleStore = targetEmployee?.employee_store_assignments.some((assignment) => accessibleStoreIds.has(assignment.store_id)) ?? false;
-    if (!targetEmployee || (currentCity && targetCity !== currentCity) || !targetHasAccessibleStore) {
-      return NextResponse.redirect(adminUrl(request, "admin-error", "Можно редактировать только сотрудников своего города и доступных магазинов."), 303);
+    const targetCity = targetEmployee.city?.trim().toLowerCase() ?? "";
+    const targetHasAccessibleStore = targetEmployee.employee_store_assignments.some((assignment) =>
+      accessibleStoreIds.has(assignment.store_id),
+    );
+
+    if ((currentCity && targetCity !== currentCity) || !targetHasAccessibleStore) {
+      return NextResponse.redirect(
+        adminUrl(request, "admin-error", "Можно редактировать только сотрудников своего города и доступных магазинов."),
+        303,
+      );
     }
   }
 

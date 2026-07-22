@@ -5,6 +5,7 @@
   ClipboardCheck,
   ListTodo,
   LogOut,
+  PackageSearch,
   ReceiptText,
   ShieldCheck,
   UserRound,
@@ -65,6 +66,7 @@ const roleLabels: Record<string, string> = {
   manager: "Менеджер",
   auditor: "Проверяющий",
   store_manager: "Управляющий",
+  buyer: "Закупщик",
   warehouse_manager: "Кладовщик",
   warehouse_assistant: "Помощник кладовщика",
   super_admin: "Супер-админ",
@@ -193,6 +195,11 @@ export default async function HomePage() {
   const superAdminView = roleCodes.includes("super_admin") && !auditorOnly && !storeManagerView;
   const managementView = storeManagerView || superAdminView;
   const managerOnlyView = roleCodes.includes("manager") && !auditorOnly && !managementView && !roleCodes.includes("developer");
+  const warehouseManagerOnlyView = roleCodes.includes("warehouse_manager") && !managementView && !roleCodes.includes("developer");
+  const warehouseAssistantOnlyView = roleCodes.includes("warehouse_assistant") && !managementView && !roleCodes.includes("developer");
+  const buyerOnlyView = roleCodes.includes("buyer") && !managementView && !roleCodes.includes("developer");
+  const supportOnlyView = warehouseManagerOnlyView || warehouseAssistantOnlyView || buyerOnlyView;
+  const canSeeAccessibleStoreSchedules = managementView || auditorOnly || warehouseManagerOnlyView || buyerOnlyView;
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
 
@@ -206,7 +213,7 @@ export default async function HomePage() {
     payrollQuery.eq("employee_id", profile.employee_id);
   }
 
-  const tasksQuery = managementView || auditorOnly
+  const tasksQuery = managementView || auditorOnly || warehouseManagerOnlyView
     ? supabase
         .from("tasks")
         .select("id, title, due_at")
@@ -252,7 +259,7 @@ export default async function HomePage() {
     checklistArchiveResult,
     employeesLookupResult,
   ] = await Promise.all([
-    auditorOnly
+    auditorOnly || supportOnlyView
       ? Promise.resolve({
           data: [] as { id: string; shift_date: string; status: string; stores: { name: string } | null }[],
           error: null,
@@ -282,7 +289,7 @@ export default async function HomePage() {
       .select("average_score")
       .order("submitted_at", { ascending: false })
       .limit(5),
-    auditorOnly || storeManagerView ? Promise.resolve({ data: [] as { total_payout_amount: number | string }[], error: null }) : payrollQuery,
+    auditorOnly || storeManagerView || supportOnlyView ? Promise.resolve({ data: [] as { total_payout_amount: number | string }[], error: null }) : payrollQuery,
     checklistArchiveQuery,
     employeesLookupQuery,
   ]);
@@ -335,7 +342,7 @@ export default async function HomePage() {
           .lte("shift_date", selectedMonthEnd)
           .order("shift_date", { ascending: true })
           .returns<SchedulePreview[]>()
-      : managementView || auditorOnly
+      : canSeeAccessibleStoreSchedules
       ? accessibleStoreIds.length > 0
         ? supabase
             .from("schedules")
@@ -389,7 +396,7 @@ export default async function HomePage() {
     const storeGroup = scheduleGroups.get(storeKey) ?? { store: row.stores, rows: new Map() };
     const employeeRow = storeGroup.rows.get(employeeId) ?? {
       employeeId,
-      employeeName: employeeNameById.get(employeeId) ?? "?????????",
+      employeeName: employeeNameById.get(employeeId) ?? "Сотрудник",
       statuses: new Map<string, string>(),
     };
     employeeRow.statuses.set(row.shift_date, row.status);
@@ -408,7 +415,15 @@ export default async function HomePage() {
           <div>
             <p className="text-sm font-medium text-muted">{todayLabel()}</p>
             <h1 className="mt-1 text-2xl font-semibold">
-              {auditorOnly ? "Проверки и задачи" : storeManagerView ? "Управление магазинами" : "Смена и задачи"}
+              {auditorOnly
+                ? "Проверки и задачи"
+                : storeManagerView
+                  ? "Управление магазинами"
+                  : buyerOnlyView
+                    ? "Закупки"
+                    : warehouseManagerOnlyView || warehouseAssistantOnlyView
+                      ? "Склад и задачи"
+                      : "Смена и задачи"}
             </h1>
           </div>
           <a
@@ -531,6 +546,43 @@ export default async function HomePage() {
                 )}
               </div>
             </section>
+
+            <section className="mt-6">
+              <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
+              <div className="mt-3 ui-panel p-4">
+                <UpcomingScheduleList items={upcomingSchedules} />
+              </div>
+            </section>
+          </>
+        ) : supportOnlyView ? (
+          <>
+            <section className="mt-6">
+              <SectionHeader icon={ListTodo} title="Ближайшие задачи" action="Все" href="/tasks" />
+              <div className="mt-3 divide-y divide-line ui-panel shadow-soft">
+                {tasks.length === 0 ? (
+                  <p className="p-4 text-sm text-muted">Открытых задач нет.</p>
+                ) : (
+                  tasks.map((task) => (
+                    <div key={task.id} className="flex items-start gap-3 p-4">
+                      <CheckCircle2 className="mt-0.5 text-brand" size={18} />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p>
+                        <p className="mt-1 text-sm text-muted">{formatDate(task.due_at)}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+
+            {buyerOnlyView || warehouseManagerOnlyView ? (
+              <section className="mt-6 ui-panel p-4">
+                <SectionHeader icon={PackageSearch} title="Закупки" action="Открыть" href="/procurement" />
+                <p className="mt-3 text-sm text-muted">
+                  Заказы поставщиков, счета, статусы приемки и проблемные поставки.
+                </p>
+              </section>
+            ) : null}
 
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />

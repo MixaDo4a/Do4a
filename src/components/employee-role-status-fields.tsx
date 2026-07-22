@@ -6,6 +6,7 @@ export type EmployeeRoleCode =
   | "manager"
   | "auditor"
   | "store_manager"
+  | "buyer"
   | "warehouse_manager"
   | "warehouse_assistant"
   | "super_admin"
@@ -46,7 +47,7 @@ export function EmployeeRoleStatusFields({
         onChange={(event) => setSelectedRole(event.target.value as EmployeeRoleCode | "")}
         required={!keepCurrentOption}
       >
-        {keepCurrentOption ? <option value="">Не менять должность</option> : <option value="">Должность</option>}
+        {keepCurrentOption ? <option value="">Должность не менять</option> : <option value="">Должность</option>}
         {assignableRoleCodes.map((code) => (
           <option key={code} value={code}>
             {roleLabels[code]}

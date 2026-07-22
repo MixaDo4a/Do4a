@@ -43,13 +43,14 @@ export async function getAccessibleStores() {
   const supabase = await createSupabaseServerClient();
   const scope = await getCurrentEmployeeScope();
 
+  const { data: rpcStores, error: rpcError } = await supabase.rpc("admin_list_accessible_stores");
+  if (!rpcError && rpcStores) {
+    return (rpcStores as AccessibleStoreRow[]).filter(
+      (store, index, list) => list.findIndex((item) => item.id === store.id) === index,
+    );
+  }
+
   if (scope.isDeveloper) {
-    const { data, error } = await supabase.rpc("admin_list_accessible_stores");
-
-    if (!error && data) {
-      return data as AccessibleStoreRow[];
-    }
-
     const { data: storesData, error: storesError } = await supabase.from("stores").select("id, name, city, status").order("city").order("name");
 
     if (!storesError && storesData) {
@@ -65,6 +66,7 @@ export async function getAccessibleStores() {
     .from("employee_store_assignments")
     .select("stores(id, name, city, status)")
     .eq("employee_id", scope.employeeId)
+    .lte("valid_from", new Date().toISOString().slice(0, 10))
     .or(`valid_to.is.null,valid_to.gte.${new Date().toISOString().slice(0, 10)}`);
 
   if (error || !data) {

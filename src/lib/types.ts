@@ -1,4 +1,12 @@
-export type UserRole = "manager" | "auditor" | "store_manager" | "super_admin" | "developer";
+export type UserRole =
+  | "manager"
+  | "auditor"
+  | "store_manager"
+  | "buyer"
+  | "warehouse_manager"
+  | "warehouse_assistant"
+  | "super_admin"
+  | "developer";
 
 export type EmployeeStatus = "padawan" | "experienced";
 

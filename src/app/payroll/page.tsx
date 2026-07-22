@@ -25,7 +25,7 @@ type PayrollEntry = {
   inventory_loss_amount: number;
   product_writeoff_amount: number;
   total_payout_amount: number;
-  employees: { full_name: string } | null;
+  employees: { full_name: string; is_active: boolean } | null;
 };
 
 const messages: Record<string, string> = {
@@ -73,7 +73,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
     ? await supabase
         .from("payroll_entries")
         .select(
-          "id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, total_payout_amount, employees(full_name)",
+          "id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, total_payout_amount, employees(full_name, is_active)",
         )
         .eq("payroll_period_id", payrollPeriod.id)
         .order("total_payout_amount", { ascending: false })
@@ -84,9 +84,10 @@ export default async function PayrollPage({ searchParams }: PageProps) {
     throw new Error(error.message);
   }
 
-  const total = entries.reduce((sum, row) => sum + Number(row.total_payout_amount), 0);
-  const sales = entries.reduce((sum, row) => sum + Number(row.sales_pay_amount), 0);
-  const deductions = entries.reduce(
+  const visibleEntries = entries.filter((entry) => entry.employees?.is_active === true);
+  const total = visibleEntries.reduce((sum, row) => sum + Number(row.total_payout_amount), 0);
+  const sales = visibleEntries.reduce((sum, row) => sum + Number(row.sales_pay_amount), 0);
+  const deductions = visibleEntries.reduce(
     (sum, row) =>
       sum +
       Number(row.advance_amount) +
@@ -117,12 +118,12 @@ export default async function PayrollPage({ searchParams }: PageProps) {
         </section>
 
         <section className="mt-6 grid gap-3">
-          {entries.length === 0 ? (
+          {visibleEntries.length === 0 ? (
             <div className="ui-panel p-4 text-sm text-muted shadow-soft">
               За выбранный месяц зарплата еще не рассчитана.
             </div>
           ) : (
-            entries.map((entry) => (
+            visibleEntries.map((entry) => (
               <article key={entry.id} className="ui-panel p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>

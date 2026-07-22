@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Bell, ClipboardCheck, Home, ListTodo, Settings, ShieldCheck, WalletCards } from "lucide-react";
+import { Bell, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -11,6 +11,13 @@ const items = [
   { href: "/", label: "Главная", icon: Home, roles: null, hideForAuditorOnly: false },
   { href: "/shifts", label: "Смены", icon: ShieldCheck, roles: null, hideForAuditorOnly: true },
   { href: "/tasks", label: "Задачи", icon: ListTodo, roles: null, hideForAuditorOnly: false },
+  {
+    href: "/procurement",
+    label: "Закуп",
+    icon: PackageSearch,
+    roles: ["buyer", "warehouse_manager", "super_admin", "developer"],
+    hideForAuditorOnly: false,
+  },
   {
     href: "/checklists",
     label: "Архив",
@@ -64,14 +71,18 @@ export function BottomNav() {
   const auditorOnly = roles.includes("auditor") && !roles.some((role) => managementRoles.includes(role));
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !roles.some((role) => managementRoles.includes(role));
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !roles.some((role) => managementRoles.includes(role));
+  const buyerOnly = roles.includes("buyer") && !roles.some((role) => managementRoles.includes(role));
   const visibleItems = items.filter((item) => {
     if (auditorOnly && item.hideForAuditorOnly) {
       return false;
     }
-    if (warehouseManagerOnly && ["/shifts", "/checklists", "/checklists/new"].includes(item.href)) {
+    if (warehouseManagerOnly && ["/shifts", "/checklists", "/checklists/new", "/payroll"].includes(item.href)) {
       return false;
     }
     if (warehouseAssistantOnly && !["/", "/tasks", "/payroll", "/notifications"].includes(item.href)) {
+      return false;
+    }
+    if (buyerOnly && !["/", "/procurement", "/notifications"].includes(item.href)) {
       return false;
     }
 
