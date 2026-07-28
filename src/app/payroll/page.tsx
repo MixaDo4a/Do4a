@@ -13,6 +13,7 @@ type PageProps = {
 
 type PayrollEntry = {
   id: string;
+  employee_id: string;
   shift_count: number;
   gross_revenue: number;
   sales_pay_amount: number;
@@ -26,6 +27,20 @@ type PayrollEntry = {
   product_writeoff_amount: number;
   total_payout_amount: number;
   employees: { full_name: string; is_active: boolean } | null;
+};
+
+type PayrollAdjustment = {
+  employee_id: string;
+  adjustment_type: string;
+  amount: number | string;
+};
+
+type AdjustmentTotals = {
+  bonus: number;
+  fine: number;
+  inventory: number;
+  expiration: number;
+  product: number;
 };
 
 const messages: Record<string, string> = {
@@ -46,6 +61,16 @@ function money(value: number | string) {
   return `${new Intl.NumberFormat("ru-RU", {
     maximumFractionDigits: 0,
   }).format(Number(value))} руб.`;
+}
+
+function emptyAdjustmentTotals(): AdjustmentTotals {
+  return {
+    bonus: 0,
+    fine: 0,
+    inventory: 0,
+    expiration: 0,
+    product: 0,
+  };
 }
 
 export default async function PayrollPage({ searchParams }: PageProps) {
@@ -73,7 +98,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
     ? await supabase
         .from("payroll_entries")
         .select(
-          "id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, total_payout_amount, employees(full_name, is_active)",
+          "id, employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, total_payout_amount, employees(full_name, is_active)",
         )
         .eq("payroll_period_id", payrollPeriod.id)
         .order("total_payout_amount", { ascending: false })
@@ -85,8 +110,35 @@ export default async function PayrollPage({ searchParams }: PageProps) {
   }
 
   const visibleEntries = entries.filter((entry) => entry.employees?.is_active === true);
+  const visibleEmployeeIds = visibleEntries.map((entry) => entry.employee_id);
+  const { data: adjustments, error: adjustmentsError } = visibleEmployeeIds.length > 0
+    ? await supabase
+        .from("payroll_adjustments")
+        .select("employee_id, adjustment_type, amount")
+        .eq("period_month", monthStart(month))
+        .in("employee_id", visibleEmployeeIds)
+        .returns<PayrollAdjustment[]>()
+    : { data: [] as PayrollAdjustment[], error: null };
+
+  if (adjustmentsError) {
+    throw new Error(adjustmentsError.message);
+  }
+
+  const adjustmentTotalsByEmployee = new Map<string, AdjustmentTotals>();
+  adjustments.forEach((adjustment) => {
+    const totals = adjustmentTotalsByEmployee.get(adjustment.employee_id) ?? emptyAdjustmentTotals();
+    if (adjustment.adjustment_type in totals) {
+      totals[adjustment.adjustment_type as keyof AdjustmentTotals] += Number(adjustment.amount);
+    }
+    adjustmentTotalsByEmployee.set(adjustment.employee_id, totals);
+  });
+
   const total = visibleEntries.reduce((sum, row) => sum + Number(row.total_payout_amount), 0);
   const sales = visibleEntries.reduce((sum, row) => sum + Number(row.sales_pay_amount), 0);
+  const manualDeductions = Array.from(adjustmentTotalsByEmployee.values()).reduce(
+    (sum, row) => sum + row.fine + row.inventory + row.expiration + row.product,
+    0,
+  );
   const deductions = visibleEntries.reduce(
     (sum, row) =>
       sum +
@@ -95,7 +147,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
       Number(row.inventory_loss_amount) +
       Number(row.product_writeoff_amount),
     0,
-  );
+  ) + manualDeductions;
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -123,7 +175,10 @@ export default async function PayrollPage({ searchParams }: PageProps) {
               За выбранный месяц зарплата еще не рассчитана.
             </div>
           ) : (
-            visibleEntries.map((entry) => (
+            visibleEntries.map((entry) => {
+              const adjustmentTotals = adjustmentTotalsByEmployee.get(entry.employee_id) ?? emptyAdjustmentTotals();
+
+              return (
               <article key={entry.id} className="ui-panel p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -140,14 +195,20 @@ export default async function PayrollPage({ searchParams }: PageProps) {
                   <span>План: {money(entry.plan_bonus_amount)}</span>
                   <span>Оклад за смену: {money(entry.checklist_salary_per_shift)}</span>
                   <span>Оклад: {money(entry.base_salary_amount)}</span>
-                  <span>Премии/штрафы: {money(entry.manual_bonus_amount)}</span>
+                  <span>Премии: +{money(adjustmentTotals.bonus)}</span>
+                  <span>Штрафы: -{money(adjustmentTotals.fine)}</span>
+                  <span>Корректировки инвенты: -{money(adjustmentTotals.inventory)}</span>
+                  <span>Корректировки просрока: -{money(adjustmentTotals.expiration)}</span>
+                  <span>Корректировки под ЗП: -{money(adjustmentTotals.product)}</span>
+                  <span>Итого премии/вычеты: {money(entry.manual_bonus_amount)}</span>
                   <span>Авансы: -{money(entry.advance_amount)}</span>
                   <span>Просрок: -{money(entry.expiration_writeoff_amount)}</span>
                   <span>Инвента: -{money(entry.inventory_loss_amount)}</span>
                   <span>Под ЗП: -{money(entry.product_writeoff_amount)}</span>
                 </div>
               </article>
-            ))
+              );
+            })
           )}
         </section>
       </div>

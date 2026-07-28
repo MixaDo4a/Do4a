@@ -96,7 +96,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", error.message), 303);
   }
 
-  const { error: recalcError } = await supabase.rpc("calculate_payroll_period", {
+  const { error: recalcError } = await supabase.rpc("calculate_employee_payroll_period", {
+    p_employee_id: employeeId,
     p_period_month: periodMonth,
   });
 
