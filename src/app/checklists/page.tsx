@@ -72,6 +72,7 @@ export default async function ChecklistsArchivePage({ searchParams }: PageProps)
 
   const { employeeId } = await getCurrentEmployeeId();
   const canSeeAll = hasAnyRole(roles, ["super_admin", "developer"]);
+  const canSeeStoreArchive = hasAnyRole(roles, ["store_manager"]);
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
 
@@ -83,7 +84,7 @@ export default async function ChecklistsArchivePage({ searchParams }: PageProps)
     .order("submitted_at", { ascending: false })
     .limit(100);
 
-  if (!canSeeAll && employeeId) {
+  if (!canSeeAll && !canSeeStoreArchive && employeeId) {
     query = query.eq("auditor_employee_id", employeeId);
   }
   if (params.store_id) {
@@ -100,6 +101,9 @@ export default async function ChecklistsArchivePage({ searchParams }: PageProps)
   }
   if (!canSeeAll && accessibleStoreIds.length > 0) {
     query = query.in("store_id", accessibleStoreIds);
+  }
+  if (!canSeeAll && accessibleStoreIds.length === 0) {
+    query = query.eq("store_id", "00000000-0000-0000-0000-000000000000");
   }
 
   const [employeesResult, checklistsResult] = await Promise.all([

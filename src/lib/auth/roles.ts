@@ -88,7 +88,7 @@ export function canDeleteTargetRole(currentRole: string, targetRole: string) {
   return roleRank(targetRole) > roleRank(currentRole);
 }
 
-export const CHECKLIST_ROLES = ["auditor", "super_admin", "developer"];
+export const CHECKLIST_ROLES = ["auditor", "store_manager", "super_admin", "developer"];
 export const MANAGE_ROLES = ["store_manager", "super_admin", "developer"];
 export const OPEN_SHIFT_ROLES = ["manager", "store_manager", "super_admin", "developer"];
 export const TASK_CREATOR_ROLES = ["store_manager", "super_admin", "developer", "warehouse_manager", "warehouse_assistant"];
