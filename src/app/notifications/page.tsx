@@ -1,6 +1,7 @@
 ﻿import { Bell, CheckCheck, ExternalLink } from "lucide-react";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
+import { PushNotificationsPanel } from "@/components/push-notifications-panel";
 import { SectionHeader } from "@/components/section-header";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -37,6 +38,11 @@ const eventLabels: Record<string, string> = {
   unclosed_shift: "Незакрытая смена",
   auto_closed_shift: "Автозакрытие",
   bad_checklist: "Плохой чек-лист",
+  morning_routine_started: "Утренний распорядок",
+  morning_routine_completed: "Утренний распорядок",
+  evening_routine_started: "Вечерний распорядок",
+  evening_routine_completed: "Вечерний распорядок",
+  evening_routine_reminder: "Вечерний распорядок",
 };
 
 function relatedHref(item: NotificationRow) {
@@ -81,6 +87,7 @@ export default async function NotificationsPage() {
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-4xl">
         <SectionHeader icon={Bell} title="Уведомления" showBack />
+        <PushNotificationsPanel />
         {data.some((item) => !item.is_read) ? (
           <form action="/notifications/read-all" className="mt-4" method="post">
             <button className="inline-flex h-10 items-center justify-center gap-2 ui-panel px-3 text-sm font-semibold shadow-soft">
@@ -138,6 +145,9 @@ export default async function NotificationsPage() {
     </main>
   );
 }
+
+
+
 
 
 

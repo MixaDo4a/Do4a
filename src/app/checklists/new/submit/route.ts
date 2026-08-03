@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { CHECKLIST_ROLES, getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
 function integer(formData: FormData, key: string) {
   const raw = String(formData.get(key) ?? "").trim();
@@ -118,13 +119,20 @@ export async function POST(request: NextRequest) {
 
   const { data: employee, error: employeeError } = await supabase
     .from("employees")
-    .select("employee_status")
+    .select("employee_status, full_name")
     .eq("id", employeeId)
     .single();
 
   if (employeeError || !employee) {
     return NextResponse.redirect(new URL("/checklists/new?message=employee-error", request.url), 303);
   }
+
+  const [{ data: storeRow }, { data: checkedEmployeeRow }] = await Promise.all([
+    supabase.from("stores").select("name, city").eq("id", storeId).maybeSingle<{ name: string; city: string }>(),
+    supabase.from("employees").select("full_name").eq("id", employeeId).maybeSingle<{ full_name: string }>(),
+  ]);
+  const storeLabel = storeRow ? `${storeRow.name}, ${storeRow.city}` : storeId;
+  const employeeLabel = checkedEmployeeRow?.full_name ?? "Сотрудник";
 
   const [itemsResult, settingsResult] = await Promise.all([
     supabase
@@ -257,7 +265,7 @@ export async function POST(request: NextRequest) {
     p_employee_id: employeeId,
     p_event_type: "checklist_saved",
     p_title: "Новый чек-лист",
-    p_body: `Средний балл: ${averageScore.toFixed(2)}`,
+    p_body: `${employeeLabel} · ${storeLabel} · средний балл ${averageScore.toFixed(2)}`,
     p_related_entity_type: "checklist_submission",
     p_related_entity_id: submission.id,
   });
@@ -266,7 +274,7 @@ export async function POST(request: NextRequest) {
     p_store_id: storeId,
     p_event_type: "checklist_saved",
     p_title: "Новый чек-лист",
-    p_body: `Проверка магазина ${storeId}`,
+    p_body: `${employeeLabel} · ${storeLabel} · новый чек-лист`,
     p_exclude_employee_id: employeeId,
     p_related_entity_type: "checklist_submission",
     p_related_entity_id: submission.id,
@@ -276,10 +284,16 @@ export async function POST(request: NextRequest) {
     p_store_id: storeId,
     p_event_type: "checklist_saved",
     p_title: "Новый чек-лист",
-    p_body: `Средний балл: ${averageScore.toFixed(2)}`,
+    p_body: `${employeeLabel} · ${storeLabel} · средний балл ${averageScore.toFixed(2)}`,
     p_related_entity_type: "checklist_submission",
     p_related_entity_id: submission.id,
   });
+
+  void dispatchPushNotificationsFromEvent(supabase, {
+    eventType: "checklist_saved",
+    relatedEntityType: "checklist_submission",
+    relatedEntityId: submission.id,
+  }).catch(() => null);
 
   return NextResponse.redirect(
     new URL(`/checklists/new?message=saved&salary=${salaryPerShiftAmount}&score=${averageScore}`, request.url),

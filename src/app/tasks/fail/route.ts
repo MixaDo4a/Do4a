@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
 function tasksUrl(request: NextRequest, message: string, detail?: string) {
   const url = new URL("/tasks", request.url);
@@ -72,11 +73,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(tasksUrl(request, "task-error", commentError.message), 303);
   }
 
+  const [{ data: storeRow }, { data: employeeRow }] = await Promise.all([
+    supabase.from("stores").select("name, city").eq("id", task.store_id).maybeSingle<{ name: string; city: string }>(),
+    supabase.from("employees").select("full_name").eq("id", employeeId).maybeSingle<{ full_name: string }>(),
+  ]);
+  const storeLabel = storeRow ? `${storeRow.name}, ${storeRow.city}` : task.store_id;
+  const employeeLabel = employeeRow?.full_name ?? "Сотрудник";
+  const commentBody = `${employeeLabel} · ${storeLabel} · ${comment}`;
+
   await supabase.rpc("send_employee_notification", {
     p_employee_id: task.assignee_employee_id,
     p_event_type: "task_overdue",
     p_title: "Задача просрочена",
-    p_body: comment,
+    p_body: commentBody,
     p_related_entity_type: "task",
     p_related_entity_id: taskId,
   });
@@ -85,7 +94,7 @@ export async function POST(request: NextRequest) {
     p_store_id: task.store_id,
     p_event_type: "task_overdue",
     p_title: "Задача просрочена",
-    p_body: comment,
+    p_body: commentBody,
     p_related_entity_type: "task",
     p_related_entity_id: taskId,
   });
@@ -94,11 +103,17 @@ export async function POST(request: NextRequest) {
     p_store_id: task.store_id,
     p_event_type: "task_overdue",
     p_title: "Задача просрочена",
-    p_body: comment,
+    p_body: commentBody,
     p_exclude_employee_id: task.assignee_employee_id,
     p_related_entity_type: "task",
     p_related_entity_id: taskId,
   });
+
+  void dispatchPushNotificationsFromEvent(supabase, {
+    eventType: "task_overdue",
+    relatedEntityType: "task",
+    relatedEntityId: taskId,
+  }).catch(() => null);
 
   return NextResponse.redirect(tasksUrl(request, "task-failed"), 303);
 }

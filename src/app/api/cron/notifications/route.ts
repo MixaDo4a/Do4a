@@ -8,13 +8,20 @@ export async function POST(request: Request) {
 
   if (cronSecret && providedSecret === cronSecret) {
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.rpc("run_notification_cron");
+    const [{ data: cronData, error: cronError }, { data: routineData, error: routineError }] = await Promise.all([
+      supabase.rpc("run_notification_cron"),
+      supabase.rpc("run_day_routine_evening_reminders"),
+    ]);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (cronError) {
+      return NextResponse.json({ error: cronError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, result: data });
+    if (routineError) {
+      return NextResponse.json({ error: routineError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, result: { cron: cronData, routine: routineData } });
   }
 
   const supabase = await createSupabaseServerClient();
@@ -31,11 +38,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { data, error } = await supabase.rpc("run_notification_cron");
+  const [{ data: cronData, error: cronError }, { data: routineData, error: routineError }] = await Promise.all([
+    supabase.rpc("run_notification_cron"),
+    supabase.rpc("run_day_routine_evening_reminders"),
+  ]);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (cronError) {
+    return NextResponse.json({ error: cronError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, result: data });
+  if (routineError) {
+    return NextResponse.json({ error: routineError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, result: { cron: cronData, routine: routineData } });
 }

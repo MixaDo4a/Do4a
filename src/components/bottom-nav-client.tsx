@@ -1,9 +1,10 @@
 "use client";
 
-import { Bell, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
+import { Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { registerPushServiceWorker } from "@/lib/push-client";
 
 type BottomNavItem = {
   href: string;
@@ -19,6 +20,13 @@ const items: BottomNavItem[] = [
   { href: "/", label: "Главная", icon: Home, roles: null, hideForAuditorOnly: false },
   { href: "/shifts", label: "Смены", icon: ShieldCheck, roles: null, hideForAuditorOnly: true },
   { href: "/tasks", label: "Задачи", icon: ListTodo, roles: null, hideForAuditorOnly: false },
+  {
+    href: "/routine",
+    label: "Распор.",
+    icon: CalendarClock,
+    roles: ["manager", "store_manager", "super_admin", "developer"],
+    hideForAuditorOnly: false,
+  },
   {
     href: "/procurement",
     label: "Закуп",
@@ -57,6 +65,49 @@ export function BottomNavClient({ roles }: { roles: string[] }) {
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !roles.some((role) => managementRoles.includes(role));
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !roles.some((role) => managementRoles.includes(role));
   const buyerOnly = roles.includes("buyer") && !roles.some((role) => managementRoles.includes(role));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void registerPushServiceWorker();
+
+    const runMaintenanceChecks = async () => {
+      try {
+        await Promise.all([
+          fetch("/api/routine/reminders", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+          }),
+          fetch("/api/tasks/recurrences", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+          }),
+          fetch("/api/push/sync", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+          }),
+        ]);
+      } catch {
+        // Ignore transient network errors. The server-side routine function has its own dedupe log.
+      }
+    };
+
+    void runMaintenanceChecks();
+    const timer = window.setInterval(() => {
+      if (!cancelled) {
+        void runMaintenanceChecks();
+      }
+    }, 10 * 60 * 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   const visibleItems = useMemo(
     () =>
       items.filter((item) => {

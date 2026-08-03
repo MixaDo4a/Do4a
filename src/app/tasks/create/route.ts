@@ -9,7 +9,9 @@ import {
   TASK_CREATOR_ROLES,
 } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
+import { advanceTaskRecurrenceRun, type TaskRecurrenceFrequency } from "@/lib/task-recurrence";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -34,6 +36,7 @@ export async function POST(request: NextRequest) {
   const description = value(formData, "description");
   const dueAt = value(formData, "due_at");
   const priority = value(formData, "priority") || "normal";
+  const recurrenceFrequency = value(formData, "recurrence_frequency");
 
   if (!storeId || !assigneeEmployeeId || !title) {
     return NextResponse.redirect(tasksUrl(request, "task-required"), 303);
@@ -43,6 +46,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Некорректный приоритет задачи."), 303);
   }
 
+  const recurrenceEnabled = recurrenceFrequency && recurrenceFrequency !== "none";
+  const isValidRecurrenceFrequency = ["daily", "weekly", "monthly"].includes(recurrenceFrequency);
+  if (recurrenceFrequency && recurrenceFrequency !== "none" && !isValidRecurrenceFrequency) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Некорректный интервал повторения задачи."), 303);
+  }
+
   let dueAtIso: string | null = null;
   if (dueAt) {
     const dueAtDate = new Date(dueAt);
@@ -50,6 +59,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(tasksUrl(request, "task-error", "Некорректная дата задачи."), 303);
     }
     dueAtIso = dueAtDate.toISOString();
+  }
+
+  if (recurrenceEnabled && !dueAtIso) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Для повторяющейся задачи укажите дату и время первого запуска."), 303);
   }
 
   const supabase = await createSupabaseServerClient();
@@ -71,6 +84,26 @@ export async function POST(request: NextRequest) {
   const accessibleStoreIds = new Set(accessibleStores.map((store) => store.id));
   if (!accessibleStoreIds.has(storeId)) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Можно ставить задачи только по доступным магазинам."), 303);
+  }
+
+  const duplicateWindowStart = new Date(Date.now() - 15_000).toISOString();
+  const { data: duplicateTask, error: duplicateError } = await supabase
+    .from("tasks")
+    .select("id")
+    .eq("store_id", storeId)
+    .eq("assignee_employee_id", assigneeEmployeeId)
+    .eq("title", title)
+    .eq("priority", priority)
+    .eq("status", "open")
+    .gte("created_at", duplicateWindowStart)
+    .maybeSingle<{ id: string }>();
+
+  if (duplicateError) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", duplicateError.message), 303);
+  }
+
+  if (duplicateTask) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Похоже, такая задача уже была создана только что."), 303);
   }
 
   const { data: assigneeStoreAssignment, error: assigneeStoreError } = await supabase
@@ -115,6 +148,30 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  let recurrenceRuleId: string | null = null;
+  if (recurrenceEnabled) {
+    const recurrenceDueAt = advanceTaskRecurrenceRun(new Date(dueAtIso as string), recurrenceFrequency as TaskRecurrenceFrequency).toISOString();
+    const { data: recurrenceRule, error: recurrenceError } = await supabase
+      .from("task_recurrence_rules")
+      .insert({
+        store_id: storeId,
+        assignee_employee_id: assigneeEmployeeId,
+        title,
+        description: description || null,
+        frequency: recurrenceFrequency,
+        next_run_at: recurrenceDueAt,
+        created_by: user.id,
+      })
+      .select("id")
+      .single<{ id: string }>();
+
+    if (recurrenceError || !recurrenceRule) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", recurrenceError?.message ?? "Не удалось создать правило повторения задачи."), 303);
+    }
+
+    recurrenceRuleId = recurrenceRule.id;
+  }
+
   const { data, error } = await supabase
     .from("tasks")
     .insert({
@@ -126,19 +183,35 @@ export async function POST(request: NextRequest) {
       due_at: dueAtIso,
       priority,
       status: "open",
+      recurrence_rule_id: recurrenceRuleId,
     })
     .select("id")
     .single();
 
   if (error || !data) {
+    if (recurrenceRuleId) {
+      await supabase.from("task_recurrence_rules").delete().eq("id", recurrenceRuleId);
+    }
     return NextResponse.redirect(tasksUrl(request, "task-error", error?.message), 303);
   }
+
+  const [{ data: storeRow }, { data: employeeRow }, { data: assigneeRow }] = await Promise.all([
+    supabase.from("stores").select("name, city").eq("id", storeId).maybeSingle<{ name: string; city: string }>(),
+    employeeId
+      ? supabase.from("employees").select("full_name").eq("id", employeeId).maybeSingle<{ full_name: string }>()
+      : Promise.resolve({ data: null, error: null }),
+    supabase.from("employees").select("full_name").eq("id", assigneeEmployeeId).maybeSingle<{ full_name: string }>(),
+  ]);
+  const storeLabel = storeRow ? `${storeRow.name}, ${storeRow.city}` : storeId;
+  const authorLabel = employeeRow?.full_name ?? "Сотрудник";
+  const assigneeLabel = assigneeRow?.full_name ?? "Сотрудник";
+  const taskBody = `${assigneeLabel} · ${storeLabel} · ${title}`;
 
   await supabase.rpc("send_employee_notification", {
     p_employee_id: assigneeEmployeeId,
     p_event_type: "new_task",
     p_title: "Новая задача",
-    p_body: title,
+    p_body: taskBody,
     p_related_entity_type: "task",
     p_related_entity_id: data.id,
   });
@@ -147,7 +220,7 @@ export async function POST(request: NextRequest) {
     p_store_id: storeId,
     p_event_type: "new_task",
     p_title: "Новая задача",
-    p_body: title,
+    p_body: `${authorLabel} поставил задачу на магазин ${storeLabel}: ${title}`,
     p_related_entity_type: "task",
     p_related_entity_id: data.id,
   });
@@ -156,11 +229,17 @@ export async function POST(request: NextRequest) {
     p_store_id: storeId,
     p_event_type: "new_task",
     p_title: "Новая задача",
-    p_body: title,
+    p_body: taskBody,
     p_exclude_employee_id: assigneeEmployeeId,
     p_related_entity_type: "task",
     p_related_entity_id: data.id,
   });
+
+  void dispatchPushNotificationsFromEvent(supabase, {
+    eventType: "new_task",
+    relatedEntityType: "task",
+    relatedEntityId: data.id,
+  }).catch(() => null);
 
   return NextResponse.redirect(tasksUrl(request, "task-created"), 303);
 }

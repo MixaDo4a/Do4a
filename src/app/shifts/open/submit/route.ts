@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getCurrentRoleCodes, hasAnyRole, OPEN_SHIFT_ROLES } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
 function openUrl(request: NextRequest, message: string, detail?: string) {
   const url = new URL("/shifts/open", request.url);
@@ -83,15 +84,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(openUrl(request, "open-error", participantsError.message), 303);
   }
 
+  const [{ data: storeRow }, { data: employeeRow }] = await Promise.all([
+    supabase.from("stores").select("name, city, timezone").eq("id", storeId).maybeSingle<{ name: string; city: string; timezone: string | null }>(),
+    supabase.from("employees").select("full_name").eq("id", primaryEmployeeId).maybeSingle<{ full_name: string }>(),
+  ]);
+
+  const timeFormatter = new Intl.DateTimeFormat("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(storeRow?.timezone ? { timeZone: storeRow.timezone } : {}),
+  });
+  const openedAt = timeFormatter.format(new Date());
+  const storeLabel = storeRow ? `${storeRow.name}, ${storeRow.city}` : storeId;
+  const employeeLabel = employeeRow?.full_name ?? "Сотрудник";
+  const notificationBody = `${employeeLabel} ${storeLabel} ${openedAt}`;
+
   await supabase.rpc("send_store_managers_notification", {
     p_store_id: storeId,
     p_event_type: "shift_opened",
     p_title: "Смена открыта",
-    p_body: shiftDate,
+    p_body: notificationBody,
     p_related_entity_type: "shift",
     p_related_entity_id: shift.id,
   });
 
-  return NextResponse.redirect(new URL(`/shifts?message=shift-opened`, request.url), 303);
+  void dispatchPushNotificationsFromEvent(supabase, {
+    eventType: "shift_opened",
+    relatedEntityType: "shift",
+    relatedEntityId: shift.id,
+  }).catch(() => null);
+
+  return NextResponse.redirect(new URL(`/routine/morning?shiftId=${shift.id}&message=shift-opened`, request.url), 303);
 }
 

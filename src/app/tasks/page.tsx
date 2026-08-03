@@ -17,6 +17,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type TaskRow = {
   id: string;
+  recurrence_rule_id: string | null;
   title: string;
   description: string | null;
   due_at: string | null;
@@ -42,7 +43,16 @@ type ProfileEmployeeRow = { id: string; employee_id: string | null };
 type ProfileRoleRow = { profile_id: string; roles: RoleRelation };
 
 type PageProps = {
-  searchParams: Promise<{ message?: string; detail?: string; storeId?: string; employeeId?: string; dateFrom?: string; dateTo?: string; status?: string }>;
+  searchParams: Promise<{
+    message?: string;
+    detail?: string;
+    storeId?: string;
+    employeeId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+    deadline?: string;
+  }>;
 };
 
 const messageLabels: Record<string, string> = {
@@ -70,7 +80,7 @@ const statusLabels: Record<TaskRow["status"], string> = {
 
 function formatDue(value: string | null) {
   if (!value) {
-    return "Без срока";
+    return "Бессрочная";
   }
 
   return new Intl.DateTimeFormat("ru-RU", {
@@ -82,7 +92,7 @@ function formatDue(value: string | null) {
 }
 
 export default async function TasksPage({ searchParams }: PageProps) {
-  const { message, detail, storeId, employeeId: selectedEmployeeId, dateFrom, dateTo, status } = await searchParams;
+  const { message, detail, storeId, employeeId: selectedEmployeeId, dateFrom, dateTo, status, deadline } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -107,7 +117,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
           let query = supabase
             .from("tasks")
             .select(
-              "id, title, description, due_at, priority, status, stores(id, name), employees(id, full_name), task_comments(id, body, created_at)",
+              "id, recurrence_rule_id, title, description, due_at, priority, status, stores(id, name), employees(id, full_name), task_comments(id, body, created_at)",
             )
             .in("store_id", accessibleStoreIds)
             .order("due_at", { ascending: true, nullsFirst: false })
@@ -128,6 +138,12 @@ export default async function TasksPage({ searchParams }: PageProps) {
           if (status && ["open", "in_progress", "done", "overdue", "cancelled"].includes(status)) {
             query = query.eq("status", status);
           }
+          if (deadline === "no_date") {
+            query = query.is("due_at", null);
+          }
+          if (deadline === "has_date") {
+            query = query.not("due_at", "is", null);
+          }
 
           return query.returns<TaskRow[]>();
         })()
@@ -135,7 +151,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
         ? supabase
             .from("tasks")
             .select(
-              "id, title, description, due_at, priority, status, stores(id, name), employees(id, full_name), task_comments(id, body, created_at)",
+              "id, recurrence_rule_id, title, description, due_at, priority, status, stores(id, name), employees(id, full_name), task_comments(id, body, created_at)",
             )
             .eq("assignee_employee_id", employeeId)
             .order("due_at", { ascending: true, nullsFirst: false })
@@ -220,6 +236,11 @@ export default async function TasksPage({ searchParams }: PageProps) {
                 <option value="overdue">Просроченная</option>
                 <option value="cancelled">Отменена</option>
               </select>
+              <select className="h-11 rounded-md border border-line px-3" name="deadline" defaultValue={deadline ?? ""}>
+                <option value="">Все сроки</option>
+                <option value="no_date">Бессрочные</option>
+                <option value="has_date">С датой</option>
+              </select>
               <input className="h-11 rounded-md border border-line px-3" name="dateFrom" type="date" defaultValue={dateFrom ?? ""} />
               <input className="h-11 rounded-md border border-line px-3" name="dateTo" type="date" defaultValue={dateTo ?? ""} />
               <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white lg:col-span-4">Показать задачи</button>
@@ -263,7 +284,16 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   <option value="high">Высокий</option>
                   <option value="urgent">Срочно</option>
                 </select>
+                <select className="h-11 rounded-md border border-line px-3 sm:col-span-2" name="recurrence_frequency" defaultValue="none">
+                  <option value="none">Без повторения</option>
+                  <option value="daily">Каждый день</option>
+                  <option value="weekly">Каждую неделю</option>
+                  <option value="monthly">Каждый месяц</option>
+                </select>
               </div>
+              <p className="text-xs text-muted">
+                Если выбрано повторение, первая дата и время запуска обязательны. Дальше задача будет повторяться автоматически.
+              </p>
               {stores.length === 0 || taskAssignees.length === 0 ? (
                 <p className="rounded-md bg-surface p-3 text-sm text-muted">
                   Для создания задачи нужен хотя бы один активный магазин и один активный сотрудник.
@@ -298,9 +328,14 @@ export default async function TasksPage({ searchParams }: PageProps) {
                     <p className="mt-2 text-sm text-muted">{cleanText(task.description, "Описание повреждено")}</p>
                   ) : null}
                 </div>
-                <span className="rounded-md bg-surface px-2 py-1 text-xs font-medium">
-                  {priorityLabels[task.priority]}
-                </span>
+                <div className="flex flex-col items-end gap-2">
+                  {task.recurrence_rule_id ? (
+                    <span className="rounded-md border border-brand/30 bg-brand/10 px-2 py-1 text-xs font-medium text-brand">
+                      Повторяющаяся
+                    </span>
+                  ) : null}
+                  <span className="rounded-md bg-surface px-2 py-1 text-xs font-medium">{priorityLabels[task.priority]}</span>
+                </div>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-3 text-sm text-muted">

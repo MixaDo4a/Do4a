@@ -3,6 +3,7 @@ import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles"
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
 type ExistingScheduleRow = {
   id: string;
@@ -195,6 +196,12 @@ export async function POST(request: NextRequest) {
       p_related_entity_id: null,
     });
   }
+
+  void dispatchPushNotificationsFromEvent(supabase, {
+    eventType: "schedule_changed",
+    relatedEntityType: "schedule",
+    sinceMinutes: 15,
+  }).catch(() => null);
 
   return NextResponse.redirect(adminUrl(request, "schedule-created"), 303);
 }

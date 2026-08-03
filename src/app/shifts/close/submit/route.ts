@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
 const denominationIds = [
   "5000",
@@ -134,17 +135,33 @@ async function notifyShiftClosed(
 ) {
   const { data: shift } = await supabase
     .from("shifts")
-    .select("store_id, shift_date, opened_by_employee_id")
+    .select("store_id, shift_date, opened_by_employee_id, stores(name, city, timezone), employees(full_name)")
     .eq("id", shiftId)
-    .maybeSingle<{ store_id: string; shift_date: string; opened_by_employee_id: string }>();
+    .maybeSingle<{
+      store_id: string;
+      shift_date: string;
+      opened_by_employee_id: string;
+      stores: { name: string; city: string; timezone: string | null } | null;
+      employees: { full_name: string } | null;
+    }>();
 
   if (!shift) return;
+
+  const timeFormatter = new Intl.DateTimeFormat("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(shift.stores?.timezone ? { timeZone: shift.stores.timezone } : {}),
+  });
+  const closedAt = timeFormatter.format(new Date());
+  const storeLabel = shift.stores ? `${shift.stores.name}, ${shift.stores.city}` : shift.store_id;
+  const employeeLabel = shift.employees?.full_name ?? "Сотрудник";
+  const notificationBody = `${employeeLabel} ${storeLabel} ${closedAt}`;
 
   await supabase.rpc("send_employee_notification", {
     p_employee_id: shift.opened_by_employee_id,
     p_event_type: "shift_closed",
     p_title: "Смена закрыта",
-    p_body: shift.shift_date,
+    p_body: notificationBody,
     p_related_entity_type: "shift",
     p_related_entity_id: shiftId,
   });
@@ -153,7 +170,7 @@ async function notifyShiftClosed(
     p_store_id: shift.store_id,
     p_event_type: "shift_closed",
     p_title: "Смена закрыта",
-    p_body: shift.shift_date,
+    p_body: notificationBody,
     p_related_entity_type: "shift",
     p_related_entity_id: shiftId,
   });
@@ -251,6 +268,12 @@ export async function POST(request: NextRequest) {
   }
 
   await notifyShiftClosed(supabase, shiftId);
+  void dispatchPushNotificationsFromEvent(supabase, {
+    eventType: "shift_closed",
+    relatedEntityType: "shift",
+    relatedEntityId: shiftId,
+  }).catch(() => null);
+
   return NextResponse.redirect(new URL("/shifts?message=shift-closed", request.url), 303);
 }
 

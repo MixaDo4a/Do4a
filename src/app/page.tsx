@@ -164,6 +164,12 @@ export default async function HomePage() {
     redirect("/login");
   }
 
+  try {
+    await supabase.rpc("run_day_routine_evening_reminders");
+  } catch {
+    // Best-effort reminder check without cron.
+  }
+
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("employee_id, full_name, email, employees(full_name, employee_status)")

@@ -1,0 +1,64 @@
+"use client";
+
+import { BellRing, Check, Smartphone } from "lucide-react";
+import { useState } from "react";
+import { enablePushNotifications, registerPushServiceWorker } from "@/lib/push-client";
+
+export function PushNotificationsPanel() {
+  const [status, setStatus] = useState<string>("idle");
+  const [loading, setLoading] = useState(false);
+
+  async function onEnable() {
+    setLoading(true);
+    try {
+      await registerPushServiceWorker();
+      const result = await enablePushNotifications();
+      setStatus(result.ok ? "enabled" : result.message);
+    } catch {
+      setStatus("error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="mt-4 ui-panel p-4 shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <BellRing size={16} className="text-brand" />
+            Push-уведомления на телефон
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Подключите браузерные push-уведомления, чтобы сообщения приходили даже при закрытом приложении.
+          </p>
+        </div>
+        <button
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-soft transition hover:brightness-110 disabled:opacity-60"
+          disabled={loading}
+          onClick={onEnable}
+          type="button"
+        >
+          {loading ? <Smartphone size={16} className="animate-pulse" /> : <Check size={16} />}
+          {loading ? "Подключаем..." : "Включить push"}
+        </button>
+      </div>
+      {status !== "idle" ? (
+        <p className="mt-3 text-xs text-muted">
+          {status === "enabled"
+            ? "Push-уведомления подключены."
+            : status === "permission-denied"
+              ? "Доступ к уведомлениям не выдан."
+              : status === "push-unsupported"
+                ? "Этот браузер не поддерживает push-уведомления."
+                : status === "sw-unsupported"
+                  ? "Service Worker недоступен."
+                  : status === "unauthorized"
+                    ? "Сначала войдите в приложение."
+                    : "Не удалось подключить push-уведомления."}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
