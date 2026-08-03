@@ -1,5 +1,6 @@
 ﻿import {
   Bell,
+  Banknote,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
@@ -18,6 +19,7 @@ import { SectionHeader } from "@/components/section-header";
 import { UpcomingScheduleList } from "@/components/upcoming-schedule-list";
 import { cleanText, employeeName } from "@/lib/display";
 import { getAccessibleStores } from "@/lib/auth/stores";
+import { buildStoreCashBalances, type StoreCashShiftRow } from "@/lib/cash";
 import { redirectInvalidSession } from "@/lib/supabase/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -208,6 +210,19 @@ export default async function HomePage() {
   const canSeeAccessibleStoreSchedules = managementView || auditorOnly || warehouseManagerOnlyView || buyerOnlyView;
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
+  const cashShiftsQuery =
+    accessibleStoreIds.length > 0
+      ? supabase
+          .from("shifts")
+          .select(
+            "store_id, shift_date, closed_at, status, stores(id, name, city), shift_closing_reports(cash_collection_amount, shift_cash_counts(line_amount))",
+          )
+          .in("store_id", accessibleStoreIds)
+          .in("status", ["closed", "auto_closed"])
+          .order("closed_at", { ascending: false })
+          .limit(50)
+          .returns<StoreCashShiftRow[]>()
+      : Promise.resolve({ data: [] as StoreCashShiftRow[], error: null });
 
   const payrollQuery = supabase
     .from("payroll_entries")
@@ -264,6 +279,7 @@ export default async function HomePage() {
     payrollResult,
     checklistArchiveResult,
     employeesLookupResult,
+    cashShiftsResult,
   ] = await Promise.all([
     auditorOnly || supportOnlyView
       ? Promise.resolve({
@@ -298,6 +314,7 @@ export default async function HomePage() {
     auditorOnly || storeManagerView || supportOnlyView ? Promise.resolve({ data: [] as { total_payout_amount: number | string }[], error: null }) : payrollQuery,
     checklistArchiveQuery,
     employeesLookupQuery,
+    cashShiftsQuery,
   ]);
 
   if (shiftsResult.error) {
@@ -329,6 +346,8 @@ export default async function HomePage() {
     ? checklistResult.data.reduce((sum, row) => sum + Number(row.average_score), 0) / checklistResult.data.length
     : 10;
   const payrollPreview = payrollResult.data?.[0]?.total_payout_amount ?? 0;
+  const cashBalances = buildStoreCashBalances(cashShiftsResult.data ?? []);
+  const totalCashBalance = cashBalances.reduce((sum, row) => sum + row.balance, 0);
   const scheduleDates = Array.from({ length: new Date(`${selectedMonthEnd}T00:00:00Z`).getUTCDate() }, (_, index) => {
     const current = new Date(`${selectedMonth.slice(0, 7)}-${String(index + 1).padStart(2, "0")}T00:00:00Z`);
     return {
@@ -468,6 +487,24 @@ export default async function HomePage() {
             </form>
           </div>
         </section>
+
+        {cashBalances.length > 0 ? (
+          <section className="mt-6 ui-panel p-4">
+            <SectionHeader icon={Banknote} title="Наличка в кассах" action="Все" href="/cash" />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Metric icon={Banknote} label="Сумма по магазинам" value={money(totalCashBalance)} />
+              {cashBalances.slice(0, 3).map((store) => (
+                <div key={store.storeId} className="rounded-2xl border border-line bg-surface p-4">
+                  <p className="font-medium">{store.storeName}</p>
+                  <p className="mt-1 text-sm text-muted">
+                    {store.city} · {store.lastClosedAt ? formatDate(store.lastClosedAt) : "Нет закрытых смен"}
+                  </p>
+                  <p className="mt-2 text-base font-semibold">Наличка: {money(store.balance)}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {auditorOnly ? (
           <>

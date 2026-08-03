@@ -2,7 +2,7 @@ import { CalendarClock } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
 import { RoutineChecklistClient } from "@/components/routine-checklist-client";
 import { SectionHeader } from "@/components/section-header";
-import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, OPEN_SHIFT_ROLES } from "@/lib/auth/roles";
 import { buildRoutineTree, routineKindLabel, type RoutineKind, type RoutineTemplateItemFlatRow } from "@/lib/routine";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -63,7 +63,7 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
 
   const { employeeId } = await getCurrentEmployeeId();
   const { roles } = await getCurrentRoleCodes();
-  const canManageRoutines = hasAnyRole(roles, MANAGE_ROLES);
+  const canManageRoutines = hasAnyRole(roles, OPEN_SHIFT_ROLES);
 
   let shiftQuery = supabase
     .from("shifts")

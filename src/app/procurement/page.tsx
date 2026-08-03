@@ -94,13 +94,8 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
       : Promise.resolve({ data: [] as OrderRow[], error: null }),
   ]);
 
-  if (promotionsResult.error) {
-    throw new Error(promotionsResult.error.message);
-  }
-
-  if (ordersResult.error) {
-    throw new Error(ordersResult.error.message);
-  }
+  if (promotionsResult.error) throw new Error(promotionsResult.error.message);
+  if (ordersResult.error) throw new Error(ordersResult.error.message);
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -110,7 +105,7 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
         {message ? (
           <div className="mt-4 ui-panel p-3 text-sm text-muted">
             <p className="font-semibold text-ink">{messages[message] ?? message}</p>
-            {detail ? <p className="mt-1 text-xs text-brand">{detail}</p> : null}
+            {detail ? <p className="mt-1 break-words text-xs text-brand">{detail}</p> : null}
           </div>
         ) : null}
 
@@ -131,7 +126,7 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
                 <input className="h-11 rounded-md border border-line px-3" name="supplier_name" placeholder="Поставщик" required />
                 <label className="grid gap-1 text-sm text-muted">
                   Счёт
-                  <input className="rounded-md border border-line p-3" name="invoice_file" type="file" accept="image/*,.pdf" required />
+                  <input className="rounded-md border border-line p-3" name="invoice_file" type="file" accept="*/*" required />
                 </label>
                 <button className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand px-4 font-semibold text-white">
                   <Save size={17} /> Создать заказ
@@ -144,13 +139,19 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
                 <PackageSearch className="text-brand" size={18} /> Акция поставщика
               </h2>
               <div className="mt-4 grid gap-3">
-                <select className="h-11 rounded-md border border-line px-3" name="store_id" required>
-                  {stores.map((store) => (
-                    <option key={store.id} value={store.id}>
-                      {store.name}, {store.city}
-                    </option>
-                  ))}
-                </select>
+                <div className="rounded-2xl border border-line/70 bg-[#0d090a]/92 p-3">
+                  <p className="text-sm font-medium text-muted">Магазины акции</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {stores.map((store) => (
+                      <label key={store.id} className="flex items-center gap-2 rounded-xl border border-line/70 bg-black/20 px-3 py-2 text-sm">
+                        <input type="checkbox" name="store_ids" value={store.id} />
+                        <span className="min-w-0 break-words">
+                          {store.name}, {store.city}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
                 <input className="h-11 rounded-md border border-line px-3" name="supplier_name" placeholder="Поставщик" required />
                 <input className="h-11 rounded-md border border-line px-3" name="product_name" placeholder="Товар" required />
                 <textarea className="min-h-24 rounded-md border border-line px-3 py-2" name="promotion_terms" placeholder="Условия акции" required />
@@ -173,16 +174,16 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
               <p className="rounded-md border border-line p-3 text-sm text-muted">Заказов пока нет.</p>
             ) : (
               ordersResult.data.map((order) => (
-                <article key={order.id} className="rounded-md border border-line p-3">
+                <article key={order.id} className="rounded-2xl border border-line/80 bg-[#0d090a]/92 p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold">{order.supplier_name}</h3>
-                      <p className="mt-1 text-sm text-muted">
+                    <div className="min-w-0">
+                      <h3 className="break-words font-semibold">{order.supplier_name}</h3>
+                      <p className="mt-1 break-words text-sm text-muted">
                         {order.stores?.name ?? "Магазин"} · {dateLabel(order.created_at)}
                       </p>
                       <p className="mt-1 text-sm">Статус: {statusLabels[order.status]}</p>
-                      {order.files ? <p className="mt-1 text-xs text-muted">Счёт прикреплён: {order.files.path.split("/").pop()}</p> : null}
-                      {order.problem_comment ? <p className="mt-2 text-sm text-brand">{order.problem_comment}</p> : null}
+                      {order.files ? <p className="mt-1 break-words text-xs text-muted">Счёт прикреплён: {order.files.path.split("/").pop()}</p> : null}
+                      {order.problem_comment ? <p className="mt-2 break-words text-sm text-brand">{order.problem_comment}</p> : null}
                       {order.purchase_order_problem_files.length > 0 ? (
                         <p className="mt-1 text-xs text-muted">Фото проблемы: {order.purchase_order_problem_files.length}</p>
                       ) : null}
@@ -199,7 +200,7 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
                         <option value="problem">Проблемный</option>
                       </select>
                       <textarea className="min-h-20 rounded-md border border-line px-3 py-2" name="problem_comment" placeholder="Комментарий обязателен для проблемного заказа" />
-                      <input className="rounded-md border border-line p-3" name="problem_files" type="file" accept="image/*" multiple />
+                      <input className="rounded-md border border-line p-3" name="problem_files" type="file" accept="*/*" multiple />
                       <button className="h-10 rounded-md border border-line px-4 font-semibold">Обновить статус</button>
                     </form>
                   ) : null}
@@ -216,12 +217,12 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
               <p className="rounded-md border border-line p-3 text-sm text-muted">Акций пока нет.</p>
             ) : (
               promotionsResult.data.map((promotion) => (
-                <article key={promotion.id} className="rounded-md border border-line p-3">
-                  <h3 className="font-semibold">{promotion.product_name}</h3>
-                  <p className="mt-1 text-sm text-muted">
+                <article key={promotion.id} className="rounded-2xl border border-line/80 bg-[#0d090a]/92 p-3">
+                  <h3 className="break-words font-semibold">{promotion.product_name}</h3>
+                  <p className="mt-1 break-words text-sm text-muted">
                     {promotion.supplier_name} · {promotion.stores?.name ?? "Магазин"}
                   </p>
-                  <p className="mt-2 text-sm">{promotion.promotion_terms}</p>
+                  <p className="mt-2 break-words text-sm">{promotion.promotion_terms}</p>
                   <p className="mt-2 text-xs text-muted">
                     {dateLabel(promotion.starts_on)} — {dateLabel(promotion.ends_on)}
                   </p>

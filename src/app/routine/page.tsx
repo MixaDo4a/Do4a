@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
-import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getCurrentRoleCodes, hasAnyRole, OPEN_SHIFT_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -64,7 +64,7 @@ export default async function RoutineIndexPage() {
   }
 
   const { roles } = await getCurrentRoleCodes();
-  if (!hasAnyRole(roles, MANAGE_ROLES)) {
+  if (!hasAnyRole(roles, OPEN_SHIFT_ROLES)) {
     redirect("/");
   }
 

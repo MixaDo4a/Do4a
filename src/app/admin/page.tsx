@@ -1,4 +1,4 @@
-﻿import { Archive, CalendarClock, CalendarPlus, Settings, Store, UserPlus, WalletCards } from "lucide-react";
+﻿import { Archive, Banknote, CalendarClock, CalendarPlus, Settings, Store, UserPlus, WalletCards } from "lucide-react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
@@ -466,6 +466,15 @@ export default async function AdminPage({ searchParams }: PageProps) {
 
         {!warehouseManagerOnly ? (
         <section className="mt-4 ui-panel p-4">
+          <SectionHeader icon={Banknote} title="Наличка" action="Открыть" href="/cash" />
+          <p className="mt-3 text-sm text-muted">
+            РКО и ПКО по магазинам в подчинении, а также сводка по кассам.
+          </p>
+        </section>
+        ) : null}
+
+        {!warehouseManagerOnly ? (
+        <section className="mt-4 ui-panel p-4">
         {!warehouseManagerOnly ? (
         <section className="mt-4 ui-panel p-4">
           <SectionHeader icon={Archive} title="Закрытые смены" action="Открыть" href="/admin/closed-shifts" />
@@ -486,6 +495,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
     </main>
   );
 }
+
 
 
 
