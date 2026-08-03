@@ -14,8 +14,6 @@ const denominationIds = [
   "5",
   "2",
   "1",
-  "0.5",
-  "0.1",
 ];
 
 const MONEY_MAX = 999_999_999_999.99;

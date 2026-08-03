@@ -181,7 +181,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
           <section className="ui-panel p-4">
             <h2 className="text-base font-semibold">Покупюрник</h2>
             <div className="mt-4 grid gap-2">
-              {denominationsResult.data.map((denomination) => (
+              {denominationsResult.data.filter((denomination) => denomination.value >= 1).map((denomination) => (
                 <label key={denomination.id} className="grid grid-cols-[72px_1fr_96px] items-center gap-2 text-sm">
                   <span>{formatMoney(denomination.value)}</span>
                   <input

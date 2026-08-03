@@ -90,53 +90,53 @@ type EmployeeLookupRow = {
 };
 
 const messages: Record<string, string> = {
-  "store-created": "РњР°РіР°Р·РёРЅ СЃРѕР·РґР°РЅ.",
-  "employee-created": "РЎРѕС‚СЂСѓРґРЅРёРє СЃРѕР·РґР°РЅ.",
-  "schedule-created": "Р“СЂР°С„РёРє СЃРѕС…СЂР°РЅС‘РЅ.",
-  "store-plan-saved": "РџР»Р°РЅ РјР°РіР°Р·РёРЅР° СЃРѕС…СЂР°РЅС‘РЅ.",
-  "payroll-adjustment-saved": "РљРѕСЂСЂРµРєС‚РёСЂРѕРІРєР° Р·Р°СЂРїР»Р°С‚С‹ СЃРѕС…СЂР°РЅРµРЅР°.",
-  "store-updated": "РњР°РіР°Р·РёРЅ РѕР±РЅРѕРІР»С‘РЅ.",
-  "employee-updated": "РЎРѕС‚СЂСѓРґРЅРёРє РѕР±РЅРѕРІР»С‘РЅ.",
-  "employee-deleted": "РЎРѕС‚СЂСѓРґРЅРёРє СѓРґР°Р»С‘РЅ.",
-  "employee-restored": "РЎРѕС‚СЂСѓРґРЅРёРє РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅ.",
-  "store-archived": "РњР°РіР°Р·РёРЅ СЃРєСЂС‹С‚.",
-  "store-restored": "РњР°РіР°Р·РёРЅ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅ.",
-  "admin-required": "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ.",
-  "admin-error": "Р§С‚Рѕ-С‚Рѕ РїРѕС€Р»Рѕ РЅРµ С‚Р°Рє.",
+  "store-created": "Магазин создан.",
+  "employee-created": "Сотрудник создан.",
+  "schedule-created": "График сохранён.",
+  "store-plan-saved": "План магазина сохранён.",
+  "payroll-adjustment-saved": "Корректировка зарплаты сохранена.",
+  "store-updated": "Магазин обновлён.",
+  "employee-updated": "Сотрудник обновлён.",
+  "employee-deleted": "Сотрудник удалён.",
+  "employee-restored": "Сотрудник восстановлен.",
+  "store-archived": "Магазин скрыт.",
+  "store-restored": "Магазин восстановлен.",
+  "admin-required": "Недостаточно прав.",
+  "admin-error": "Что-то пошло не так.",
 };
 
 const employeeStatusLabels: Record<EmployeeRow["employee_status"], string> = {
-  padawan: "РџР°РґР°РІР°РЅ",
-  experienced: "Р‘С‹РІР°Р»С‹Р№",
+  padawan: "Падаван",
+  experienced: "Бывалый",
 };
 
 const roleHierarchy: RoleRow["code"][] = [...ROLE_HIERARCHY];
 
 const roleLabels: Record<RoleRow["code"], string> = {
-  manager: "РњРµРЅРµРґР¶РµСЂ",
-  auditor: "РџСЂРѕРІРµСЂСЏСЋС‰РёР№",
-  store_manager: "РЈРїСЂР°РІР»СЏСЋС‰РёР№",
-  buyer: "Р—Р°РєСѓРїС‰РёРє",
-  warehouse_manager: "РљР»Р°РґРѕРІС‰РёРє",
-  warehouse_assistant: "РџРѕРјРѕС‰РЅРёРє РєР»Р°РґРѕРІС‰РёРєР°",
-  super_admin: "РЎСѓРїРµСЂ-Р°РґРјРёРЅ",
-  developer: "Р Р°Р·СЂР°Р±РѕС‚С‡РёРє",
+  manager: "Менеджер",
+  auditor: "Проверяющий",
+  store_manager: "Управляющий",
+  buyer: "Закупщик",
+  warehouse_manager: "Кладовщик",
+  warehouse_assistant: "Помощник кладовщика",
+  super_admin: "Супер-админ",
+  developer: "Разработчик",
 };
 
 const dayStatusLabels: Record<string, string> = {
-  planned: "Р 1",
-  planned_secondary: "Р 2",
-  day_off: "Р’",
-  sick_leave: "Р‘",
-  vacation: "Рћ",
+  planned: "Р1",
+  planned_secondary: "Р2",
+  day_off: "В",
+  sick_leave: "Б",
+  vacation: "О",
 };
 
 const adjustmentTypeLabels: Record<string, string> = {
-  bonus: "РџСЂРµРјРёСЏ",
-  fine: "РЁС‚СЂР°С„",
-  inventory: "РРЅРІРµРЅС‚Р°СЂРёР·Р°С†РёСЏ",
-  expiration: "РџСЂРѕСЃСЂРѕС‡РєР°",
-  product: "РџРѕРґ Р—/Рџ",
+  bonus: "Премия",
+  fine: "Штраф",
+  inventory: "Инвентаризация",
+  expiration: "Просрочка",
+  product: "Под З/П",
 };
 
 const adjustmentTypeDirections: Record<string, "plus" | "minus"> = {
@@ -333,7 +333,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-5xl">
-        <SectionHeader icon={Settings} title="РЈРїСЂР°РІР»РµРЅРёРµ" showBack />
+        <SectionHeader icon={Settings} title="Управление" showBack />
 
         {message ? (
           <p className="mt-4 ui-panel p-3 text-sm text-muted shadow-soft">
@@ -345,7 +345,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
         {canRunNotificationCron ? (
           <form action="/api/routine/reminders" className="mt-4 flex justify-end" method="post">
               <button className="h-10 ui-panel px-4 text-sm font-semibold text-ink shadow-soft">
-                Р—Р°РїСѓСЃС‚РёС‚СЊ СѓРІРµРґРѕРјР»РµРЅРёСЏ
+                Запустить уведомления
               </button>
           </form>
         ) : null}
@@ -354,7 +354,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
           {!warehouseManagerOnly ? (
           <form action="/admin/store-plans/save" className="ui-panel p-4" method="post">
             <h2 className="inline-flex items-center gap-2 font-semibold">
-              <Store className="text-brand" size={18} /> РџР»Р°РЅ РјР°РіР°Р·РёРЅР°
+              <Store className="text-brand" size={18} /> План магазина
             </h2>
             <div className="mt-4 grid gap-3">
               <select className="h-11 rounded-md border border-line px-3" name="store_id" defaultValue={selectedStoreId}>
@@ -365,19 +365,19 @@ export default async function AdminPage({ searchParams }: PageProps) {
                 ))}
               </select>
                 <input className="h-11 rounded-md border border-line px-3" name="month" type="month" defaultValue={selectedMonth.slice(0, 7)} />
-                <input className="h-11 rounded-md border border-line px-3" min="0" name="sales_plan_amount" placeholder="РЎСѓРјРјР° РїР»Р°РЅР°" type="number" />
-              <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">РЎРѕС…СЂР°РЅРёС‚СЊ РїР»Р°РЅ</button>
+                <input className="h-11 rounded-md border border-line px-3" min="0" name="sales_plan_amount" placeholder="Сумма плана" type="number" />
+              <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить план</button>
             </div>
           </form>
           ) : null}
 
           <form action="/admin/payroll-adjustments/create" className="ui-panel p-4" method="post">
             <h2 className="inline-flex items-center gap-2 font-semibold">
-              <WalletCards className="text-brand" size={18} /> {warehouseManagerOnly ? "Р’С‹С‡РµС‚С‹" : "РџСЂРµРјРёРё Рё РІС‹С‡РµС‚С‹"}
+              <WalletCards className="text-brand" size={18} /> {warehouseManagerOnly ? "Вычеты" : "Премии и вычеты"}
             </h2>
             <div className="mt-4 grid gap-3">
               <select className="h-11 rounded-md border border-line px-3" name="employee_id" defaultValue="">
-                <option value="">РЎРѕС‚СЂСѓРґРЅРёРє</option>
+                <option value="">Сотрудник</option>
                 {activeEmployees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employeeName(employee)}
@@ -393,10 +393,10 @@ export default async function AdminPage({ searchParams }: PageProps) {
                     </option>
                   ))}
                 </select>
-                <input className="h-11 rounded-md border border-line px-3" min="0" name="amount" placeholder="РЎСѓРјРјР°" type="number" />
+                <input className="h-11 rounded-md border border-line px-3" min="0" name="amount" placeholder="Сумма" type="number" />
               </div>
-              <input className="h-11 rounded-md border border-line px-3" name="reason" placeholder="РљРѕРјРјРµРЅС‚Р°СЂРёР№" />
-              <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">РЎРѕС…СЂР°РЅРёС‚СЊ РєРѕСЂСЂРµРєС‚РёСЂРѕРІРєСѓ</button>
+              <input className="h-11 rounded-md border border-line px-3" name="reason" placeholder="Комментарий" />
+              <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить корректировку</button>
             </div>
           </form>
         </section>
@@ -404,16 +404,16 @@ export default async function AdminPage({ searchParams }: PageProps) {
         <section className="mt-6 grid gap-4">
           {!warehouseManagerOnly ? (
           <div className="ui-panel p-4">
-            <h2 className="font-semibold">РџРѕСЃР»РµРґРЅРёРµ РїР»Р°РЅС‹ РјР°РіР°Р·РёРЅРѕРІ</h2>
+            <h2 className="font-semibold">Последние планы магазинов</h2>
             <div className="mt-3 max-h-[170px] grid gap-2 overflow-y-auto pr-1">
-              {storePlans.length === 0 ? <p className="text-sm text-muted">РџР»Р°РЅРѕРІ РїРѕРєР° РЅРµС‚.</p> : null}
+              {storePlans.length === 0 ? <p className="text-sm text-muted">Планов пока нет.</p> : null}
               {storePlans.map((plan) => (
                 <div key={plan.id} className="rounded-md bg-surface p-3 text-sm">
                   <p className="font-semibold">
-                    {stores.find((store) => store.id === plan.store_id)?.name ?? "РњР°РіР°Р·РёРЅ"}
+                    {stores.find((store) => store.id === plan.store_id)?.name ?? "Магазин"}
                   </p>
                   <p className="text-muted">
-                    {plan.period_start.slice(0, 7)} В· {Number(plan.sales_plan_amount).toLocaleString("ru-RU")} СЂСѓР±.
+                    {plan.period_start.slice(0, 7)} · {Number(plan.sales_plan_amount).toLocaleString("ru-RU")} руб.
                   </p>
                 </div>
               ))}
@@ -422,18 +422,18 @@ export default async function AdminPage({ searchParams }: PageProps) {
           ) : null}
 
           <div className="ui-panel p-4">
-            <h2 className="font-semibold">РџРѕСЃР»РµРґРЅРёРµ РєРѕСЂСЂРµРєС‚РёСЂРѕРІРєРё</h2>
+            <h2 className="font-semibold">Последние корректировки</h2>
             <div className="mt-3 max-h-[170px] grid gap-2 overflow-y-auto pr-1">
-              {payrollAdjustments.length === 0 ? <p className="text-sm text-muted">РљРѕСЂСЂРµРєС‚РёСЂРѕРІРѕРє РїРѕРєР° РЅРµС‚.</p> : null}
+              {payrollAdjustments.length === 0 ? <p className="text-sm text-muted">Корректировок пока нет.</p> : null}
               {payrollAdjustments.map((item) => (
                 <div key={item.id} className="rounded-md bg-surface p-3 text-sm">
                   <p className="font-semibold">
-                    {employeeNameById.get(item.employee_id) ?? "РЎРѕС‚СЂСѓРґРЅРёРє"}
+                    {employeeNameById.get(item.employee_id) ?? "Сотрудник"}
                   </p>
                   <p className="text-muted">
                     {item.period_month.slice(0, 7)} В· {adjustmentTypeLabels[item.adjustment_type] ?? item.adjustment_type} В·{" "}
                     {adjustmentTypeDirections[item.adjustment_type] === "plus" ? "+" : "-"}
-                    {Number(item.amount).toLocaleString("ru-RU")} СЂСѓР±.
+                    {Number(item.amount).toLocaleString("ru-RU")} руб.
                   </p>
                   <p className="mt-1 text-xs text-muted">{item.reason}</p>
                 </div>
@@ -445,21 +445,21 @@ export default async function AdminPage({ searchParams }: PageProps) {
         {!warehouseManagerOnly ? (
         <section className="mt-4 grid gap-4">
           <div className="ui-panel p-4">
-            <SectionHeader icon={Store} title="РњР°РіР°Р·РёРЅС‹" action="РћС‚РєСЂС‹С‚СЊ" href="/admin/stores" />
-            <p className="mt-3 text-sm text-muted">РЎРѕР·РґР°РЅРёРµ Рё СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РјР°РіР°Р·РёРЅРѕРІ РїРµСЂРµРЅРµСЃРµРЅРѕ РІ РѕС‚РґРµР»СЊРЅС‹Р№ СЂР°Р·РґРµР».</p>
+            <SectionHeader icon={Store} title="Магазины" action="Открыть" href="/admin/stores" />
+            <p className="mt-3 text-sm text-muted">Создание и редактирование магазинов перенесено в отдельный раздел.</p>
           </div>
           <div className="ui-panel p-4">
-            <SectionHeader icon={UserPlus} title="РЎРѕС‚СЂСѓРґРЅРёРєРё" action="РћС‚РєСЂС‹С‚СЊ" href="/admin/employees" />
-            <p className="mt-3 text-sm text-muted">РЎРѕР·РґР°РЅРёРµ Рё СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ СЃРѕС‚СЂСѓРґРЅРёРєРѕРІ РїРµСЂРµРЅРµСЃРµРЅРѕ РІ РѕС‚РґРµР»СЊРЅС‹Р№ СЂР°Р·РґРµР».</p>
+            <SectionHeader icon={UserPlus} title="Сотрудники" action="Открыть" href="/admin/employees" />
+            <p className="mt-3 text-sm text-muted">Создание и редактирование сотрудников перенесено в отдельный раздел.</p>
           </div>
         </section>
         ) : null}
 
         {!warehouseManagerOnly ? (
         <section className="mt-6 ui-panel p-4">
-          <SectionHeader icon={CalendarPlus} title="Р“СЂР°С„РёРє СЂР°Р±РѕС‚С‹" action="Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ" href="/admin/schedule" />
+          <SectionHeader icon={CalendarPlus} title="График работы" action="Редактировать" href="/admin/schedule" />
           <p className="mt-3 text-sm text-muted">
-            Р“СЂР°С„РёРє РІС‹РЅРµСЃРµРЅ РІ РѕС‚РґРµР»СЊРЅС‹Р№ СЂРµРґР°РєС‚РѕСЂ СЃ РіРѕСЂРёР·РѕРЅС‚Р°Р»СЊРЅРѕР№ С‚Р°Р±Р»РёС†РµР№. Р’ СЃРїРёСЃРєРµ СЃРѕС‚СЂСѓРґРЅРёРєРѕРІ Р±СѓРґСѓС‚ С‚РѕР»СЊРєРѕ С‚Рµ, Сѓ РєРѕРіРѕ РµСЃС‚СЊ РґРѕСЃС‚СѓРї Рє РІС‹Р±СЂР°РЅРЅРѕРјСѓ РјР°РіР°Р·РёРЅСѓ.
+            График вынесен в отдельный редактор с горизонтальной таблицей. В списке сотрудников будут только те, у кого есть доступ к выбранному магазину.
           </p>
         </section>
         ) : null}
@@ -474,9 +474,9 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </p>
         </section>
         ) : null}
-          <SectionHeader icon={CalendarClock} title="Р Р°СЃРїРѕСЂСЏРґРѕРє РґРЅСЏ" action="Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ" href="/admin/routine" />
+          <SectionHeader icon={CalendarClock} title="Распорядок дня" action="Редактировать" href="/admin/routine" />
           <p className="mt-3 text-sm text-muted">
-            РЈС‚СЂРµРЅРЅРёР№ Рё РІРµС‡РµСЂРЅРёР№ СЂР°СЃРїРѕСЂСЏРґРѕРє СЂРµРґР°РєС‚РёСЂСѓСЋС‚СЃСЏ РѕС‚РґРµР»СЊРЅРѕ РїРѕ РєР°Р¶РґРѕРјСѓ РјР°РіР°Р·РёРЅСѓ.
+            Утренний и вечерний распорядок редактируются отдельно по каждому магазину.
           </p>
         </section>
         ) : null}

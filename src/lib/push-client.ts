@@ -24,10 +24,31 @@ export async function ensurePushServiceWorker() {
 }
 
 export async function enablePushNotifications() {
-  const publicKey = process.env.NEXT_PUBLIC_PUSH_VAPID_PUBLIC_KEY?.trim();
+  if (!window.isSecureContext) {
+    return { ok: false, message: "secure-context-required" };
+  }
 
-  if (!publicKey || !("Notification" in window) || !("PushManager" in window)) {
+  if (!("Notification" in window) || !("PushManager" in window)) {
     return { ok: false, message: "push-unsupported" };
+  }
+
+  const configResponse = await fetch("/api/push/config", {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+
+  if (!configResponse.ok) {
+    return { ok: false, message: "config-failed" };
+  }
+
+  const config = (await configResponse.json().catch(() => null)) as
+    | { publicKey?: string | null }
+    | null;
+
+  const publicKey = config?.publicKey?.trim();
+
+  if (!publicKey) {
+    return { ok: false, message: "config-missing" };
   }
 
   const permission = await Notification.requestPermission();
@@ -92,4 +113,3 @@ export async function registerPushServiceWorker() {
   await ensurePushServiceWorker();
   return true;
 }
-

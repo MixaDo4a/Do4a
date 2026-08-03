@@ -50,15 +50,20 @@ export function PushNotificationsPanel() {
             : status === "permission-denied"
               ? "Доступ к уведомлениям не выдан."
               : status === "push-unsupported"
-                ? "Этот браузер не поддерживает push-уведомления."
-                : status === "sw-unsupported"
-                  ? "Service Worker недоступен."
-                  : status === "unauthorized"
-                    ? "Сначала войдите в приложение."
-                    : "Не удалось подключить push-уведомления."}
+                ? "В этом браузере push-уведомления недоступны. Для PWA используйте Chrome / Edge, а на iPhone — установленный на домашний экран web app."
+                : status === "secure-context-required"
+                  ? "Push-уведомления доступны только в HTTPS или localhost."
+                  : status === "config-missing"
+                    ? "Push-уведомления не настроены на этом развертывании."
+                    : status === "config-failed"
+                      ? "Не удалось получить ключ настройки push."
+                      : status === "sw-unsupported"
+                        ? "Service Worker недоступен."
+                        : status === "unauthorized"
+                          ? "Сначала войдите в приложение."
+                          : "Не удалось подключить push-уведомления."}
         </p>
       ) : null}
     </section>
   );
 }
-
