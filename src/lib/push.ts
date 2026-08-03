@@ -1,6 +1,8 @@
 ﻿import webpush from "web-push";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+const DEFAULT_VAPID_PUBLIC_KEY = "BF1Q5aoYYhlwUtRclWYDernLq4jJgOhJFCg_q05C2kWpiiOk7MbSpbS7ZA_58AK8856JBtmhVXhiL2gpL4hPl28";
+
 export type PushTargetRow = {
   notification_id: string;
   recipient_profile_id: string;
@@ -17,11 +19,10 @@ export type PushTargetRow = {
   user_agent: string | null;
 };
 
-
 let vapidConfigured = false;
 
 function getVapidPublicKey() {
-  return process.env.NEXT_PUBLIC_PUSH_VAPID_PUBLIC_KEY?.trim() ?? "";
+  return process.env.NEXT_PUBLIC_PUSH_VAPID_PUBLIC_KEY?.trim() ?? DEFAULT_VAPID_PUBLIC_KEY;
 }
 
 function getVapidPrivateKey() {
@@ -174,12 +175,9 @@ export async function dispatchPushNotificationsFromEvent(
     await supabase.rpc("record_push_delivery", {
       p_notification_id: notificationId,
       p_status: success ? "sent" : "pending",
-      p_error_message: success ? null : lastError ?? "РќРµС‚ Р°РєС‚РёРІРЅС‹С… push-РїРѕРґРїРёСЃРѕРє.",
+      p_error_message: success ? null : lastError ?? "Нет активных push-подписок.",
     });
   }
 
   return { ok: true, skipped: false, sent, notifications: grouped.size };
 }
-
-
-

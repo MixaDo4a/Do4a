@@ -88,16 +88,19 @@ export default async function CashPage({ searchParams }: PageProps) {
       : Promise.resolve({ data: [] as MovementRow[], error: null }),
   ]);
 
+  const pageWarnings: string[] = [];
+  const shifts = shiftsResult.error ? [] : shiftsResult.data;
+  const movements = movementsResult.error ? [] : movementsResult.data;
+
   if (shiftsResult.error) {
-    throw new Error(shiftsResult.error.message);
+    pageWarnings.push(`Не удалось загрузить данные по сменам: ${shiftsResult.error.message}`);
   }
 
   if (movementsResult.error) {
-    throw new Error(movementsResult.error.message);
+    pageWarnings.push(`Не удалось загрузить движения: ${movementsResult.error.message}`);
   }
 
-  const balances = buildStoreCashBalances(shiftsResult.data);
-  const movements = movementsResult.data;
+  const balances = buildStoreCashBalances(shifts);
   const totalBalance = balances.reduce((sum, item) => sum + item.balance, 0);
 
   return (
@@ -109,6 +112,17 @@ export default async function CashPage({ searchParams }: PageProps) {
           <div className="mt-4 ui-panel p-3 text-sm text-muted">
             <p className="font-semibold text-ink">{messages[message] ?? message}</p>
             {detail ? <p className="mt-1 break-words text-xs text-brand">{detail}</p> : null}
+          </div>
+        ) : null}
+
+        {pageWarnings.length > 0 ? (
+          <div className="mt-4 ui-panel p-3 text-sm text-muted">
+            <p className="font-semibold text-ink">Касса загружается с ограничениями.</p>
+            <ul className="mt-2 space-y-1">
+              {pageWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
           </div>
         ) : null}
 
