@@ -439,3 +439,20 @@ option {
     transform: scale(1.045) translate3d(0, -0.6%, 0);
   }
 }
+
+@keyframes notification-wave {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.9;
+  }
+
+  70% {
+    transform: scale(1.28);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.28);
+    opacity: 0;
+  }
+}

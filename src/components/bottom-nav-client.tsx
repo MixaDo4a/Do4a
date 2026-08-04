@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
 import Link from "next/link";
@@ -17,50 +17,51 @@ type BottomNavItem = {
 const managementRoles = ["manager", "store_manager", "super_admin", "developer"];
 
 const items: BottomNavItem[] = [
-  { href: "/", label: "Главная", icon: Home, roles: null, hideForAuditorOnly: false },
-  { href: "/shifts", label: "Смены", icon: ShieldCheck, roles: null, hideForAuditorOnly: true },
-  { href: "/tasks", label: "Задачи", icon: ListTodo, roles: null, hideForAuditorOnly: false },
+  { href: "/", label: "Р“Р»Р°РІРЅР°СЏ", icon: Home, roles: null, hideForAuditorOnly: false },
+  { href: "/shifts", label: "РЎРјРµРЅС‹", icon: ShieldCheck, roles: null, hideForAuditorOnly: true },
+  { href: "/tasks", label: "Р—Р°РґР°С‡Рё", icon: ListTodo, roles: null, hideForAuditorOnly: false },
   {
     href: "/routine",
-    label: "Распор.",
+    label: "Р Р°СЃРїРѕСЂ.",
     icon: CalendarClock,
     roles: ["manager", "store_manager", "super_admin", "developer"],
     hideForAuditorOnly: false,
   },
   {
     href: "/procurement",
-    label: "Закуп",
+    label: "Р—Р°РєСѓРї",
     icon: PackageSearch,
     roles: ["buyer", "warehouse_manager", "super_admin", "developer"],
     hideForAuditorOnly: false,
   },
   {
     href: "/checklists",
-    label: "Архив",
+    label: "РђСЂС…РёРІ",
     icon: ClipboardCheck,
     roles: ["auditor", "store_manager", "super_admin", "developer"],
     hideForAuditorOnly: false,
   },
   {
     href: "/checklists/new",
-    label: "Чек",
+    label: "Р§РµРє",
     icon: ClipboardCheck,
     roles: ["auditor", "store_manager", "super_admin", "developer"],
     hideForAuditorOnly: false,
   },
-  { href: "/payroll", label: "ЗП", icon: WalletCards, roles: null, hideForAuditorOnly: true },
-  { href: "/notifications", label: "Увед.", icon: Bell, roles: null, hideForAuditorOnly: false },
+  { href: "/payroll", label: "Р—Рџ", icon: WalletCards, roles: null, hideForAuditorOnly: true },
+  { href: "/notifications", label: "РЈРІРµРґ.", icon: Bell, roles: null, hideForAuditorOnly: false },
   {
     href: "/admin",
-    label: "Упр.",
+    label: "РЈРїСЂ.",
     icon: Settings,
     roles: ["store_manager", "warehouse_manager", "super_admin", "developer"],
     hideForAuditorOnly: false,
   },
 ];
 
-export function BottomNavClient({ roles }: { roles: string[] }) {
+export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unreadCount: number }) {
   const pathname = usePathname();
+  const hasUnreadNotifications = unreadCount > 0;
   const auditorOnly = roles.includes("auditor") && !roles.some((role) => managementRoles.includes(role));
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !roles.some((role) => managementRoles.includes(role));
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !roles.some((role) => managementRoles.includes(role));
@@ -139,6 +140,7 @@ export function BottomNavClient({ roles }: { roles: string[] }) {
           const active = pathname === item.href || (item.href !== "/" && item.href !== "/checklists" && pathname.startsWith(item.href));
           const Icon = item.icon;
           const label = warehouseManagerOnly && item.href === "/admin" ? "Вычеты" : item.label;
+          const isNotifications = item.href === "/notifications";
 
           return (
             <Link
@@ -149,7 +151,15 @@ export function BottomNavClient({ roles }: { roles: string[] }) {
               href={item.href}
               prefetch
             >
-              <Icon size={18} />
+              <span className={`relative grid h-6 w-6 place-items-center ${isNotifications && hasUnreadNotifications ? "text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : ""}`}>
+                {isNotifications && hasUnreadNotifications ? (
+                  <>
+                    <span className="absolute inset-[-0.5rem] rounded-full border border-brand/30 animate-[notification-wave_1.8s_ease-out_infinite]" />
+                    <span className="absolute inset-[-0.2rem] rounded-full border border-brand/20 animate-[notification-wave_1.8s_ease-out_infinite] [animation-delay:300ms]" />
+                  </>
+                ) : null}
+                <Icon size={18} />
+              </span>
               <span>{label}</span>
             </Link>
           );
@@ -158,3 +168,4 @@ export function BottomNavClient({ roles }: { roles: string[] }) {
     </nav>
   );
 }
+

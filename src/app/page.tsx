@@ -456,9 +456,9 @@ export default async function HomePage() {
             aria-label="Уведомления"
             href="/notifications"
           >
-            <Bell size={20} />
+            <Bell size={20} className={notificationsResult.count ? "text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : ""} />
             {notificationsResult.count ? (
-              <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-xs text-white">
+              <span className="absolute right-[-0.15rem] top-[-0.15rem] z-10 grid min-h-5 min-w-5 place-items-center rounded-full border border-white/20 bg-brand px-1 text-[10px] font-semibold leading-none text-white shadow-[0_0_12px_rgba(255,57,72,0.6)]">
                 {notificationsResult.count}
               </span>
             ) : null}
