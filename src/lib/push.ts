@@ -144,7 +144,7 @@ export async function dispatchPushNotificationsFromEvent(
 
   const workerSupabase = getPushAdminClient(supabase);
 
-  const { data, error } = await workerSupabase.rpc("list_push_notification_targets", {
+  const { data, error } = await workerSupabase.rpc("push_notification_targets_rpc", {
     p_event_type: filters.eventType ?? null,
     p_related_entity_type: filters.relatedEntityType ?? null,
     p_related_entity_id: filters.relatedEntityId ?? null,
