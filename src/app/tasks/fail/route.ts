@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     p_related_entity_id: taskId,
   });
 
-  void dispatchPushNotificationsFromEvent(supabase, {
+  await dispatchPushNotificationsFromEvent(supabase, {
     eventType: "task_overdue",
     relatedEntityType: "task",
     relatedEntityId: taskId,
@@ -117,4 +117,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.redirect(tasksUrl(request, "task-failed"), 303);
 }
+
 

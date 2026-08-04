@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
     p_related_entity_id: data.id,
   });
 
-  void dispatchPushNotificationsFromEvent(supabase, {
+  await dispatchPushNotificationsFromEvent(supabase, {
     eventType: "new_task",
     relatedEntityType: "task",
     relatedEntityId: data.id,
@@ -243,4 +243,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.redirect(tasksUrl(request, "task-created"), 303);
 }
+
 

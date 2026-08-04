@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     p_related_entity_id: shift.id,
   });
 
-  void dispatchPushNotificationsFromEvent(supabase, {
+  await dispatchPushNotificationsFromEvent(supabase, {
     eventType: "shift_opened",
     relatedEntityType: "shift",
     relatedEntityId: shift.id,
@@ -116,4 +116,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.redirect(new URL(`/routine/morning?shiftId=${shift.id}&message=shift-opened`, request.url), 303);
 }
+
 

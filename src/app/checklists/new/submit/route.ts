@@ -289,7 +289,7 @@ export async function POST(request: NextRequest) {
     p_related_entity_id: submission.id,
   });
 
-  void dispatchPushNotificationsFromEvent(supabase, {
+  await dispatchPushNotificationsFromEvent(supabase, {
     eventType: "checklist_saved",
     relatedEntityType: "checklist_submission",
     relatedEntityId: submission.id,
@@ -300,4 +300,5 @@ export async function POST(request: NextRequest) {
     303,
   );
 }
+
 

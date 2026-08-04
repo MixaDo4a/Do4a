@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { advanceTaskRecurrenceRun, type TaskRecurrenceFrequency } from "@/lib/task-recurrence";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -15,7 +15,7 @@ type RecurrenceRuleRow = {
 };
 
 function recurrenceBody(taskTitle: string, storeLabel: string, dueAt: string) {
-  return `Повторяющаяся задача · ${storeLabel} · ${taskTitle} · ${new Intl.DateTimeFormat("ru-RU", {
+  return `РџРѕРІС‚РѕСЂСЏСЋС‰Р°СЏСЃСЏ Р·Р°РґР°С‡Р° В· ${storeLabel} В· ${taskTitle} В· ${new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
@@ -99,14 +99,14 @@ export async function POST() {
           supabase.from("employees").select("full_name").eq("id", rule.assignee_employee_id).maybeSingle<{ full_name: string }>(),
         ]);
 
-        const storeLabel = storeRow ? `${storeRow.name}, ${storeRow.city}` : "Магазин";
-        const assigneeLabel = assigneeRow?.full_name ?? "Сотрудник";
+        const storeLabel = storeRow ? `${storeRow.name}, ${storeRow.city}` : "РњР°РіР°Р·РёРЅ";
+        const assigneeLabel = assigneeRow?.full_name ?? "РЎРѕС‚СЂСѓРґРЅРёРє";
         const taskMessage = recurrenceBody(rule.title, storeLabel, dueAt);
 
         await supabase.rpc("send_employee_notification", {
           p_employee_id: rule.assignee_employee_id,
           p_event_type: "recurring_task_created",
-          p_title: "Повторяющаяся задача",
+          p_title: "РџРѕРІС‚РѕСЂСЏСЋС‰Р°СЏСЃСЏ Р·Р°РґР°С‡Р°",
           p_body: taskMessage,
           p_related_entity_type: "task",
           p_related_entity_id: task.id,
@@ -115,8 +115,8 @@ export async function POST() {
         await supabase.rpc("send_store_managers_notification", {
           p_store_id: rule.store_id,
           p_event_type: "recurring_task_created",
-          p_title: "Повторяющаяся задача",
-          p_body: `${assigneeLabel} · ${storeLabel} · ${rule.title}`,
+          p_title: "РџРѕРІС‚РѕСЂСЏСЋС‰Р°СЏСЃСЏ Р·Р°РґР°С‡Р°",
+          p_body: `${assigneeLabel} В· ${storeLabel} В· ${rule.title}`,
           p_related_entity_type: "task",
           p_related_entity_id: task.id,
         });
@@ -124,8 +124,8 @@ export async function POST() {
         await supabase.rpc("send_store_employees_notification", {
           p_store_id: rule.store_id,
           p_event_type: "recurring_task_created",
-          p_title: "Повторяющаяся задача",
-          p_body: `${assigneeLabel} · ${storeLabel} · ${rule.title}`,
+          p_title: "РџРѕРІС‚РѕСЂСЏСЋС‰Р°СЏСЃСЏ Р·Р°РґР°С‡Р°",
+          p_body: `${assigneeLabel} В· ${storeLabel} В· ${rule.title}`,
           p_exclude_employee_id: rule.assignee_employee_id,
           p_related_entity_type: "task",
           p_related_entity_id: task.id,
@@ -150,7 +150,8 @@ export async function POST() {
     }
   }
 
-  void dispatchPushNotificationsFromEvent(supabase, { eventType: "recurring_task_created", sinceMinutes: 15 }).catch(() => null);
+  await dispatchPushNotificationsFromEvent(supabase, { eventType: "recurring_task_created", sinceMinutes: 15 }).catch(() => null);
 
   return NextResponse.json({ ok: true, created, advanced });
 }
+

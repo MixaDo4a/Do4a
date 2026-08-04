@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   const storeId = value(formData, "storeId");
 
   if (!month || !/^\d{4}-\d{2}$/.test(month) || !storeId) {
-    return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно данных для сохранения графика."), 303);
+    return NextResponse.redirect(adminUrl(request, "admin-error", "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РґР°РЅРЅС‹С… РґР»СЏ СЃРѕС…СЂР°РЅРµРЅРёСЏ РіСЂР°С„РёРєР°."), 303);
   }
 
   const supabase = await createSupabaseServerClient();
@@ -64,12 +64,12 @@ export async function POST(request: NextRequest) {
 
   const { roles } = await getCurrentRoleCodes();
   if (!hasAnyRole(roles, MANAGE_ROLES)) {
-    return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав для сохранения графика."), 303);
+    return NextResponse.redirect(adminUrl(request, "admin-error", "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ РґР»СЏ СЃРѕС…СЂР°РЅРµРЅРёСЏ РіСЂР°С„РёРєР°."), 303);
   }
 
   const accessibleStores = await getAccessibleStores();
   if (!accessibleStores.some((store) => store.id === storeId)) {
-    return NextResponse.redirect(adminUrl(request, "admin-error", "Можно сохранять график только по доступным магазинам."), 303);
+    return NextResponse.redirect(adminUrl(request, "admin-error", "РњРѕР¶РЅРѕ СЃРѕС…СЂР°РЅСЏС‚СЊ РіСЂР°С„РёРє С‚РѕР»СЊРєРѕ РїРѕ РґРѕСЃС‚СѓРїРЅС‹Рј РјР°РіР°Р·РёРЅР°Рј."), 303);
   }
 
   const start = `${month}-01`;
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     );
 
     if (employeeIds.some((employeeId) => !allowedEmployeeIds.has(employeeId))) {
-      return NextResponse.redirect(adminUrl(request, "admin-error", "В график можно ставить только сотрудников выбранного магазина."), 303);
+      return NextResponse.redirect(adminUrl(request, "admin-error", "Р’ РіСЂР°С„РёРє РјРѕР¶РЅРѕ СЃС‚Р°РІРёС‚СЊ С‚РѕР»СЊРєРѕ СЃРѕС‚СЂСѓРґРЅРёРєРѕРІ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РјР°РіР°Р·РёРЅР°."), 303);
     }
   }
 
@@ -190,14 +190,14 @@ export async function POST(request: NextRequest) {
     await supabase.rpc("send_employee_notification", {
       p_employee_id: employeeId,
       p_event_type: "schedule_changed",
-      p_title: "График изменён",
-      p_body: `Изменено смен: ${changes}. Проверьте график.`,
+      p_title: "Р“СЂР°С„РёРє РёР·РјРµРЅС‘РЅ",
+      p_body: `РР·РјРµРЅРµРЅРѕ СЃРјРµРЅ: ${changes}. РџСЂРѕРІРµСЂСЊС‚Рµ РіСЂР°С„РёРє.`,
       p_related_entity_type: "schedule",
       p_related_entity_id: null,
     });
   }
 
-  void dispatchPushNotificationsFromEvent(supabase, {
+  await dispatchPushNotificationsFromEvent(supabase, {
     eventType: "schedule_changed",
     relatedEntityType: "schedule",
     sinceMinutes: 15,
@@ -205,3 +205,4 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.redirect(adminUrl(request, "schedule-created"), 303);
 }
+

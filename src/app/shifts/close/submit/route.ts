@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
   }
 
   await notifyShiftClosed(supabase, shiftId);
-  void dispatchPushNotificationsFromEvent(supabase, {
+  await dispatchPushNotificationsFromEvent(supabase, {
     eventType: "shift_closed",
     relatedEntityType: "shift",
     relatedEntityId: shiftId,
@@ -274,4 +274,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.redirect(new URL("/shifts?message=shift-closed", request.url), 303);
 }
+
 

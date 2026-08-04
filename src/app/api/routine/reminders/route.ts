@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
@@ -17,7 +17,8 @@ export async function POST() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  void dispatchPushNotificationsFromEvent(supabase, { sinceMinutes: 15 }).catch(() => null);
+  await dispatchPushNotificationsFromEvent(supabase, { sinceMinutes: 15 }).catch(() => null);
 
   return NextResponse.json({ ok: true, result: data });
 }
+
