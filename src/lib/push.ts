@@ -24,15 +24,15 @@ let vapidConfigured = false;
 let pushAdminClient: SupabaseClient | null = null;
 
 function getVapidPublicKey() {
-  return process.env.NEXT_PUBLIC_PUSH_VAPID_PUBLIC_KEY?.trim() ?? DEFAULT_VAPID_PUBLIC_KEY;
+  return process.env.NEXT_PUBLIC_PUSH_VAPID_PUBLIC_KEY?.trim() || DEFAULT_VAPID_PUBLIC_KEY;
 }
 
 function getVapidPrivateKey() {
-  return process.env.PUSH_VAPID_PRIVATE_KEY?.trim() ?? DEFAULT_VAPID_PRIVATE_KEY;
+  return process.env.PUSH_VAPID_PRIVATE_KEY?.trim() || DEFAULT_VAPID_PRIVATE_KEY;
 }
 
 function getVapidSubject() {
-  return process.env.PUSH_VAPID_SUBJECT?.trim() ?? "mailto:mixarules88@gmail.com";
+  return process.env.PUSH_VAPID_SUBJECT?.trim() || "mailto:mixarules88@gmail.com";
 }
 
 export function isPushEnabled() {
