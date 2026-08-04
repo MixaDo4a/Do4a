@@ -1,5 +1,5 @@
 ﻿import webpush from "web-push";
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const DEFAULT_VAPID_PUBLIC_KEY = "BFgY2jIvl9oemJkNO8wua2bf5AMPDuFFo1MJQv_WDmjfM7zLXG1hKbHIq79QJsLxWWXV-T83JXOlWiheO3bBslY";
 const DEFAULT_VAPID_PRIVATE_KEY = "Tk7pq5lOlOotqrVgyGvawVvmNoz3ABAfM-xhRgR6tmw";
@@ -21,6 +21,7 @@ export type PushTargetRow = {
 };
 
 let vapidConfigured = false;
+let pushAdminClient: SupabaseClient | null = null;
 
 function getVapidPublicKey() {
   return process.env.NEXT_PUBLIC_PUSH_VAPID_PUBLIC_KEY?.trim() ?? DEFAULT_VAPID_PUBLIC_KEY;
@@ -45,6 +46,28 @@ function configureWebPush() {
 
   webpush.setVapidDetails(getVapidSubject(), getVapidPublicKey(), getVapidPrivateKey());
   vapidConfigured = true;
+}
+
+function getPushAdminClient(fallbackClient: SupabaseClient) {
+  if (pushAdminClient) {
+    return pushAdminClient;
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+  if (!url || !serviceRoleKey) {
+    return fallbackClient;
+  }
+
+  pushAdminClient = createClient(url, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+
+  return pushAdminClient;
 }
 
 function pushUrlForNotification(notification: Pick<PushTargetRow, "related_entity_type" | "related_entity_id">) {
@@ -119,7 +142,9 @@ export async function dispatchPushNotificationsFromEvent(
     return { ok: false, skipped: true, sent: 0, notifications: 0 };
   }
 
-  const { data, error } = await supabase.rpc("list_push_notification_targets", {
+  const workerSupabase = getPushAdminClient(supabase);
+
+  const { data, error } = await workerSupabase.rpc("list_push_notification_targets", {
     p_event_type: filters.eventType ?? null,
     p_related_entity_type: filters.relatedEntityType ?? null,
     p_related_entity_id: filters.relatedEntityId ?? null,
@@ -165,7 +190,7 @@ export async function dispatchPushNotificationsFromEvent(
         lastError = error instanceof Error ? error.message : "Push send failed";
 
         if (isMissingSubscription(error)) {
-          await supabase.rpc("deactivate_push_subscription", {
+          await workerSupabase.rpc("deactivate_push_subscription", {
             p_profile_id: row.recipient_profile_id,
             p_endpoint: row.endpoint,
           });
@@ -173,11 +198,18 @@ export async function dispatchPushNotificationsFromEvent(
       }
     }
 
-    await supabase.rpc("record_push_delivery", {
-      p_notification_id: notificationId,
-      p_status: success ? "sent" : "pending",
-      p_error_message: success ? null : lastError ?? "Нет активных push-подписок.",
-    });
+    try {
+      await workerSupabase.rpc("record_push_delivery", {
+        p_notification_id: notificationId,
+        p_status: success ? "sent" : "pending",
+        p_error_message: success ? null : lastError ?? "Нет активных push-подписок.",
+      });
+    } catch (recordError) {
+      console.warn("Failed to record push delivery", {
+        notificationId,
+        message: recordError instanceof Error ? recordError.message : String(recordError),
+      });
+    }
   }
 
   return { ok: true, skipped: false, sent, notifications: grouped.size };
