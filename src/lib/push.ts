@@ -1,8 +1,8 @@
 ﻿import webpush from "web-push";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const DEFAULT_VAPID_PUBLIC_KEY = "BFgY2jIvl9oemJkNO8wua2bf5AMPDuFFo1MJQv_WDmjfM7zLXG1hKbHIq79QJsLxWWXV-T83JXOlWiheO3bBslY";
-const DEFAULT_VAPID_PRIVATE_KEY = "Tk7pq5lOlOotqrVgyGvawVvmNoz3ABAfM-xhRgR6tmw";
+const DEFAULT_VAPID_PUBLIC_KEY = "BF1Q5aoYYhlwUtRclWYDernLq4jJgOhJFCg_q05C2kWpiiOk7MbSpbS7ZA_58AK8856JBtmhVXhiL2gpL4hPl28";
+const DEFAULT_VAPID_PRIVATE_KEY = "XcsH7yWfhvq3nUhKyOJ8_i6-THTAunp4S9xGrjs7vg0";
 
 export type PushTargetRow = {
   notification_id: string;
