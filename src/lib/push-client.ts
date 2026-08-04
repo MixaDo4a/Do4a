@@ -62,8 +62,10 @@ export async function enablePushNotifications() {
   }
 
   const existing = await registration.pushManager.getSubscription();
+  if (existing) {
+    await existing.unsubscribe().catch(() => undefined);
+  }
   const subscription =
-    existing ??
     (await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),

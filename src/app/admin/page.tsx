@@ -474,20 +474,20 @@ export default async function AdminPage({ searchParams }: PageProps) {
         ) : null}
 
         {!warehouseManagerOnly ? (
-        <section className="mt-4 ui-panel p-4">
-        {!warehouseManagerOnly ? (
-        <section className="mt-4 ui-panel p-4">
-          <SectionHeader icon={Archive} title="Закрытые смены" action="Открыть" href="/admin/closed-shifts" />
-          <p className="mt-3 text-sm text-muted">
-            Здесь можно просматривать закрытые и автозакрытые смены по магазинам в подчинении с фильтрами по периоду и статусу.
-          </p>
-        </section>
-        ) : null}
-          <SectionHeader icon={CalendarClock} title="Распорядок дня" action="Редактировать" href="/admin/routine" />
-          <p className="mt-3 text-sm text-muted">
-            Утренний и вечерний распорядок редактируются отдельно по каждому магазину.
-          </p>
-        </section>
+          <section className="mt-4 grid gap-4">
+            <div className="ui-panel p-4">
+              <SectionHeader icon={Archive} title="Закрытые смены" action="Открыть" href="/admin/closed-shifts" />
+              <p className="mt-3 text-sm text-muted">
+                Здесь можно просматривать закрытые и автозакрытые смены по магазинам в подчинении с фильтрами по периоду и статусу.
+              </p>
+            </div>
+            <div className="ui-panel p-4">
+              <SectionHeader icon={CalendarClock} title="Распорядок дня" action="Редактировать" href="/admin/routine" />
+              <p className="mt-3 text-sm text-muted">
+                Утренний и вечерний распорядок редактируются отдельно по каждому магазину.
+              </p>
+            </div>
+          </section>
         ) : null}
 
       </div>

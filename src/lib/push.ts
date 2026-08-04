@@ -1,7 +1,8 @@
 ﻿import webpush from "web-push";
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const DEFAULT_VAPID_PUBLIC_KEY = "BF1Q5aoYYhlwUtRclWYDernLq4jJgOhJFCg_q05C2kWpiiOk7MbSpbS7ZA_58AK8856JBtmhVXhiL2gpL4hPl28";
+const DEFAULT_VAPID_PUBLIC_KEY = "BFgY2jIvl9oemJkNO8wua2bf5AMPDuFFo1MJQv_WDmjfM7zLXG1hKbHIq79QJsLxWWXV-T83JXOlWiheO3bBslY";
+const DEFAULT_VAPID_PRIVATE_KEY = "Tk7pq5lOlOotqrVgyGvawVvmNoz3ABAfM-xhRgR6tmw";
 
 export type PushTargetRow = {
   notification_id: string;
@@ -26,7 +27,7 @@ function getVapidPublicKey() {
 }
 
 function getVapidPrivateKey() {
-  return process.env.PUSH_VAPID_PRIVATE_KEY?.trim() ?? "";
+  return process.env.PUSH_VAPID_PRIVATE_KEY?.trim() ?? DEFAULT_VAPID_PRIVATE_KEY;
 }
 
 function getVapidSubject() {
