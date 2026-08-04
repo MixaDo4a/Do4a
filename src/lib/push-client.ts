@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -87,6 +87,7 @@ export async function enablePushNotifications() {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      authorization: `Bearer ${session.access_token}`,
     },
     credentials: "same-origin",
     body: JSON.stringify({

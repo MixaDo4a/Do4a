@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as
@@ -15,16 +16,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid-subscription" }, { status: 400 });
   }
 
-  const supabase = await createSupabaseServerClient();
+  const authorization = request.headers.get("authorization") ?? "";
+  const bearerToken = authorization.toLowerCase().startsWith("bearer ") ? authorization.slice(7).trim() : null;
+
+  const authClient = await createSupabaseServerClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { user: cookieUser },
+  } = await authClient.auth.getUser();
+
+  let user = cookieUser;
+  if (!user && bearerToken) {
+    const { data, error } = await authClient.auth.getUser(bearerToken);
+    if (!error) {
+      user = data.user;
+    }
+  }
 
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { error } = await supabase.from("push_subscriptions").upsert(
+  let writer;
+  try {
+    writer = createSupabaseServiceRoleClient();
+  } catch {
+    writer = authClient;
+  }
+
+  const { error } = await writer.from("push_subscriptions").upsert(
     {
       profile_id: user.id,
       endpoint: body.endpoint,
@@ -43,4 +62,3 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
-
