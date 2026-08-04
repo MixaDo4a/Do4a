@@ -16,7 +16,19 @@ export async function POST() {
     const result = await dispatchPushNotificationsFromEvent(supabase, { sinceMinutes: 10080 });
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "push-sync-failed" }, { status: 400 });
+    console.warn("Push sync failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        skipped: true,
+        sent: 0,
+        notifications: 0,
+        error: error instanceof Error ? error.message : "push-sync-failed",
+      },
+      { status: 200 },
+    );
   }
 }
-
