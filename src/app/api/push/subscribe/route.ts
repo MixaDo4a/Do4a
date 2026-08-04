@@ -1,6 +1,29 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
+
+function createSupabaseAuthClient(token: string | null) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error("Supabase environment variables are missing");
+  }
+
+  return createClient(url, anonKey, {
+    global: token
+      ? {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      : undefined,
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as
@@ -19,31 +42,17 @@ export async function POST(request: NextRequest) {
   const authorization = request.headers.get("authorization") ?? "";
   const bearerToken = authorization.toLowerCase().startsWith("bearer ") ? authorization.slice(7).trim() : null;
 
-  const authClient = await createSupabaseServerClient();
+  const authClient = bearerToken ? createSupabaseAuthClient(bearerToken) : await createSupabaseServerClient();
   const {
-    data: { user: cookieUser },
+    data: { user },
+    error: userError,
   } = await authClient.auth.getUser();
 
-  let user = cookieUser;
-  if (!user && bearerToken) {
-    const { data, error } = await authClient.auth.getUser(bearerToken);
-    if (!error) {
-      user = data.user;
-    }
-  }
-
-  if (!user) {
+  if (userError || !user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  let writer;
-  try {
-    writer = createSupabaseServiceRoleClient();
-  } catch {
-    writer = authClient;
-  }
-
-  const { error } = await writer.from("push_subscriptions").upsert(
+  const { error } = await authClient.from("push_subscriptions").upsert(
     {
       profile_id: user.id,
       endpoint: body.endpoint,
