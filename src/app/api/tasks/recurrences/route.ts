@@ -117,6 +117,7 @@ export async function POST() {
           p_event_type: "recurring_task_created",
           p_title: "РџРѕРІС‚РѕСЂСЏСЋС‰Р°СЏСЃСЏ Р·Р°РґР°С‡Р°",
           p_body: `${assigneeLabel} В· ${storeLabel} В· ${rule.title}`,
+          p_exclude_profile_id: user.id,
           p_related_entity_type: "task",
           p_related_entity_id: task.id,
         });
@@ -127,6 +128,7 @@ export async function POST() {
           p_title: "РџРѕРІС‚РѕСЂСЏСЋС‰Р°СЏСЃСЏ Р·Р°РґР°С‡Р°",
           p_body: `${assigneeLabel} В· ${storeLabel} В· ${rule.title}`,
           p_exclude_employee_id: rule.assignee_employee_id,
+          p_exclude_profile_id: user.id,
           p_related_entity_type: "task",
           p_related_entity_id: task.id,
         });

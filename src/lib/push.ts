@@ -7,6 +7,7 @@ const DEFAULT_VAPID_PRIVATE_KEY = "XcsH7yWfhvq3nUhKyOJ8_i6-THTAunp4S9xGrjs7vg0";
 export type PushTargetRow = {
   notification_id: string;
   recipient_profile_id: string;
+  badge_count?: number;
   title: string;
   body: string;
   event_type: string;
@@ -94,11 +95,19 @@ function pushUrlForNotification(notification: Pick<PushTargetRow, "related_entit
   return "/notifications";
 }
 
-function buildPayload(notification: Pick<PushTargetRow, "title" | "body" | "event_type" | "related_entity_type" | "related_entity_id">) {
+function buildPayload(
+  notification: Pick<
+    PushTargetRow,
+    "notification_id" | "title" | "body" | "event_type" | "related_entity_type" | "related_entity_id" | "badge_count"
+  >,
+) {
   return JSON.stringify({
+    notificationId: notification.notification_id,
+    badgeCount: notification.badge_count ?? null,
     title: notification.title,
     body: notification.body,
-    tag: notification.event_type,
+    tag: notification.notification_id,
+    renotify: true,
     url: pushUrlForNotification(notification),
     icon: "/icons/icon-192x192.png",
     badge: "/icons/icon-192x192.png",
@@ -157,9 +166,31 @@ export async function dispatchPushNotificationsFromEvent(
   }
 
   const targets = (data ?? []) as PushTargetRow[];
+  console.info("push-targets", {
+    filters,
+    notifications: targets.length,
+    recipients: new Set(targets.map((target) => target.recipient_profile_id)).size,
+  });
   const grouped = new Map<string, PushTargetRow[]>();
+  const recipientProfileIds = [...new Set(targets.map((target) => target.recipient_profile_id))];
+  const badgeCounts = new Map<string, number>();
+
+  if (recipientProfileIds.length > 0) {
+    const { data: unreadNotifications, error: unreadError } = await workerSupabase
+      .from("notifications")
+      .select("recipient_profile_id")
+      .eq("is_read", false)
+      .in("recipient_profile_id", recipientProfileIds);
+
+    if (!unreadError) {
+      for (const row of unreadNotifications ?? []) {
+        badgeCounts.set(row.recipient_profile_id, (badgeCounts.get(row.recipient_profile_id) ?? 0) + 1);
+      }
+    }
+  }
 
   for (const target of targets) {
+    target.badge_count = badgeCounts.get(target.recipient_profile_id) ?? 0;
     const bucket = grouped.get(target.notification_id);
     if (bucket) {
       bucket.push(target);

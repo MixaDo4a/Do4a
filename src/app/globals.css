@@ -151,6 +151,11 @@ option {
   padding-inline: 0.6rem;
 }
 
+.schedule-page-shell > div {
+  width: min(100%, 1260px);
+  padding-inline: 0.6rem;
+}
+
 .schedule-editor-shell > div {
   width: min(100%, 1260px);
   padding-inline: 0.6rem;

@@ -221,6 +221,7 @@ export async function POST(request: NextRequest) {
     p_event_type: "new_task",
     p_title: "Новая задача",
     p_body: `${authorLabel} поставил задачу на магазин ${storeLabel}: ${title}`,
+    p_exclude_profile_id: user.id,
     p_related_entity_type: "task",
     p_related_entity_id: data.id,
   });
@@ -231,6 +232,7 @@ export async function POST(request: NextRequest) {
     p_title: "Новая задача",
     p_body: taskBody,
     p_exclude_employee_id: assigneeEmployeeId,
+    p_exclude_profile_id: user.id,
     p_related_entity_type: "task",
     p_related_entity_id: data.id,
   });

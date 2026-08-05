@@ -11,7 +11,18 @@ self.addEventListener("push", (event) => {
     },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    (async () => {
+      if (typeof self.navigator?.setAppBadge === "function") {
+        const badgeCount = Number(data.badgeCount);
+        if (Number.isFinite(badgeCount) && badgeCount > 0) {
+          await self.navigator.setAppBadge(badgeCount);
+        }
+      }
+
+      await self.registration.showNotification(title, options);
+    })(),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
@@ -34,4 +45,3 @@ self.addEventListener("notificationclick", (event) => {
     }),
   );
 });
-

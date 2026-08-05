@@ -144,10 +144,10 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   }
 
   return (
-    <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
-      <div className="mx-auto max-w-5xl">
+    <main className="app-shell schedule-page-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
+      <div className="mx-auto w-full max-w-none">
         <SectionHeader icon={CalendarDays} title="График" showBack />
-        <section className="mt-4 ui-panel p-4">
+        <section className="mt-4 ui-panel p-3 sm:p-4">
           <form className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" method="get">
             <div>
               <p className="font-semibold">График на {monthTitle(selectedMonth.slice(0, 7))}</p>

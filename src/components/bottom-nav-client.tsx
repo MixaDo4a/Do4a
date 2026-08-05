@@ -110,6 +110,21 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
     };
   }, []);
 
+  useEffect(() => {
+    const navigatorWithBadge = navigator as Navigator & {
+      setAppBadge?: (contents?: number | undefined) => Promise<void> | void;
+      clearAppBadge?: () => Promise<void> | void;
+    };
+
+    if (typeof navigatorWithBadge.setAppBadge === "function") {
+      if (hasUnreadNotifications) {
+        void navigatorWithBadge.setAppBadge(unreadCount);
+      } else {
+        void navigatorWithBadge.clearAppBadge?.();
+      }
+    }
+  }, [hasUnreadNotifications, unreadCount]);
+
   const visibleItems = useMemo(
     () =>
       items.filter((item) => {

@@ -1,12 +1,49 @@
 "use client";
 
 import { BellRing, Check, Smartphone } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { enablePushNotifications, registerPushServiceWorker } from "@/lib/push-client";
 
-export function PushNotificationsPanel() {
+type PushNotificationsPanelProps = {
+  hasActiveSubscription: boolean;
+};
+
+export function PushNotificationsPanel({ hasActiveSubscription }: PushNotificationsPanelProps) {
+  const router = useRouter();
   const [status, setStatus] = useState<string>("idle");
   const [loading, setLoading] = useState(false);
+  const [subscriptionActive, setSubscriptionActive] = useState(hasActiveSubscription);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStatus() {
+      try {
+        const response = await fetch("/api/push/status", {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json().catch(() => null)) as { hasActiveSubscription?: boolean } | null;
+        if (!cancelled && data?.hasActiveSubscription) {
+          setSubscriptionActive(true);
+        }
+      } catch {
+        // ignore status fetch failures and keep the server-rendered state
+      }
+    }
+
+    void loadStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onEnable() {
     setLoading(true);
@@ -14,6 +51,10 @@ export function PushNotificationsPanel() {
       await registerPushServiceWorker();
       const result = await enablePushNotifications();
       setStatus(result.ok ? "enabled" : result.message);
+      if (result.ok) {
+        setSubscriptionActive(true);
+        router.refresh();
+      }
     } catch {
       setStatus("error");
     } finally {
@@ -33,15 +74,17 @@ export function PushNotificationsPanel() {
             Подключите браузерные push-уведомления, чтобы сообщения приходили даже при закрытом приложении.
           </p>
         </div>
-        <button
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-soft transition hover:brightness-110 disabled:opacity-60"
-          disabled={loading}
-          onClick={onEnable}
-          type="button"
-        >
-          {loading ? <Smartphone size={16} className="animate-pulse" /> : <Check size={16} />}
-          {loading ? "Подключаем..." : "Включить push"}
-        </button>
+        {!subscriptionActive ? (
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-soft transition hover:brightness-110 disabled:opacity-60"
+            disabled={loading}
+            onClick={onEnable}
+            type="button"
+          >
+            {loading ? <Smartphone size={16} className="animate-pulse" /> : <Check size={16} />}
+            {loading ? "Подключаем..." : "Включить push"}
+          </button>
+        ) : null}
       </div>
       {status !== "idle" ? (
         <p className="mt-3 text-xs text-muted">
