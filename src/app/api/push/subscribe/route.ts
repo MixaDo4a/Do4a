@@ -52,6 +52,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const { error: deactivateError } = await authClient
+    .from("push_subscriptions")
+    .update({ is_active: false })
+    .eq("profile_id", user.id)
+    .eq("is_active", true)
+    .neq("endpoint", body.endpoint);
+
+  if (deactivateError) {
+    return NextResponse.json({ error: deactivateError.message }, { status: 400 });
+  }
+
   const { error } = await authClient.from("push_subscriptions").upsert(
     {
       profile_id: user.id,
