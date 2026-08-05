@@ -4,6 +4,7 @@ import { Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Set
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo } from "react";
+import { PROCUREMENT_ROLES } from "@/lib/auth/role-constants";
 import { registerPushServiceWorker } from "@/lib/push-client";
 
 type BottomNavItem = {
@@ -31,7 +32,7 @@ const items: BottomNavItem[] = [
     href: "/procurement",
     label: "Закуп",
     icon: PackageSearch,
-    roles: ["buyer", "warehouse_manager", "super_admin", "developer"],
+    roles: PROCUREMENT_ROLES,
     hideForAuditorOnly: false,
   },
   {
@@ -145,20 +146,31 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
           return (
             <Link
               key={item.href}
-              className={`flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] text-[11px] font-medium transition ${
+              className={`relative flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] text-[11px] font-medium transition ${
                 active ? "bg-brand text-white shadow-[0_8px_24px_rgba(193,18,31,0.42)]" : "text-muted"
               }`}
+              style={{ overflow: "visible" }}
               href={item.href}
               prefetch
             >
-              <span className={`relative grid h-6 w-6 place-items-center ${isNotifications && hasUnreadNotifications ? "text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : ""}`}>
+              <span
+                className={`relative inline-flex h-6 w-6 shrink-0 items-center justify-center ${
+                  isNotifications && hasUnreadNotifications ? "text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : ""
+                }`}
+                style={{ overflow: "visible" }}
+              >
                 {isNotifications && hasUnreadNotifications ? (
                   <>
-                    <span className="absolute inset-[-0.5rem] rounded-full border border-brand/30 animate-[notification-wave_1.8s_ease-out_infinite]" />
-                    <span className="absolute inset-[-0.2rem] rounded-full border border-brand/20 animate-[notification-wave_1.8s_ease-out_infinite] [animation-delay:300ms]" />
+                    <span className="pointer-events-none absolute inset-[-0.5rem] rounded-full border border-brand/30 animate-[notification-wave_1.8s_ease-out_infinite]" />
+                    <span className="pointer-events-none absolute inset-[-0.2rem] rounded-full border border-brand/20 animate-[notification-wave_1.8s_ease-out_infinite] [animation-delay:300ms]" />
                   </>
                 ) : null}
-                <Icon size={18} />
+                <Icon className="relative z-10" size={18} />
+                {isNotifications && hasUnreadNotifications ? (
+                  <span className="pointer-events-none absolute -right-1.5 -top-1.5 z-30 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full border border-white/20 bg-brand px-1 text-[10px] font-semibold leading-none text-white shadow-[0_0_12px_rgba(255,57,72,0.6)] ring-2 ring-[#090607]">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                ) : null}
               </span>
               <span>{label}</span>
             </Link>

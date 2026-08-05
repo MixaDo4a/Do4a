@@ -1,4 +1,5 @@
-﻿import { CheckCircle2, Clock, ListTodo, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, Clock, ListTodo, XCircle } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
@@ -23,8 +24,8 @@ type TaskRow = {
   due_at: string | null;
   priority: "low" | "normal" | "high" | "urgent";
   status: "open" | "in_progress" | "done" | "overdue" | "cancelled";
-  stores: { id: string; name: string } | null;
-  employees: { id: string; full_name: string } | null;
+  stores: { id: string; name: string }[] | null;
+  employees: { id: string; full_name: string }[] | null;
   task_comments: { id: string; body: string; created_at: string }[];
 };
 
@@ -78,6 +79,8 @@ const statusLabels: Record<TaskRow["status"], string> = {
   cancelled: "Отменена",
 };
 
+const activeTaskStatuses: TaskRow["status"][] = ["open", "in_progress", "overdue"];
+
 function formatDue(value: string | null) {
   if (!value) {
     return "Бессрочная";
@@ -89,6 +92,17 @@ function formatDue(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function buildTasksQuery(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>) {
+  return supabase
+    .from("tasks")
+    .select(
+      "id, recurrence_rule_id, title, description, due_at, priority, status, stores(id, name), employees(id, full_name), task_comments(id, body, created_at)",
+    )
+    .in("status", activeTaskStatuses)
+    .order("due_at", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false });
 }
 
 export default async function TasksPage({ searchParams }: PageProps) {
@@ -114,14 +128,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const [tasksResult, employeesResult, profilesResult, userRolesResult] = await Promise.all([
     canSeeAllTasks
       ? (() => {
-          let query = supabase
-            .from("tasks")
-            .select(
-              "id, recurrence_rule_id, title, description, due_at, priority, status, stores(id, name), employees(id, full_name), task_comments(id, body, created_at)",
-            )
-            .in("store_id", accessibleStoreIds)
-            .order("due_at", { ascending: true, nullsFirst: false })
-            .order("created_at", { ascending: false });
+          let query = buildTasksQuery(supabase).in("store_id", accessibleStoreIds);
 
           if (storeId) {
             query = query.eq("store_id", storeId);
@@ -145,33 +152,23 @@ export default async function TasksPage({ searchParams }: PageProps) {
             query = query.not("due_at", "is", null);
           }
 
-          return query.returns<TaskRow[]>();
+          return query;
         })()
       : employeeId
-        ? supabase
-            .from("tasks")
-            .select(
-              "id, recurrence_rule_id, title, description, due_at, priority, status, stores(id, name), employees(id, full_name), task_comments(id, body, created_at)",
-            )
-            .eq("assignee_employee_id", employeeId)
-            .order("due_at", { ascending: true, nullsFirst: false })
-            .order("created_at", { ascending: false })
-            .returns<TaskRow[]>()
+        ? buildTasksQuery(supabase).eq("assignee_employee_id", employeeId)
         : Promise.resolve({ data: [] as TaskRow[], error: null }),
     supabase
       .from("employees")
       .select("id, full_name, employee_store_assignments(store_id)")
       .eq("is_active", true)
-      .order("full_name")
-      .returns<EmployeeRow[]>(),
-    supabase.from("profiles").select("id, employee_id").returns<ProfileEmployeeRow[]>(),
-    supabase.from("user_roles").select("profile_id, roles(code)").is("revoked_at", null).returns<ProfileRoleRow[]>(),
+      .order("full_name"),
+    supabase.from("profiles").select("id, employee_id"),
+    supabase.from("user_roles").select("profile_id, roles(code)").is("revoked_at", null),
   ]);
 
   if (tasksResult.error) {
     throw new Error(tasksResult.error.message);
   }
-
   if (employeesResult.error) {
     throw new Error(employeesResult.error.message);
   }
@@ -182,14 +179,15 @@ export default async function TasksPage({ searchParams }: PageProps) {
     throw new Error(userRolesResult.error.message);
   }
 
+  const tasks = (tasksResult.data ?? []) as unknown as TaskRow[];
   const stores = accessibleStores.map((store) => ({ id: store.id, name: store.name }));
   const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
-  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, roleCodeFromRelation(row.roles)]));
-  const employeesInAccessibleStores = employeesResult.data.filter((employee) =>
+  const roleByProfileId = new Map(userRolesResult.data.map((row: ProfileRoleRow) => [row.profile_id, roleCodeFromRelation(row.roles)]));
+  const employeesInAccessibleStores = (employeesResult.data as EmployeeRow[]).filter((employee) =>
     employee.employee_store_assignments.some((assignment) => accessibleStoreIds.includes(assignment.store_id)),
   );
   const taskAssignees = warehouseAssistantOnly
-    ? employeesResult.data.filter((employee) => employee.id === employeeId)
+    ? (employeesResult.data as EmployeeRow[]).filter((employee) => employee.id === employeeId)
     : warehouseManagerOnly
       ? employeesInAccessibleStores.filter((employee) => {
           const profileId = profileIdByEmployeeId.get(employee.id);
@@ -209,9 +207,22 @@ export default async function TasksPage({ searchParams }: PageProps) {
           </p>
         ) : null}
 
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <Link className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-brand/30 bg-brand/10 px-4 text-sm font-semibold text-brand transition hover:border-brand/60 hover:bg-brand/15" href="/tasks/archive">
+            Архив закрытых задач
+          </Link>
+        </div>
+
         {canSeeAllTasks ? (
-          <section className="mt-4 ui-panel p-4">
-            <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" method="get">
+          <details className="mt-4 ui-panel p-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
+              <span className="inline-flex items-center gap-2">
+                <ChevronDown size={16} />
+                Фильтры
+              </span>
+              <span className="text-xs font-normal text-muted">По магазину, сотруднику, статусу и датам</span>
+            </summary>
+            <form className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" method="get">
               <select className="h-11 rounded-md border border-line px-3" name="storeId" defaultValue={storeId ?? ""}>
                 <option value="">Все магазины</option>
                 {stores.map((store) => (
@@ -229,39 +240,35 @@ export default async function TasksPage({ searchParams }: PageProps) {
                 ))}
               </select>
               <select className="h-11 rounded-md border border-line px-3" name="status" defaultValue={status ?? ""}>
-                <option value="">Все статусы</option>
-                <option value="done">Выполнена</option>
-                <option value="open">Не выполнена</option>
+                <option value="">Любой статус</option>
+                <option value="open">Открыта</option>
                 <option value="in_progress">В работе</option>
-                <option value="overdue">Просроченная</option>
-                <option value="cancelled">Отменена</option>
+                <option value="overdue">Не выполнена</option>
               </select>
               <select className="h-11 rounded-md border border-line px-3" name="deadline" defaultValue={deadline ?? ""}>
-                <option value="">Все сроки</option>
-                <option value="no_date">Бессрочные</option>
+                <option value="">Любой срок</option>
+                <option value="no_date">Бессрочная</option>
                 <option value="has_date">С датой</option>
               </select>
               <input className="h-11 rounded-md border border-line px-3" name="dateFrom" type="date" defaultValue={dateFrom ?? ""} />
               <input className="h-11 rounded-md border border-line px-3" name="dateTo" type="date" defaultValue={dateTo ?? ""} />
               <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white lg:col-span-4">Показать задачи</button>
             </form>
-          </section>
+          </details>
         ) : null}
 
         {canCreateTask ? (
-          <section className="mt-4 ui-panel p-4">
-            <h2 className="font-semibold">Новая задача</h2>
-            <form action="/tasks/create" className="mt-3 grid gap-3" method="post">
-              <input
-                className="h-11 rounded-md border border-line px-3 outline-none focus:border-brand"
-                name="title"
-                placeholder="Название"
-              />
-              <textarea
-                className="min-h-20 rounded-md border border-line px-3 py-2 outline-none focus:border-brand"
-                name="description"
-                placeholder="Описание"
-              />
+          <details className="mt-4 ui-panel p-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
+              <span className="inline-flex items-center gap-2">
+                <ChevronDown size={16} />
+                Выставить задачу
+              </span>
+              <span className="text-xs font-normal text-muted">Создание задачи и повторений</span>
+            </summary>
+            <form action="/tasks/create" className="mt-4 grid gap-3" method="post">
+              <input className="h-11 rounded-md border border-line px-3 outline-none focus:border-brand" name="title" placeholder="Название" />
+              <textarea className="min-h-20 rounded-md border border-line px-3 py-2 outline-none focus:border-brand" name="description" placeholder="Описание" />
               <div className="grid gap-3 sm:grid-cols-2">
                 <select className="h-11 rounded-md border border-line px-3" name="store_id">
                   {stores.map((store) => (
@@ -292,11 +299,11 @@ export default async function TasksPage({ searchParams }: PageProps) {
                 </select>
               </div>
               <p className="text-xs text-muted">
-                Если выбрано повторение, первая дата и время запуска обязательны. Дальше задача будет повторяться автоматически.
+                Если дата не указана, задача считается бессрочной и остаётся в активных до закрытия.
               </p>
               {stores.length === 0 || taskAssignees.length === 0 ? (
                 <p className="rounded-md bg-surface p-3 text-sm text-muted">
-                  Для создания задачи нужен хотя бы один активный магазин и один активный сотрудник.
+                  Нет доступных магазинов или сотрудников для создания задачи.
                 </p>
               ) : null}
               <button
@@ -306,27 +313,23 @@ export default async function TasksPage({ searchParams }: PageProps) {
                 Создать задачу
               </button>
             </form>
-          </section>
+          </details>
         ) : null}
 
         <div className="mt-4 grid gap-3">
-          {tasksResult.data.length === 0 ? (
-            <section className="ui-panel p-4 text-sm text-muted shadow-soft">
-              Для вас задач пока нет.
-            </section>
+          {tasks.length === 0 ? (
+            <section className="ui-panel p-4 text-sm text-muted shadow-soft">Для вас задач пока нет.</section>
           ) : null}
 
-          {tasksResult.data.map((task) => (
+          {tasks.map((task) => (
             <article key={task.id} className="ui-panel p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold">{cleanText(task.title, "Задача с поврежденным текстом")}</p>
+                  <p className="font-semibold">{cleanText(task.title, "Задача")}</p>
                   <p className="mt-1 text-sm text-muted">
-                    {task.stores?.name ?? "Магазин"} · {employeeName(task.employees)}
+                    {task.stores?.[0]?.name ?? "Магазин"} · {employeeName(task.employees?.[0] ?? null)}
                   </p>
-                  {task.description ? (
-                    <p className="mt-2 text-sm text-muted">{cleanText(task.description, "Описание повреждено")}</p>
-                  ) : null}
+                  {task.description ? <p className="mt-2 text-sm text-muted">{cleanText(task.description, "Описание")}</p> : null}
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   {task.recurrence_rule_id ? (
@@ -351,7 +354,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   <div className="mt-2 grid gap-2">
                     {task.task_comments.map((comment) => (
                       <p key={comment.id} className="text-muted">
-                        {cleanText(comment.body, "Комментарий поврежден")}
+                        {cleanText(comment.body, "Комментарий")}
                       </p>
                     ))}
                   </div>
@@ -387,6 +390,3 @@ export default async function TasksPage({ searchParams }: PageProps) {
     </main>
   );
 }
-
-
-

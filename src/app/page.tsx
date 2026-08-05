@@ -453,12 +453,16 @@ export default async function HomePage() {
           </div>
           <a
             className="relative grid h-11 w-11 place-items-center ui-panel shadow-soft"
+            style={{ overflow: "visible" }}
             aria-label="Уведомления"
             href="/notifications"
           >
-            <Bell size={20} className={notificationsResult.count ? "text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : ""} />
+            <Bell
+              size={20}
+              className={notificationsResult.count ? "relative z-10 text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : "relative z-10"}
+            />
             {notificationsResult.count ? (
-              <span className="absolute right-[-0.15rem] top-[-0.15rem] z-10 grid min-h-5 min-w-5 place-items-center rounded-full border border-white/20 bg-brand px-1 text-[10px] font-semibold leading-none text-white shadow-[0_0_12px_rgba(255,57,72,0.6)]">
+              <span className="pointer-events-none absolute right-[-0.45rem] top-[-0.45rem] z-30 grid min-h-5 min-w-5 place-items-center rounded-full border border-white/20 bg-brand px-1 text-[10px] font-semibold leading-none text-white shadow-[0_0_12px_rgba(255,57,72,0.6)]">
                 {notificationsResult.count}
               </span>
             ) : null}

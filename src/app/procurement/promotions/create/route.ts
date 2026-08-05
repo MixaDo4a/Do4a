@@ -63,22 +63,43 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(procurementUrl(request, "save-error", "Магазин недоступен."), 303);
   }
 
-  const { error } = await supabase.from("supplier_promotions").insert(
-    selectedStores.map((store) => ({
-      store_id: store.id,
-      supplier_name: supplierName,
-      product_name: productName,
-      promotion_terms: promotionTerms,
-      starts_on: startsOn,
-      ends_on: endsOn,
-      created_by: user.id,
-      updated_by: user.id,
-    })),
-  );
+  const { data: createdPromotions, error } = await supabase
+    .from("supplier_promotions")
+    .insert(
+      selectedStores.map((store) => ({
+        store_id: store.id,
+        supplier_name: supplierName,
+        product_name: productName,
+        promotion_terms: promotionTerms,
+        starts_on: startsOn,
+        ends_on: endsOn,
+        created_by: user.id,
+        updated_by: user.id,
+      })),
+    )
+    .select("id, store_id");
 
-  if (error) {
-    return NextResponse.redirect(procurementUrl(request, "save-error", error.message), 303);
+  if (error || !createdPromotions) {
+    return NextResponse.redirect(procurementUrl(request, "save-error", error?.message ?? "Не удалось сохранить данные."), 303);
   }
+
+  await Promise.all(
+    createdPromotions.map(async (promotion) => {
+      const store = selectedStores.find((item) => item.id === promotion.store_id);
+      if (!store) {
+        return;
+      }
+
+      await supabase.rpc("send_store_employees_notification", {
+        p_store_id: store.id,
+        p_event_type: "supplier_promotion_created",
+        p_title: "Новая акция поставщика",
+        p_body: `${store.name}: ${supplierName} — ${productName}`,
+        p_related_entity_type: "supplier_promotion",
+        p_related_entity_id: promotion.id,
+      });
+    }),
+  );
 
   return NextResponse.redirect(procurementUrl(request, "saved"), 303);
 }

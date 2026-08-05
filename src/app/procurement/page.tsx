@@ -2,7 +2,7 @@ import { FileText, PackageSearch, Save, Truck } from "lucide-react";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
-import { getCurrentRoleCodes, hasAnyRole, PROCUREMENT_ROLES } from "@/lib/auth/roles";
+import { getCurrentRoleCodes, hasAnyRole, PROCUREMENT_MANAGE_ROLES, PROCUREMENT_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -50,6 +50,13 @@ function dateLabel(value: string | null) {
   return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
 }
 
+function isActivePromotion(promotion: PromotionRow) {
+  const today = new Date().toISOString().slice(0, 10);
+  const startsOn = promotion.starts_on ?? today;
+  const endsOn = promotion.ends_on ?? today;
+  return startsOn <= today && endsOn >= today;
+}
+
 export default async function ProcurementPage({ searchParams }: PageProps) {
   const { message, detail } = await searchParams;
   const supabase = await createSupabaseServerClient();
@@ -67,7 +74,7 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
   }
 
   const canCreateOrders = roles.some((role) => ["buyer", "super_admin", "developer"].includes(role));
-  const canUpdateOrders = roles.some((role) => ["warehouse_manager", "buyer", "super_admin", "developer"].includes(role));
+  const canUpdateOrders = roles.some((role) => PROCUREMENT_MANAGE_ROLES.includes(role));
   const stores = await getAccessibleStores();
   const storeIds = stores.map((store) => store.id);
 
@@ -96,6 +103,8 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
 
   if (promotionsResult.error) throw new Error(promotionsResult.error.message);
   if (ordersResult.error) throw new Error(ordersResult.error.message);
+  const activePromotions = promotionsResult.data.filter((promotion) => isActivePromotion(promotion));
+  const canViewOnlyPromotions = roles.some((role) => ["manager", "auditor"].includes(role)) && !canCreateOrders && !canUpdateOrders;
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -126,7 +135,13 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
                 <input className="h-11 rounded-md border border-line px-3" name="supplier_name" placeholder="Поставщик" required />
                 <label className="grid gap-1 text-sm text-muted">
                   Счёт
-                  <input className="rounded-md border border-line p-3" name="invoice_file" type="file" accept="*/*" required />
+                  <input
+                    className="rounded-md border border-line p-3"
+                    name="invoice_file"
+                    type="file"
+                    accept=".pdf,.xls,.xlsx,image/*,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    required
+                  />
                 </label>
                 <button className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand px-4 font-semibold text-white">
                   <Save size={17} /> Создать заказ
@@ -167,56 +182,65 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
           </section>
         ) : null}
 
-        <section className="mt-4 ui-panel p-4">
-          <SectionHeader icon={Truck} title="Заказы поставщиков" />
-          <div className="mt-4 grid gap-3">
-            {ordersResult.data.length === 0 ? (
-              <p className="rounded-md border border-line p-3 text-sm text-muted">Заказов пока нет.</p>
-            ) : (
-              ordersResult.data.map((order) => (
-                <article key={order.id} className="rounded-2xl border border-line/80 bg-[#0d090a]/92 p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="break-words font-semibold">{order.supplier_name}</h3>
-                      <p className="mt-1 break-words text-sm text-muted">
-                        {order.stores?.name ?? "Магазин"} · {dateLabel(order.created_at)}
-                      </p>
-                      <p className="mt-1 text-sm">Статус: {statusLabels[order.status]}</p>
-                      {order.files ? <p className="mt-1 break-words text-xs text-muted">Счёт прикреплён: {order.files.path.split("/").pop()}</p> : null}
-                      {order.problem_comment ? <p className="mt-2 break-words text-sm text-brand">{order.problem_comment}</p> : null}
-                      {order.purchase_order_problem_files.length > 0 ? (
-                        <p className="mt-1 text-xs text-muted">Фото проблемы: {order.purchase_order_problem_files.length}</p>
-                      ) : null}
+        {canCreateOrders || canUpdateOrders ? (
+          <section className="mt-4 ui-panel p-4">
+            <SectionHeader icon={Truck} title="Заказы поставщиков" />
+            <div className="mt-4 grid gap-3">
+              {ordersResult.data.length === 0 ? (
+                <p className="rounded-md border border-line p-3 text-sm text-muted">Заказов пока нет.</p>
+              ) : (
+                ordersResult.data.map((order) => (
+                  <article key={order.id} className="rounded-2xl border border-line/80 bg-[#0d090a]/92 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="break-words font-semibold">{order.supplier_name}</h3>
+                        <p className="mt-1 break-words text-sm text-muted">
+                          {order.stores?.name ?? "Магазин"} · {dateLabel(order.created_at)}
+                        </p>
+                        <p className="mt-1 text-sm">Статус: {statusLabels[order.status]}</p>
+                        {order.files ? <p className="mt-1 break-words text-xs text-muted">Счёт прикреплён: {order.files.path.split("/").pop()}</p> : null}
+                        {order.problem_comment ? <p className="mt-2 break-words text-sm text-brand">{order.problem_comment}</p> : null}
+                        {order.purchase_order_problem_files.length > 0 ? (
+                          <p className="mt-1 text-xs text-muted">Фото проблемы: {order.purchase_order_problem_files.length}</p>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
 
-                  {canUpdateOrders ? (
-                    <form action="/procurement/orders/update-status" className="mt-3 grid gap-2" encType="multipart/form-data" method="post">
-                      <input name="order_id" type="hidden" value={order.id} />
-                      <select className="h-10 rounded-md border border-line px-3" name="status" defaultValue={order.status}>
-                        <option value="expected">Ожидается</option>
-                        <option value="in_work">В работе</option>
-                        <option value="accepted">Принято</option>
-                        <option value="problem">Проблемный</option>
-                      </select>
-                      <textarea className="min-h-20 rounded-md border border-line px-3 py-2" name="problem_comment" placeholder="Комментарий обязателен для проблемного заказа" />
-                      <input className="rounded-md border border-line p-3" name="problem_files" type="file" accept="*/*" multiple />
-                      <button className="h-10 rounded-md border border-line px-4 font-semibold">Обновить статус</button>
-                    </form>
-                  ) : null}
-                </article>
-              ))
-            )}
-          </div>
-        </section>
+                    {canUpdateOrders ? (
+                      <form action="/procurement/orders/update-status" className="mt-3 grid gap-2" encType="multipart/form-data" method="post">
+                        <input name="order_id" type="hidden" value={order.id} />
+                        <select className="h-10 rounded-md border border-line px-3" name="status" defaultValue={order.status}>
+                          <option value="expected">Ожидается</option>
+                          <option value="in_work">В работе</option>
+                          <option value="accepted">Принято</option>
+                          <option value="problem">Проблемный</option>
+                        </select>
+                        <textarea className="min-h-20 rounded-md border border-line px-3 py-2" name="problem_comment" placeholder="Комментарий обязателен для проблемного заказа" />
+                        <input
+                          className="rounded-md border border-line p-3"
+                          name="problem_files"
+                          type="file"
+                          accept=".pdf,.xls,.xlsx,image/*,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                          multiple
+                        />
+                        <button className="h-10 rounded-md border border-line px-4 font-semibold">Обновить статус</button>
+                      </form>
+                    ) : null}
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+        ) : null}
 
         <section className="mt-4 ui-panel p-4">
           <SectionHeader icon={FileText} title="Акции поставщиков" />
+          {canViewOnlyPromotions ? <p className="mt-2 text-sm text-muted">Только просмотр активных акций.</p> : null}
           <div className="mt-4 grid gap-3">
-            {promotionsResult.data.length === 0 ? (
+            {activePromotions.length === 0 ? (
               <p className="rounded-md border border-line p-3 text-sm text-muted">Акций пока нет.</p>
             ) : (
-              promotionsResult.data.map((promotion) => (
+              activePromotions.map((promotion) => (
                 <article key={promotion.id} className="rounded-2xl border border-line/80 bg-[#0d090a]/92 p-3">
                   <h3 className="break-words font-semibold">{promotion.product_name}</h3>
                   <p className="mt-1 break-words text-sm text-muted">

@@ -12,6 +12,44 @@ function safeFileName(name: string) {
   );
 }
 
+function inferMimeType(fileName: string, fallback: string | null) {
+  const extension = fileName.split(".").pop()?.toLowerCase();
+
+  if (extension === "xlsx") {
+    return "application/vnd.ms-excel";
+  }
+
+  if (fallback === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+    return "application/vnd.ms-excel";
+  }
+
+  if (fallback) {
+    return fallback;
+  }
+
+  switch (extension) {
+    case "pdf":
+      return "application/pdf";
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    case "heic":
+      return "image/heic";
+    case "heif":
+      return "image/heif";
+    case "xls":
+      return "application/vnd.ms-excel";
+    case "xlsx":
+      return "application/vnd.ms-excel";
+    default:
+      return null;
+  }
+}
+
 export async function uploadFormFile(
   supabase: SupabaseClient,
   bucket: string,
@@ -26,8 +64,9 @@ export async function uploadFormFile(
   }
 
   const path = `${folder}/${randomUUID()}-${safeFileName(file.name)}`;
+  const contentType = inferMimeType(file.name, file.type || null);
   const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file, {
-    contentType: file.type || undefined,
+    contentType: contentType || undefined,
     upsert: false,
   });
 
@@ -40,7 +79,7 @@ export async function uploadFormFile(
     .insert({
       bucket,
       path,
-      mime_type: file.type || null,
+      mime_type: contentType,
       size_bytes: file.size,
       uploaded_by: uploadedBy,
       related_entity_type: relatedEntityType,

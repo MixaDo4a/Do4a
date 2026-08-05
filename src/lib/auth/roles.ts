@@ -1,4 +1,14 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  CHECKLIST_ROLES,
+  DEDUCTION_ROLES,
+  MANAGE_ROLES,
+  OPEN_SHIFT_ROLES,
+  PROCUREMENT_MANAGE_ROLES,
+  PROCUREMENT_ROLES,
+  ROLE_HIERARCHY,
+  TASK_CREATOR_ROLES,
+} from "@/lib/auth/role-constants";
 
 export type RoleRelation<T extends string = string> = { code: T } | { code: T }[] | null;
 
@@ -56,17 +66,6 @@ export function hasAnyRole(roles: string[], allowed: string[]) {
   return roles.some((role) => allowed.includes(role));
 }
 
-export const ROLE_HIERARCHY = [
-  "developer",
-  "super_admin",
-  "store_manager",
-  "buyer",
-  "warehouse_manager",
-  "auditor",
-  "warehouse_assistant",
-  "manager",
-] as const;
-
 export function roleRank(role: string) {
   const index = ROLE_HIERARCHY.indexOf(role as (typeof ROLE_HIERARCHY)[number]);
   return index === -1 ? ROLE_HIERARCHY.length : index;
@@ -88,9 +87,4 @@ export function canDeleteTargetRole(currentRole: string, targetRole: string) {
   return roleRank(targetRole) > roleRank(currentRole);
 }
 
-export const CHECKLIST_ROLES = ["auditor", "store_manager", "super_admin", "developer"];
-export const MANAGE_ROLES = ["store_manager", "super_admin", "developer"];
-export const OPEN_SHIFT_ROLES = ["manager", "store_manager", "super_admin", "developer"];
-export const TASK_CREATOR_ROLES = ["store_manager", "super_admin", "developer", "warehouse_manager", "warehouse_assistant"];
-export const DEDUCTION_ROLES = ["store_manager", "super_admin", "developer", "warehouse_manager"];
-export const PROCUREMENT_ROLES = ["buyer", "warehouse_manager", "super_admin", "developer"];
+export { CHECKLIST_ROLES, DEDUCTION_ROLES, MANAGE_ROLES, OPEN_SHIFT_ROLES, PROCUREMENT_MANAGE_ROLES, PROCUREMENT_ROLES, ROLE_HIERARCHY, TASK_CREATOR_ROLES };
