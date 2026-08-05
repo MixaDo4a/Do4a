@@ -9,6 +9,22 @@ type PushNotificationsPanelProps = {
   hasActiveSubscription: boolean;
 };
 
+const statusMessages: Record<string, string> = {
+  enabled: "Push-уведомления подключены.",
+  "permission-denied": "Доступ к уведомлениям не выдан.",
+  "push-unsupported":
+    "В этом браузере push-уведомления недоступны. Для PWA используйте Chrome / Edge, а на iPhone — установленное на экран \"Домой\" web-приложение.",
+  "secure-context-required": "Push-уведомления доступны только по HTTPS или на localhost.",
+  "config-missing": "Push-уведомления не настроены на этом развертывании.",
+  "config-failed": "Не удалось получить ключ настройки push.",
+  "sw-unsupported": "Service Worker недоступен.",
+  unauthorized: "Сначала войдите в приложение.",
+  "subscription-failed": "Не удалось подключить push-уведомления.",
+  "subscription-invalid": "Не удалось подключить push-уведомления.",
+  error: "Не удалось подключить push-уведомления.",
+  idle: "",
+};
+
 export function PushNotificationsPanel({ hasActiveSubscription }: PushNotificationsPanelProps) {
   const router = useRouter();
   const [status, setStatus] = useState<string>("idle");
@@ -76,16 +92,18 @@ export function PushNotificationsPanel({ hasActiveSubscription }: PushNotificati
     }
   }
 
+  const message = statusMessages[status] ?? statusMessages.error;
+
   return (
     <section className="mt-4 ui-panel p-4 shadow-soft">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold">
             <BellRing size={16} className="text-brand" />
-            Push-СѓРІРµРґРѕРјР»РµРЅРёСЏ РЅР° С‚РµР»РµС„РѕРЅ
+            Push-уведомления на телефон
           </p>
           <p className="mt-1 text-xs text-muted">
-            РџРѕРґРєР»СЋС‡РёС‚Рµ Р±СЂР°СѓР·РµСЂРЅС‹Рµ push-СѓРІРµРґРѕРјР»РµРЅРёСЏ, С‡С‚РѕР±С‹ СЃРѕРѕР±С‰РµРЅРёСЏ РїСЂРёС…РѕРґРёР»Рё РґР°Р¶Рµ РїСЂРё Р·Р°РєСЂС‹С‚РѕРј РїСЂРёР»РѕР¶РµРЅРёРё.
+            Подключите браузерные push-уведомления, чтобы сообщения приходили даже при закрытом приложении.
           </p>
         </div>
         {subscriptionActive === false ? (
@@ -96,31 +114,11 @@ export function PushNotificationsPanel({ hasActiveSubscription }: PushNotificati
             type="button"
           >
             {loading ? <Smartphone size={16} className="animate-pulse" /> : <Check size={16} />}
-            {loading ? "РџРѕРґРєР»СЋС‡Р°РµРј..." : "Р’РєР»СЋС‡РёС‚СЊ push"}
+            {loading ? "Подключаем..." : "Включить push"}
           </button>
         ) : null}
       </div>
-      {status !== "idle" ? (
-        <p className="mt-3 text-xs text-muted">
-          {status === "enabled"
-            ? "Push-СѓРІРµРґРѕРјР»РµРЅРёСЏ РїРѕРґРєР»СЋС‡РµРЅС‹."
-            : status === "permission-denied"
-              ? "Р”РѕСЃС‚СѓРї Рє СѓРІРµРґРѕРјР»РµРЅРёСЏРј РЅРµ РІС‹РґР°РЅ."
-              : status === "push-unsupported"
-                ? "Р’ СЌС‚РѕРј Р±СЂР°СѓР·РµСЂРµ push-СѓРІРµРґРѕРјР»РµРЅРёСЏ РЅРµРґРѕСЃС‚СѓРїРЅС‹. Р”Р»СЏ PWA РёСЃРїРѕР»СЊР·СѓР№С‚Рµ Chrome / Edge, Р° РЅР° iPhone вЂ” СѓСЃС‚Р°РЅРѕРІР»РµРЅРЅС‹Р№ РЅР° РґРѕРјР°С€РЅРёР№ СЌРєСЂР°РЅ web app."
-                : status === "secure-context-required"
-                  ? "Push-СѓРІРµРґРѕРјР»РµРЅРёСЏ РґРѕСЃС‚СѓРїРЅС‹ С‚РѕР»СЊРєРѕ РІ HTTPS РёР»Рё localhost."
-                  : status === "config-missing"
-                    ? "Push-СѓРІРµРґРѕРјР»РµРЅРёСЏ РЅРµ РЅР°СЃС‚СЂРѕРµРЅС‹ РЅР° СЌС‚РѕРј СЂР°Р·РІРµСЂС‚С‹РІР°РЅРёРё."
-                    : status === "config-failed"
-                      ? "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РєР»СЋС‡ РЅР°СЃС‚СЂРѕР№РєРё push."
-                      : status === "sw-unsupported"
-                        ? "Service Worker РЅРµРґРѕСЃС‚СѓРїРµРЅ."
-                        : status === "unauthorized"
-                          ? "РЎРЅР°С‡Р°Р»Р° РІРѕР№РґРёС‚Рµ РІ РїСЂРёР»РѕР¶РµРЅРёРµ."
-                          : "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕРґРєР»СЋС‡РёС‚СЊ push-СѓРІРµРґРѕРјР»РµРЅРёСЏ."}
-        </p>
-      ) : null}
+      {status !== "idle" ? <p className="mt-3 text-xs text-muted">{message}</p> : null}
     </section>
   );
 }
