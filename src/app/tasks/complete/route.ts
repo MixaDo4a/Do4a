@@ -97,6 +97,15 @@ export async function POST(request: NextRequest) {
     relatedEntityId: taskId,
   }).catch(() => null);
 
+  if (task.created_by) {
+    await dispatchPushNotificationsFromEvent(supabase, {
+      eventType: "task_completed",
+      relatedEntityType: "task",
+      relatedEntityId: taskId,
+      recipientProfileId: task.created_by,
+    }).catch(() => null);
+  }
+
   return NextResponse.redirect(tasksUrl(request, "task-done"), 303);
 }
 
