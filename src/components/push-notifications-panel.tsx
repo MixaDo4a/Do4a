@@ -13,7 +13,9 @@ export function PushNotificationsPanel({ hasActiveSubscription }: PushNotificati
   const router = useRouter();
   const [status, setStatus] = useState<string>("idle");
   const [loading, setLoading] = useState(false);
-  const [subscriptionActive, setSubscriptionActive] = useState(hasActiveSubscription);
+  const [subscriptionActive, setSubscriptionActive] = useState<boolean | null>(
+    hasActiveSubscription ? true : null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -40,11 +42,13 @@ export function PushNotificationsPanel({ hasActiveSubscription }: PushNotificati
         }
 
         const data = (await response.json().catch(() => null)) as { hasActiveSubscription?: boolean } | null;
-        if (!cancelled && data?.hasActiveSubscription) {
-          setSubscriptionActive(true);
+        if (!cancelled) {
+          setSubscriptionActive(Boolean(data?.hasActiveSubscription));
         }
       } catch {
-        // ignore status fetch failures and keep the server-rendered state
+        if (!cancelled) {
+          setSubscriptionActive(false);
+        }
       }
     }
 
@@ -78,13 +82,13 @@ export function PushNotificationsPanel({ hasActiveSubscription }: PushNotificati
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold">
             <BellRing size={16} className="text-brand" />
-            Push-уведомления на телефон
+            Push-СѓРІРµРґРѕРјР»РµРЅРёСЏ РЅР° С‚РµР»РµС„РѕРЅ
           </p>
           <p className="mt-1 text-xs text-muted">
-            Подключите браузерные push-уведомления, чтобы сообщения приходили даже при закрытом приложении.
+            РџРѕРґРєР»СЋС‡РёС‚Рµ Р±СЂР°СѓР·РµСЂРЅС‹Рµ push-СѓРІРµРґРѕРјР»РµРЅРёСЏ, С‡С‚РѕР±С‹ СЃРѕРѕР±С‰РµРЅРёСЏ РїСЂРёС…РѕРґРёР»Рё РґР°Р¶Рµ РїСЂРё Р·Р°РєСЂС‹С‚РѕРј РїСЂРёР»РѕР¶РµРЅРёРё.
           </p>
         </div>
-        {!subscriptionActive ? (
+        {subscriptionActive === false ? (
           <button
             className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-soft transition hover:brightness-110 disabled:opacity-60"
             disabled={loading}
@@ -92,29 +96,29 @@ export function PushNotificationsPanel({ hasActiveSubscription }: PushNotificati
             type="button"
           >
             {loading ? <Smartphone size={16} className="animate-pulse" /> : <Check size={16} />}
-            {loading ? "Подключаем..." : "Включить push"}
+            {loading ? "РџРѕРґРєР»СЋС‡Р°РµРј..." : "Р’РєР»СЋС‡РёС‚СЊ push"}
           </button>
         ) : null}
       </div>
       {status !== "idle" ? (
         <p className="mt-3 text-xs text-muted">
           {status === "enabled"
-            ? "Push-уведомления подключены."
+            ? "Push-СѓРІРµРґРѕРјР»РµРЅРёСЏ РїРѕРґРєР»СЋС‡РµРЅС‹."
             : status === "permission-denied"
-              ? "Доступ к уведомлениям не выдан."
+              ? "Р”РѕСЃС‚СѓРї Рє СѓРІРµРґРѕРјР»РµРЅРёСЏРј РЅРµ РІС‹РґР°РЅ."
               : status === "push-unsupported"
-                ? "В этом браузере push-уведомления недоступны. Для PWA используйте Chrome / Edge, а на iPhone — установленный на домашний экран web app."
+                ? "Р’ СЌС‚РѕРј Р±СЂР°СѓР·РµСЂРµ push-СѓРІРµРґРѕРјР»РµРЅРёСЏ РЅРµРґРѕСЃС‚СѓРїРЅС‹. Р”Р»СЏ PWA РёСЃРїРѕР»СЊР·СѓР№С‚Рµ Chrome / Edge, Р° РЅР° iPhone вЂ” СѓСЃС‚Р°РЅРѕРІР»РµРЅРЅС‹Р№ РЅР° РґРѕРјР°С€РЅРёР№ СЌРєСЂР°РЅ web app."
                 : status === "secure-context-required"
-                  ? "Push-уведомления доступны только в HTTPS или localhost."
+                  ? "Push-СѓРІРµРґРѕРјР»РµРЅРёСЏ РґРѕСЃС‚СѓРїРЅС‹ С‚РѕР»СЊРєРѕ РІ HTTPS РёР»Рё localhost."
                   : status === "config-missing"
-                    ? "Push-уведомления не настроены на этом развертывании."
+                    ? "Push-СѓРІРµРґРѕРјР»РµРЅРёСЏ РЅРµ РЅР°СЃС‚СЂРѕРµРЅС‹ РЅР° СЌС‚РѕРј СЂР°Р·РІРµСЂС‚С‹РІР°РЅРёРё."
                     : status === "config-failed"
-                      ? "Не удалось получить ключ настройки push."
+                      ? "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РєР»СЋС‡ РЅР°СЃС‚СЂРѕР№РєРё push."
                       : status === "sw-unsupported"
-                        ? "Service Worker недоступен."
+                        ? "Service Worker РЅРµРґРѕСЃС‚СѓРїРµРЅ."
                         : status === "unauthorized"
-                          ? "Сначала войдите в приложение."
-                          : "Не удалось подключить push-уведомления."}
+                          ? "РЎРЅР°С‡Р°Р»Р° РІРѕР№РґРёС‚Рµ РІ РїСЂРёР»РѕР¶РµРЅРёРµ."
+                          : "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕРґРєР»СЋС‡РёС‚СЊ push-СѓРІРµРґРѕРјР»РµРЅРёСЏ."}
         </p>
       ) : null}
     </section>

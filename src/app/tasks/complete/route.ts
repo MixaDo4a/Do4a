@@ -32,9 +32,9 @@ export async function POST(request: NextRequest) {
   const canManageTasks = hasAnyRole(roles, MANAGE_ROLES);
   const { data: task, error: readError } = await supabase
     .from("tasks")
-    .select("id, assignee_employee_id, store_id, title")
+    .select("id, assignee_employee_id, store_id, title, created_by")
     .eq("id", taskId)
-    .maybeSingle<{ id: string; assignee_employee_id: string; store_id: string; title: string }>();
+    .maybeSingle<{ id: string; assignee_employee_id: string; store_id: string; title: string; created_by: string | null }>();
 
   if (readError || !task) {
     return NextResponse.redirect(tasksUrl(request, "task-error", readError?.message ?? "Задача не найдена."), 303);
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     .from("tasks")
     .update({ status: "done", completed_at: new Date().toISOString(), completed_by: user.id })
     .eq("id", taskId)
-    .select("id")
+    .select("id, created_by")
     .maybeSingle();
 
   if (error || !data) {
@@ -59,6 +59,13 @@ export async function POST(request: NextRequest) {
     supabase.from("stores").select("name, city").eq("id", task.store_id).maybeSingle<{ name: string; city: string }>(),
     supabase.from("employees").select("full_name").eq("id", employeeId).maybeSingle<{ full_name: string }>(),
   ]);
+  const { data: creatorRow } = task.created_by
+    ? await supabase
+        .from("profiles")
+        .select("employee_id")
+        .eq("id", task.created_by)
+        .maybeSingle<{ employee_id: string | null }>()
+    : { data: null };
   const storeLabel = storeRow ? `${storeRow.name}, ${storeRow.city}` : task.store_id;
   const employeeLabel = employeeRow?.full_name ?? "Сотрудник";
 
@@ -70,6 +77,19 @@ export async function POST(request: NextRequest) {
     p_related_entity_type: "task",
     p_related_entity_id: taskId,
   });
+
+  const creatorEmployeeId = creatorRow?.employee_id ?? null;
+
+  if (creatorEmployeeId && creatorEmployeeId !== employeeId) {
+    await supabase.rpc("send_employee_notification", {
+      p_employee_id: creatorEmployeeId,
+      p_event_type: "task_completed",
+      p_title: "Задача выполнена",
+      p_body: `${employeeLabel} · ${storeLabel} · ${task.title}`,
+      p_related_entity_type: "task",
+      p_related_entity_id: taskId,
+    });
+  }
 
   await dispatchPushNotificationsFromEvent(supabase, {
     eventType: "task_completed",
