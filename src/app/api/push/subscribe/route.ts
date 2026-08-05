@@ -48,16 +48,24 @@ export async function POST(request: NextRequest) {
     error: userError,
   } = await authClient.auth.getUser();
 
+  const userAgent = body.userAgent ?? request.headers.get("user-agent") ?? null;
+
   if (userError || !user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { error: deactivateError } = await authClient
+  let deactivateQuery = authClient
     .from("push_subscriptions")
     .update({ is_active: false })
     .eq("profile_id", user.id)
     .eq("is_active", true)
     .neq("endpoint", body.endpoint);
+
+  if (userAgent) {
+    deactivateQuery = deactivateQuery.eq("user_agent", userAgent);
+  }
+
+  const { error: deactivateError } = await deactivateQuery;
 
   if (deactivateError) {
     return NextResponse.json({ error: deactivateError.message }, { status: 400 });
@@ -70,7 +78,7 @@ export async function POST(request: NextRequest) {
       p256dh: body.keys.p256dh,
       auth: body.keys.auth,
       expiration_time: body.expirationTime ? new Date(body.expirationTime).toISOString() : null,
-      user_agent: body.userAgent ?? request.headers.get("user-agent"),
+      user_agent: userAgent,
       is_active: true,
     },
     { onConflict: "endpoint" },

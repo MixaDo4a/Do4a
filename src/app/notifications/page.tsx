@@ -71,17 +71,6 @@ export default async function NotificationsPage() {
     redirect("/login");
   }
 
-  const { data: activeSubscriptions, error: subscriptionError } = await supabase
-    .from("push_subscriptions")
-    .select("id")
-    .eq("profile_id", user.id)
-    .eq("is_active", true)
-    .limit(1);
-
-  if (subscriptionError) {
-    throw new Error(subscriptionError.message);
-  }
-
   const { data, error } = await supabase
     .from("notifications")
     .select("id, event_type, title, body, related_entity_type, related_entity_id, is_read, created_at")
@@ -98,7 +87,7 @@ export default async function NotificationsPage() {
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-4xl">
         <SectionHeader icon={Bell} title="Уведомления" showBack />
-        <PushNotificationsPanel hasActiveSubscription={(activeSubscriptions?.length ?? 0) > 0} />
+        <PushNotificationsPanel hasActiveSubscription={false} />
         {data.some((item) => !item.is_read) ? (
           <form action="/notifications/read-all" className="mt-4" method="post">
             <button className="inline-flex h-10 items-center justify-center gap-2 ui-panel px-3 text-sm font-semibold shadow-soft">

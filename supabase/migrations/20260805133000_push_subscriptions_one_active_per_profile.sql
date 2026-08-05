@@ -11,6 +11,7 @@ from ranked r
 where ps.id = r.id
   and r.rn > 1;
 
-create unique index if not exists push_subscriptions_one_active_per_profile_idx
-  on public.push_subscriptions (profile_id)
-  where is_active;
+drop index if exists public.push_subscriptions_one_active_per_profile_idx;
+
+create index if not exists push_subscriptions_profile_user_agent_active_idx
+  on public.push_subscriptions (profile_id, user_agent, is_active);

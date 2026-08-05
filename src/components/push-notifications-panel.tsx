@@ -20,7 +20,17 @@ export function PushNotificationsPanel({ hasActiveSubscription }: PushNotificati
 
     async function loadStatus() {
       try {
-        const response = await fetch("/api/push/status", {
+        const registration = await navigator.serviceWorker.ready.catch(() => null);
+        const subscription = await registration?.pushManager.getSubscription().catch(() => null);
+
+        if (!subscription) {
+          if (!cancelled) {
+            setSubscriptionActive(false);
+          }
+          return;
+        }
+
+        const response = await fetch(`/api/push/status?endpoint=${encodeURIComponent(subscription.endpoint)}`, {
           cache: "no-store",
           credentials: "same-origin",
         });
