@@ -73,7 +73,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
 
     void registerPushServiceWorker();
 
-    const runMaintenanceChecks = async () => {
+    const runRoutineChecks = async () => {
       try {
         await Promise.all([
           fetch("/api/routine/reminders", {
@@ -86,26 +86,40 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
             credentials: "same-origin",
             headers: { "content-type": "application/json" },
           }),
-          fetch("/api/push/sync", {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "content-type": "application/json" },
-          }),
         ]);
       } catch {
         // Ignore transient network errors. The server-side routine function has its own dedupe log.
       }
     };
 
-    void runMaintenanceChecks();
+    const runPushSync = async () => {
+      try {
+        await fetch("/api/push/sync", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+        });
+      } catch {
+        // Ignore transient network errors. Push sync is retried on the next interval.
+      }
+    };
+
+    void runRoutineChecks();
+    const pushSyncTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        void runPushSync();
+      }
+    }, 30_000);
+
     const timer = window.setInterval(() => {
       if (!cancelled) {
-        void runMaintenanceChecks();
+        void runPushSync();
       }
     }, 10 * 60 * 1000);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(pushSyncTimer);
       window.clearInterval(timer);
     };
   }, []);
