@@ -86,12 +86,12 @@ option {
 }
 
 .bg-white {
-  background-color: rgba(12, 8, 9, 0.64) !important;
+  background-color: rgba(12, 8, 9, 0.52) !important;
   backdrop-filter: blur(18px) saturate(110%);
 }
 
 .bg-surface {
-  background-color: rgba(8, 6, 6, 0.5) !important;
+  background-color: rgba(8, 6, 6, 0.34) !important;
   backdrop-filter: blur(14px) saturate(110%);
 }
 
@@ -125,7 +125,7 @@ option {
 
 .ui-panel {
   background:
-    linear-gradient(180deg, rgba(13, 9, 10, 0.72), rgba(8, 6, 6, 0.58)),
+    linear-gradient(180deg, rgba(13, 9, 10, 0.58), rgba(8, 6, 6, 0.42)),
     radial-gradient(circle at top, rgba(255, 46, 61, 0.08), transparent 56%);
   backdrop-filter: blur(20px) saturate(112%);
   border: 1px solid rgba(214, 179, 106, 0.12);
@@ -169,7 +169,7 @@ option {
   border: 1px solid rgba(214, 179, 106, 0.14);
   border-radius: 20px;
   background:
-    linear-gradient(180deg, rgba(10, 7, 7, 0.72), rgba(5, 4, 4, 0.6)),
+    linear-gradient(180deg, rgba(10, 7, 7, 0.56), rgba(5, 4, 4, 0.42)),
     radial-gradient(circle at top, rgba(255, 46, 61, 0.08), transparent 52%);
   backdrop-filter: blur(18px) saturate(112%);
   box-shadow:
@@ -366,7 +366,7 @@ option {
 }
 
 .ui-chip {
-  background: linear-gradient(180deg, rgba(28, 16, 17, 0.64), rgba(14, 10, 10, 0.56));
+  background: linear-gradient(180deg, rgba(28, 16, 17, 0.46), rgba(14, 10, 10, 0.36));
   border: 1px solid rgba(214, 179, 106, 0.16);
   border-radius: 16px;
   backdrop-filter: blur(16px) saturate(112%);
@@ -556,16 +556,6 @@ option {
   transition: transform 220ms ease, opacity 220ms ease;
 }
 
-@supports (view-transition-name: root) {
-  ::view-transition-old(root) {
-    animation: page-transition-out 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  ::view-transition-new(root) {
-    animation: page-transition-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-}
-
 @keyframes bottom-nav-pop {
   0% {
     transform: translateY(6px) scale(0.9);
@@ -596,30 +586,6 @@ option {
       0 0 0 1px rgba(255, 152, 161, 0.26),
       0 16px 32px rgba(193, 18, 31, 0.5),
       0 0 22px rgba(255, 57, 72, 0.32);
-  }
-}
-
-@keyframes page-transition-in {
-  from {
-    opacity: 0;
-    transform: translateX(10px) scale(0.995);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-@keyframes page-transition-out {
-  from {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-
-  to {
-    opacity: 0;
-    transform: translateX(-10px) scale(0.995);
   }
 }
 

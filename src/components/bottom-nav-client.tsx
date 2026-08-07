@@ -3,7 +3,7 @@
 import { BadgePercent, Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { PROCUREMENT_ROLES } from "@/lib/auth/role-constants";
 import { registerPushServiceWorker } from "@/lib/push-client";
 
@@ -89,33 +89,15 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const pathname = usePathname();
   const router = useRouter();
   const touchStartRef = useRef<TouchPoint | null>(null);
+  const navGridRef = useRef<HTMLDivElement | null>(null);
+  const navItemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
+  const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number } | null>(null);
   const hasUnreadNotifications = unreadCount > 0;
   const auditorOnly = roles.includes("auditor") && !roles.some((role) => managementRoles.includes(role));
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !roles.some((role) => managementRoles.includes(role));
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !roles.some((role) => managementRoles.includes(role));
   const buyerOnly = roles.includes("buyer") && !roles.some((role) => managementRoles.includes(role));
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
-
-  const navigateWithTransition = useCallback(
-    (href: string) => {
-      if (href === pathname) {
-        return;
-      }
-
-      const transition = (document as Document & {
-        startViewTransition?: (callback: () => void) => ViewTransition;
-      }).startViewTransition;
-      if (typeof transition === "function") {
-        transition.call(document, () => {
-          router.push(href);
-        });
-        return;
-      }
-
-      router.push(href);
-    },
-    [pathname, router],
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -209,6 +191,46 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
     [auditorOnly, buyerOnly, managerOnly, roles, warehouseAssistantOnly, warehouseManagerOnly],
   );
 
+  const activeIndex = useMemo(() => resolveActiveIndex(pathname, visibleItems), [pathname, visibleItems]);
+
+  useLayoutEffect(() => {
+    const updateIndicator = () => {
+      const container = navGridRef.current;
+      const activeElement = navItemRefs.current[activeIndex];
+
+      if (!container || !activeElement) {
+        setIndicatorStyle(null);
+        return;
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      const activeRect = activeElement.getBoundingClientRect();
+
+      setIndicatorStyle({
+        left: activeRect.left - containerRect.left,
+        width: activeRect.width,
+      });
+    };
+
+    updateIndicator();
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const resizeObserver = "ResizeObserver" in window ? new ResizeObserver(updateIndicator) : null;
+    if (resizeObserver && navGridRef.current) {
+      resizeObserver.observe(navGridRef.current);
+    }
+
+    window.addEventListener("resize", updateIndicator);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateIndicator);
+    };
+  }, [activeIndex, visibleItems.length]);
+
   useEffect(() => {
     const handleTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) {
@@ -249,7 +271,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
         return;
       }
 
-      navigateWithTransition(visibleItems[nextIndex].href);
+      router.push(visibleItems[nextIndex].href);
     };
 
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
@@ -259,15 +281,26 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [navigateWithTransition, pathname, visibleItems]);
+  }, [pathname, router, visibleItems]);
 
   return (
     <nav className="safe-bottom fixed inset-x-0 bottom-0 z-20 border-t border-line bg-[#090607]/78 px-2 pt-2 backdrop-blur-2xl" style={{ touchAction: "pan-y" }}>
       <div
-        className="mx-auto grid max-w-[390px] gap-1"
+        ref={navGridRef}
+        className="relative mx-auto grid max-w-[390px] gap-1"
         style={{ gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))` }}
       >
-        {visibleItems.map((item) => {
+        {indicatorStyle ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 z-0 rounded-[18px] bg-brand shadow-[0_10px_28px_rgba(193,18,31,0.45),0_0_22px_rgba(255,57,72,0.24)] transition-[left,width,transform] duration-300 ease-out"
+            style={{
+              left: indicatorStyle.left,
+              width: indicatorStyle.width,
+            }}
+          />
+        ) : null}
+        {visibleItems.map((item, index) => {
           const active = pathname === item.href || (item.href !== "/" && item.href !== "/checklists" && pathname.startsWith(item.href));
           const Icon = item.href === "/procurement" && managerOnly ? BadgePercent : item.icon;
           const label = warehouseManagerOnly && item.href === "/admin" ? "Вычеты" : item.href === "/procurement" && managerOnly ? "Акции" : item.label;
@@ -276,16 +309,15 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
           return (
             <Link
               key={item.href}
-              className={`bottom-nav-item relative flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] text-[11px] font-medium transition ${
-                active ? "bottom-nav-item-active bg-brand text-white shadow-[0_8px_24px_rgba(193,18,31,0.42)]" : "text-muted"
+              ref={(element) => {
+                navItemRefs.current[index] = element;
+              }}
+              className={`bottom-nav-item relative z-10 flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] text-[11px] font-medium transition ${
+                active ? "bottom-nav-item-active text-white" : "text-muted"
               }`}
               style={{ overflow: "visible" }}
               href={item.href}
               prefetch
-              onClick={(event) => {
-                event.preventDefault();
-                navigateWithTransition(item.href);
-              }}
             >
               <span
                 className={`bottom-nav-icon relative inline-flex h-6 w-6 shrink-0 items-center justify-center ${
