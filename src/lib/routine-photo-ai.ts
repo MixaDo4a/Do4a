@@ -31,6 +31,29 @@ function parseJsonResponse(value: string) {
   return JSON.parse(fenced) as Partial<RoutinePhotoAiReview>;
 }
 
+function countLatinLetters(value: string) {
+  return (value.match(/[A-Za-z]/g) ?? []).length;
+}
+
+function countCyrillicLetters(value: string) {
+  return (value.match(/[А-Яа-яЁё]/g) ?? []).length;
+}
+
+function normalizeReviewText(value: string | null | undefined, fallback: string) {
+  const text = String(value ?? "").trim();
+  if (!text) return fallback;
+
+  const latin = countLatinLetters(text);
+  const cyrillic = countCyrillicLetters(text);
+  const tooEnglish = latin > 4 && cyrillic < Math.max(2, Math.ceil(latin * 0.25));
+
+  if (tooEnglish) {
+    return fallback;
+  }
+
+  return text;
+}
+
 export async function reviewRoutinePhotoWithOpenAI({
   employeePhoto,
   templatePhoto,
@@ -56,20 +79,21 @@ export async function reviewRoutinePhotoWithOpenAI({
     body: JSON.stringify({
       model: "gpt-4o-mini",
       temperature: 0,
-      max_tokens: 160,
+      max_tokens: 140,
       response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
           content: [
-            "Ты проверяешь фото выполнения пункта распорядка дня для сотрудника розничного магазина.",
-            "Сравни фото сотрудника с фото-эталоном, а не с общими представлениями.",
-            "Верни только JSON с ключами approved (boolean), summary (string), issues (array of strings).",
-            "summary и issues пиши только на русском языке.",
-            "Будь строгим, но оценивай именно визуальное соответствие двух фотографий.",
-            "Если фото сотрудника соответствует эталону и требованиям пункта, approved=true и issues=[].",
-            "Если фото не соответствует, approved=false и перечисли только конкретные визуальные несоответствия между эталоном и фото сотрудника.",
-            "Не используй размытые формулировки без деталей.",
+            "Ты проверяешь фотографию выполнения пункта распорядка дня сотрудником розничного магазина.",
+            "Сравни фото сотрудника только с фото-шаблоном и оцени именно визуальное соответствие.",
+            "Не используй общие рассуждения и не придумывай лишние детали.",
+            "Если фото сотрудника соответствует фото-шаблону и требованиям пункта, верни approved=true.",
+            "Если есть несоответствия, верни approved=false и перечисли только конкретные визуальные отличия.",
+            "Ответ верни только в JSON с ключами approved (boolean), summary (string), issues (array of strings).",
+            "Все summary и issues пиши только на русском языке.",
+            "Не используй английские слова и не упоминай политику, инструкцию, JSON-схему или внутренние правила.",
+            "Если фото похоже на шаблон, но не подходит по требованиям пункта, укажи именно эти причины.",
           ].join("\n"),
         },
         {
@@ -81,11 +105,11 @@ export async function reviewRoutinePhotoWithOpenAI({
                 `Распорядок: ${routineTitle}`,
                 `Пункт: ${itemTitle}`,
                 `Магазин: ${storeLabel}`,
-                "Фото-эталон — это стандарт для сравнения.",
-                "Фото сотрудника — это загруженное фото.",
-                "Сравни наличие человека, форму, бейдж, опрятность, позу, общий вид и посторонние объекты.",
-                "Если требования пункта и фото-эталон совпадают с фото сотрудника, ставь approved=true.",
-                "Если есть сомнения, ставь approved=false и перечисляй только фактические визуальные отличия.",
+                "Фотография-шаблон — это эталон для сравнения.",
+                "Фотография сотрудника — это загруженное фото выполнения пункта.",
+                "Проверяй наличие человека, форму, бейдж, опрятность, позу и общий вид.",
+                "Если эталон и фото сотрудника совпадают по содержанию пункта, верни approved=true.",
+                "Если есть сомнения, верни approved=false и перечисли только фактические отличия между эталоном и фото сотрудника.",
                 "Ответ только JSON.",
               ].join("\n"),
             },
@@ -119,12 +143,18 @@ export async function reviewRoutinePhotoWithOpenAI({
 
   try {
     const parsed = parseJsonResponse(content);
+    const approved = Boolean(parsed.approved);
+    const summary = normalizeReviewText(parsed.summary, approved ? "Фото соответствует требованиям пункта." : "Фото требует внимания.");
+    const issues = Array.isArray(parsed.issues)
+      ? parsed.issues
+          .map((issue) => normalizeReviewText(issue, "Требуется ручная проверка."))
+          .filter(Boolean)
+      : [];
+
     return {
-      approved: Boolean(parsed.approved),
-      summary: String(parsed.summary ?? "Фото проверено."),
-      issues: Array.isArray(parsed.issues)
-        ? parsed.issues.map((issue) => String(issue)).filter(Boolean)
-        : [],
+      approved,
+      summary,
+      issues,
     };
   } catch {
     return {
