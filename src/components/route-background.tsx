@@ -49,11 +49,9 @@ export function RouteBackground() {
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#050404]">
       <div
-        className="absolute inset-0 bg-cover bg-center top-0 opacity-75"
-        style={{ backgroundImage: `linear-gradient(180deg, rgba(5,4,4,0.38), rgba(5,4,4,0.82)), url(${src})` }}
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-100"
+        style={{ backgroundImage: `url(${src})` }}
       />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,57,72,0.08),transparent_52%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,4,4,0.12),rgba(5,4,4,0.72))]" />
     </div>
   );
 }
