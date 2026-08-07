@@ -42,8 +42,8 @@ export async function reviewRoutinePhotoWithOpenAI({
   if (!apiKey) {
     return {
       approved: false,
-      summary: "OpenAI API key is missing. Manual review required.",
-      issues: ["OPENAI_API_KEY is not configured on the server."],
+      summary: "Ключ OpenAI не настроен на сервере. Требуется ручная проверка.",
+      issues: ["OPENAI_API_KEY не настроен на сервере."],
     };
   }
 
@@ -55,14 +55,22 @@ export async function reviewRoutinePhotoWithOpenAI({
     },
     body: JSON.stringify({
       model: "gpt-4o-mini",
-      temperature: 0.2,
-      max_tokens: 500,
+      temperature: 0,
+      max_tokens: 160,
       response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
-          content:
-            "You review employee routine completion photos for retail staff. Compare the employee photo against the template photo and return only JSON with keys approved (boolean), summary (string), issues (array of strings). Be strict, concise, and practical. If the employee photo matches the template and requirements, approved=true and issues=[]. If not, approved=false and list specific issues.",
+          content: [
+            "Ты проверяешь фото выполнения пункта распорядка дня для сотрудника розничного магазина.",
+            "Сравни фото сотрудника с фото-эталоном, а не с общими представлениями.",
+            "Верни только JSON с ключами approved (boolean), summary (string), issues (array of strings).",
+            "summary и issues пиши только на русском языке.",
+            "Будь строгим, но оценивай именно визуальное соответствие двух фотографий.",
+            "Если фото сотрудника соответствует эталону и требованиям пункта, approved=true и issues=[].",
+            "Если фото не соответствует, approved=false и перечисли только конкретные визуальные несоответствия между эталоном и фото сотрудника.",
+            "Не используй размытые формулировки без деталей.",
+          ].join("\n"),
         },
         {
           role: "user",
@@ -70,13 +78,15 @@ export async function reviewRoutinePhotoWithOpenAI({
             {
               type: "text",
               text: [
-                `Routine: ${routineTitle}`,
-                `Checklist item: ${itemTitle}`,
-                `Store: ${storeLabel}`,
-                "Template photo is the reference standard.",
-                "Employee photo is the submitted photo.",
-                "Focus on visual compliance for the checklist item, including neatness, uniform, badge visibility, and overall presentation when relevant.",
-                "Return only JSON.",
+                `Распорядок: ${routineTitle}`,
+                `Пункт: ${itemTitle}`,
+                `Магазин: ${storeLabel}`,
+                "Фото-эталон — это стандарт для сравнения.",
+                "Фото сотрудника — это загруженное фото.",
+                "Сравни наличие человека, форму, бейдж, опрятность, позу, общий вид и посторонние объекты.",
+                "Если требования пункта и фото-эталон совпадают с фото сотрудника, ставь approved=true.",
+                "Если есть сомнения, ставь approved=false и перечисляй только фактические визуальные отличия.",
+                "Ответ только JSON.",
               ].join("\n"),
             },
             {
@@ -99,7 +109,7 @@ export async function reviewRoutinePhotoWithOpenAI({
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`OpenAI review failed: ${response.status} ${detail}`.trim());
+    throw new Error(`Проверка OpenAI не удалась: ${response.status} ${detail}`.trim());
   }
 
   const payload = (await response.json()) as {
@@ -111,14 +121,16 @@ export async function reviewRoutinePhotoWithOpenAI({
     const parsed = parseJsonResponse(content);
     return {
       approved: Boolean(parsed.approved),
-      summary: String(parsed.summary ?? ""),
-      issues: Array.isArray(parsed.issues) ? parsed.issues.map((issue) => String(issue)).filter(Boolean) : [],
+      summary: String(parsed.summary ?? "Фото проверено."),
+      issues: Array.isArray(parsed.issues)
+        ? parsed.issues.map((issue) => String(issue)).filter(Boolean)
+        : [],
     };
   } catch {
     return {
       approved: false,
-      summary: "OpenAI response could not be parsed.",
-      issues: [content.slice(0, 500) || "Empty response"],
+      summary: "Не удалось разобрать ответ OpenAI.",
+      issues: [content.slice(0, 500) || "Пустой ответ"],
     };
   }
 }

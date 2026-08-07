@@ -461,3 +461,77 @@ option {
   }
 }
 
+.bottom-nav-item {
+  position: relative;
+  isolation: isolate;
+  transform: translateY(0) scale(1);
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    background 220ms ease,
+    color 220ms ease;
+  will-change: transform, box-shadow;
+}
+
+.bottom-nav-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.14), transparent 42%),
+    radial-gradient(circle at 50% 120%, rgba(193, 18, 31, 0.28), transparent 58%);
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bottom-nav-item > * {
+  position: relative;
+  z-index: 1;
+}
+
+.bottom-nav-item-active {
+  transform: translateY(-8px) scale(1.04);
+  box-shadow:
+    0 0 0 1px rgba(255, 114, 126, 0.18),
+    0 14px 28px rgba(193, 18, 31, 0.42),
+    0 0 18px rgba(255, 57, 72, 0.22);
+}
+
+.bottom-nav-item-active::before {
+  opacity: 1;
+}
+
+.bottom-nav-item-active .bottom-nav-icon,
+.bottom-nav-item-active .bottom-nav-label {
+  animation: bottom-nav-pop 240ms ease-out;
+}
+
+.bottom-nav-icon {
+  transition: transform 220ms ease, filter 220ms ease;
+}
+
+.bottom-nav-label {
+  line-height: 1;
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+
+@keyframes bottom-nav-pop {
+  0% {
+    transform: translateY(6px) scale(0.9);
+    opacity: 0.72;
+  }
+
+  65% {
+    transform: translateY(-1px) scale(1.06);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
