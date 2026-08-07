@@ -91,8 +91,8 @@ option {
 }
 
 .bg-surface {
-  background-color: rgba(8, 6, 6, 0.34) !important;
-  backdrop-filter: blur(14px) saturate(110%);
+  background-color: rgba(8, 6, 6, 0.12) !important;
+  backdrop-filter: none;
 }
 
 .border-line {
@@ -143,8 +143,8 @@ option {
   padding: max(4.35rem, calc(env(safe-area-inset-top) + 2.15rem)) 0 6.5rem;
   color: #f7f2ea;
   background: transparent !important;
-  animation: route-shell-in 260ms ease-out both;
-  will-change: opacity, transform;
+  animation: route-shell-fade 220ms ease-out both;
+  will-change: opacity;
 }
 
 .app-shell > div {
@@ -450,15 +450,13 @@ option {
   }
 }
 
-@keyframes route-shell-in {
+@keyframes route-shell-fade {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.995);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
