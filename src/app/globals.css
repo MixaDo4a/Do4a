@@ -140,6 +140,7 @@ option {
   min-height: 100dvh;
   padding: max(4.35rem, calc(env(safe-area-inset-top) + 2.15rem)) 0 6.5rem;
   color: #f7f2ea;
+  background: transparent !important;
 }
 
 .app-shell > div {

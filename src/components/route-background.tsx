@@ -47,7 +47,7 @@ export function RouteBackground() {
   }
 
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#050404]">
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-transparent">
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-100"
         style={{ backgroundImage: `url(${src})` }}
