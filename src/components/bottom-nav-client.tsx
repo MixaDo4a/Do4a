@@ -3,7 +3,7 @@
 import { BadgePercent, Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { PROCUREMENT_ROLES } from "@/lib/auth/role-constants";
 import { registerPushServiceWorker } from "@/lib/push-client";
 
@@ -95,6 +95,27 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !roles.some((role) => managementRoles.includes(role));
   const buyerOnly = roles.includes("buyer") && !roles.some((role) => managementRoles.includes(role));
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+
+  const navigateWithTransition = useCallback(
+    (href: string) => {
+      if (href === pathname) {
+        return;
+      }
+
+      const transition = (document as Document & {
+        startViewTransition?: (callback: () => void) => ViewTransition;
+      }).startViewTransition;
+      if (typeof transition === "function") {
+        transition.call(document, () => {
+          router.push(href);
+        });
+        return;
+      }
+
+      router.push(href);
+    },
+    [pathname, router],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -228,7 +249,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
         return;
       }
 
-      router.push(visibleItems[nextIndex].href);
+      navigateWithTransition(visibleItems[nextIndex].href);
     };
 
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
@@ -238,10 +259,10 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [pathname, router, visibleItems]);
+  }, [navigateWithTransition, pathname, visibleItems]);
 
   return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-20 border-t border-line bg-[#090607]/94 px-2 pt-2 backdrop-blur-xl" style={{ touchAction: "pan-y" }}>
+    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-20 border-t border-line bg-[#090607]/78 px-2 pt-2 backdrop-blur-2xl" style={{ touchAction: "pan-y" }}>
       <div
         className="mx-auto grid max-w-[390px] gap-1"
         style={{ gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))` }}
@@ -261,6 +282,10 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
               style={{ overflow: "visible" }}
               href={item.href}
               prefetch
+              onClick={(event) => {
+                event.preventDefault();
+                navigateWithTransition(item.href);
+              }}
             >
               <span
                 className={`bottom-nav-icon relative inline-flex h-6 w-6 shrink-0 items-center justify-center ${
