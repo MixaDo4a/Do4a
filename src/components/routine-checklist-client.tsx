@@ -13,11 +13,20 @@ type SessionItemMap = Record<
   }
 >;
 
+type ItemSettingsMap = Record<
+  string,
+  {
+    requiresPhoto: boolean;
+    aiReviewEnabled: boolean;
+  }
+>;
+
 type Props = {
   shiftId: string;
   kind: RoutineKind;
   title: string;
   items: RoutineTemplateItemNode[];
+  itemSettings: ItemSettingsMap;
   sessionItems: SessionItemMap;
   startedAt?: string | null;
   completedAt?: string | null;
@@ -36,18 +45,26 @@ function TreeRow({
   node,
   depth,
   sessionItems,
+  itemSettings,
+  selectedFiles,
+  onFileChange,
   onToggle,
   disabled,
 }: {
   node: RoutineTemplateItemNode;
   depth: number;
   sessionItems: SessionItemMap;
+  itemSettings: ItemSettingsMap;
+  selectedFiles: Record<string, File | null>;
+  onFileChange: (id: string, file: File | null) => void;
   onToggle: (id: string, next: boolean) => void;
   disabled?: boolean;
 }) {
-  const nodeId = String(node.id ?? node.title);
+  const nodeId = String(node.itemKey ?? node.id ?? node.title);
   const checked = Boolean(sessionItems[nodeId]);
   const completedAt = sessionItems[nodeId]?.completedAt;
+  const settings = itemSettings[nodeId];
+  const selectedFile = selectedFiles[nodeId] ?? null;
 
   return (
     <li className="relative">
@@ -80,14 +97,37 @@ function TreeRow({
         </span>
       </button>
 
+      {settings?.requiresPhoto ? (
+        <div className="mt-2 rounded-2xl border border-dashed border-line/80 bg-[#0b0809]/85 p-3" style={{ marginLeft: depth * 12 }}>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            <span>Фото обязательно</span>
+            {settings.aiReviewEnabled ? <span className="rounded-full border border-brand/40 px-2 py-0.5 text-brand">AI-проверка включена</span> : null}
+          </div>
+          <label className="mt-2 block text-sm text-muted">
+            <span className="mb-2 block">Фото пункта</span>
+            <input
+              accept="image/*"
+              capture="environment"
+              className="block w-full rounded-2xl border border-line/80 bg-[#0d090a] px-3 py-2 text-sm text-ink file:mr-3 file:rounded-xl file:border-0 file:bg-brand file:px-4 file:py-2 file:text-white"
+              onChange={(event) => onFileChange(nodeId, event.target.files?.[0] ?? null)}
+              type="file"
+            />
+          </label>
+          {selectedFile ? <p className="mt-2 text-xs text-brand">Выбран файл: {selectedFile.name}</p> : null}
+        </div>
+      ) : null}
+
       {node.children.length > 0 ? (
         <ul className="mt-2 space-y-2">
           {node.children.map((child) => (
             <TreeRow
-              key={child.id ?? child.title}
+              key={child.itemKey ?? child.id ?? child.title}
               node={child}
               depth={depth + 1}
               sessionItems={sessionItems}
+              itemSettings={itemSettings}
+              selectedFiles={selectedFiles}
+              onFileChange={onFileChange}
               onToggle={onToggle}
               disabled={disabled}
             />
@@ -103,12 +143,15 @@ export function RoutineChecklistClient({
   kind,
   title,
   items,
+  itemSettings,
   sessionItems,
   startedAt,
   completedAt,
 }: Props) {
   const router = useRouter();
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Record<string, File | null>>({});
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   const completedCount = useMemo(() => Object.keys(sessionItems).length, [sessionItems]);
@@ -118,17 +161,35 @@ export function RoutineChecklistClient({
     return walk(items);
   }, [items]);
 
+  function handleFileChange(id: string, file: File | null) {
+    setSelectedFiles((current) => ({ ...current, [id]: file }));
+    setErrorMessage(null);
+  }
+
   async function toggleItem(itemId: string, next: boolean) {
+    const requiredPhoto = Boolean(itemSettings[itemId]?.requiresPhoto);
+    const file = selectedFiles[itemId] ?? null;
+
+    if (requiredPhoto && next && !file) {
+      setErrorMessage("Для этого пункта нужно прикрепить фото.");
+      return;
+    }
+
     setPendingId(itemId);
+    setErrorMessage(null);
+
     try {
+      const formData = new FormData();
+      formData.set("shiftId", shiftId);
+      formData.set("templateItemId", itemId);
+      formData.set("completed", next ? "true" : "false");
+      if (file) {
+        formData.set("photo", file);
+      }
+
       const response = await fetch(`/routine/${kind}/toggle`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shiftId,
-          templateItemId: itemId,
-          completed: next,
-        }),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -136,11 +197,15 @@ export function RoutineChecklistClient({
         throw new Error(payload?.error ?? "Не удалось обновить пункт распорядка");
       }
 
+      if (next) {
+        setSelectedFiles((current) => ({ ...current, [itemId]: null }));
+      }
+
       startTransition(() => {
         router.refresh();
       });
     } catch (error) {
-      console.error(error);
+      setErrorMessage(error instanceof Error ? error.message : "Не удалось обновить пункт распорядка");
     } finally {
       setPendingId(null);
     }
@@ -174,16 +239,23 @@ export function RoutineChecklistClient({
         </p>
       ) : null}
 
+      {errorMessage ? (
+        <p className="mt-3 rounded-2xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">{errorMessage}</p>
+      ) : null}
+
       <ul className="mt-4 space-y-2">
         {items.map((node) => {
-          const nodeId = String(node.id ?? node.title);
+          const nodeId = String(node.itemKey ?? node.id ?? node.title);
           return (
             <TreeRow
               key={nodeId}
               node={node}
               depth={0}
               sessionItems={sessionItems}
+              itemSettings={itemSettings}
+              selectedFiles={selectedFiles}
               disabled={Boolean(pendingId && pendingId !== nodeId)}
+              onFileChange={handleFileChange}
               onToggle={toggleItem}
             />
           );
@@ -192,4 +264,3 @@ export function RoutineChecklistClient({
     </section>
   );
 }
-

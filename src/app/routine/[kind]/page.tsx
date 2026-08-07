@@ -2,8 +2,14 @@ import { CalendarClock } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
 import { RoutineChecklistClient } from "@/components/routine-checklist-client";
 import { SectionHeader } from "@/components/section-header";
-import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, OPEN_SHIFT_ROLES } from "@/lib/auth/roles";
-import { buildRoutineTree, routineKindLabel, type RoutineKind, type RoutineTemplateItemFlatRow } from "@/lib/routine";
+import { getCurrentEmployeeId } from "@/lib/auth/roles";
+import {
+  buildRoutineTree,
+  routineKindLabel,
+  type RoutineKind,
+  type RoutineTemplateItemFlatRow,
+  type RoutineTemplateItemSettingsRow,
+} from "@/lib/routine";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -26,6 +32,14 @@ type RoutineTemplateRow = {
   title: string;
   day_routine_template_items: RoutineTemplateItemFlatRow[];
 };
+
+type TemplateSettingsMap = Record<
+  string,
+  {
+    requiresPhoto: boolean;
+    aiReviewEnabled: boolean;
+  }
+>;
 
 type SessionRow = {
   id: string;
@@ -62,8 +76,6 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
   }
 
   const { employeeId } = await getCurrentEmployeeId();
-  const { roles } = await getCurrentRoleCodes();
-  const canManageRoutines = hasAnyRole(roles, OPEN_SHIFT_ROLES);
 
   let shiftQuery = supabase
     .from("shifts")
@@ -105,7 +117,7 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
     supabase
       .from("day_routine_templates")
       .select(
-        "id, store_id, routine_kind, title, day_routine_template_items(id, parent_item_id, title, level, sort_order, is_active)",
+        "id, store_id, routine_kind, title, day_routine_template_items(id, item_key, parent_item_id, title, level, sort_order, is_active)",
       )
       .eq("store_id", shiftData.store_id)
       .eq("routine_kind", kind)
@@ -141,8 +153,29 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
     throw new Error(employeeError.message);
   }
 
+  const { data: settingsRows, error: settingsError } = templateRows
+    ? await supabase
+        .from("day_routine_template_item_settings")
+        .select("id, template_id, item_key, requires_photo, ai_review_enabled")
+        .eq("template_id", templateRows.id)
+        .returns<RoutineTemplateItemSettingsRow[]>()
+    : { data: [] as RoutineTemplateItemSettingsRow[], error: null };
+
+  if (settingsError) {
+    throw new Error(settingsError.message);
+  }
+
   const template = templateRows?.day_routine_template_items ?? [];
   const tree = buildRoutineTree(template);
+  const itemSettings: TemplateSettingsMap = Object.fromEntries(
+    (settingsRows ?? []).map((row) => [
+      row.item_key,
+      {
+        requiresPhoto: row.requires_photo,
+        aiReviewEnabled: row.ai_review_enabled,
+      },
+    ]),
+  );
   const sessionItems = Object.fromEntries(
     (sessionRows?.day_routine_session_items ?? []).map((item) => [
       String(item.template_item_id ?? item.title_snapshot),
@@ -184,6 +217,7 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
               kind={kind as RoutineKind}
               title={templateRows.title}
               items={tree}
+              itemSettings={itemSettings}
               sessionItems={sessionItems}
               startedAt={sessionRows?.started_at ?? null}
               completedAt={sessionRows?.completed_at ?? null}

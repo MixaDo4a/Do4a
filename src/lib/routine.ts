@@ -2,6 +2,7 @@ export type RoutineKind = "morning" | "evening";
 
 export type RoutineTemplateItemNode = {
   id?: string;
+  itemKey?: string;
   title: string;
   level: number;
   sortOrder: number;
@@ -11,10 +12,26 @@ export type RoutineTemplateItemNode = {
 export type RoutineTemplateItemFlatRow = {
   id: string;
   parent_item_id: string | null;
+  item_key: string;
   title: string;
   level: number;
   sort_order: number;
   is_active: boolean;
+};
+
+export type RoutineTemplateItemSettingsRow = {
+  id: string;
+  template_id: string;
+  item_key: string;
+  requires_photo: boolean;
+  ai_review_enabled: boolean;
+  reference_photo_file_id: string | null;
+  reference_photo_file: {
+    id: string;
+    bucket: string;
+    path: string;
+    mime_type: string | null;
+  } | null;
 };
 
 export type RoutineOutlineNode = {
@@ -90,6 +107,7 @@ export function buildRoutineTree(rows: RoutineTemplateItemFlatRow[]) {
     .forEach((row) => {
       nodes.set(row.id, {
         id: row.id,
+        itemKey: row.item_key,
         title: row.title,
         level: row.level,
         sortOrder: row.sort_order,
@@ -114,6 +132,29 @@ export function buildRoutineTree(rows: RoutineTemplateItemFlatRow[]) {
     });
 
   return roots;
+}
+
+export function annotateRoutineTreeKeys(nodes: RoutineTemplateItemNode[], prefix = ""): RoutineTemplateItemNode[] {
+  return nodes.map((node, index) => {
+    const itemKey = prefix ? `${prefix}.${index + 1}` : `${index + 1}`;
+
+    return {
+      ...node,
+      itemKey,
+      children: annotateRoutineTreeKeys(node.children, itemKey),
+    };
+  });
+}
+
+export function flattenRoutineTree(nodes: RoutineTemplateItemNode[]): RoutineTemplateItemNode[] {
+  const result: RoutineTemplateItemNode[] = [];
+
+  for (const node of nodes) {
+    result.push(node);
+    result.push(...flattenRoutineTree(node.children));
+  }
+
+  return result;
 }
 
 export function formatRoutineOutline(nodes: RoutineTemplateItemNode[], indent = 0): string {
@@ -173,4 +214,3 @@ export function parseRoutineOutline(text: string): RoutineOutlineNode[] {
 export function defaultRoutineOutlineText(kind: RoutineKind) {
   return formatRoutineOutline(defaultRoutineOutlineNodes(kind));
 }
-
