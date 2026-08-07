@@ -94,7 +94,6 @@ function RoutineItemSettingsRow({
             <input
               className="h-4 w-4 accent-brand"
               defaultChecked={settings?.aiReviewEnabled ?? false}
-              disabled={!settings?.requiresPhoto}
               name={`ai_review_enabled_${itemKey}`}
               type="checkbox"
             />

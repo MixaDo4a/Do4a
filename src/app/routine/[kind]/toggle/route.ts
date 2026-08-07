@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccessibleStores } from "@/lib/auth/stores";
+import { ensureStorageBucket } from "@/lib/storage/ensure-storage-bucket";
 import { reviewRoutinePhotoWithOpenAI } from "@/lib/routine-photo-ai";
 import { uploadFormFile } from "@/lib/storage/upload-form-file";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -158,6 +159,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const serviceSupabase = createSupabaseServiceRoleClient();
+  await ensureStorageBucket(serviceSupabase, "routine-photos", {
+    public: false,
+    fileSizeLimit: 25 * 1024 * 1024,
+    allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/heic", "image/heif"],
+  });
   let uploadedFileId: string | null = null;
 
   if (completed && photo) {

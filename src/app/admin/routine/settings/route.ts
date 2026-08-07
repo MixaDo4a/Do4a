@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
+import { ensureStorageBucket } from "@/lib/storage/ensure-storage-bucket";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { uploadFormFile } from "@/lib/storage/upload-form-file";
@@ -71,6 +72,11 @@ export async function POST(request: NextRequest) {
   }
 
   const serviceSupabase = createSupabaseServiceRoleClient();
+  await ensureStorageBucket(serviceSupabase, "routine-photos", {
+    public: false,
+    fileSizeLimit: 25 * 1024 * 1024,
+    allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/heic", "image/heif"],
+  });
   const settings: {
     item_key: string;
     requires_photo: boolean;
