@@ -1,5 +1,6 @@
-import type { Metadata, Viewport } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { RouteBackground } from "@/components/route-background";
 
 export const metadata: Metadata = {
   applicationName: "Do4a",
@@ -41,7 +42,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body className="bg-[#050404]">
+        <RouteBackground />
+        <div className="relative z-10">{children}</div>
+      </body>
     </html>
   );
 }

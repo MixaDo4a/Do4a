@@ -1,5 +1,4 @@
-﻿import Image from "next/image";
-import { FileText, PackageSearch, Save, Truck } from "lucide-react";
+﻿import { FileText, PackageSearch, Save, Truck } from "lucide-react";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
@@ -111,29 +110,6 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-5xl">
         <SectionHeader icon={PackageSearch} title="Акции" showBack />
-
-        <section className="mt-4 overflow-hidden rounded-3xl border border-line/70 bg-black/30 shadow-soft">
-          <div className="relative aspect-[16/6] min-h-48 w-full">
-            <Image
-              alt="Акции поставщиков"
-              className="object-cover"
-              fill
-              priority
-              src="/procurement-banner.png"
-              sizes="(max-width: 768px) 100vw, 1024px"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/35 to-black/65" />
-            <div className="absolute inset-0 flex items-end p-4 sm:p-6">
-              <div className="max-w-xl">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-brand/90">Акции поставщиков</p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">Промо, заказы и проблемные поставки</h2>
-                <p className="mt-2 max-w-lg text-sm text-white/75">
-                  Просматривайте акции, оформляйте заказы и отслеживайте статусы поставок в одном разделе.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
 
         {message ? (
           <div className="mt-4 ui-panel p-3 text-sm text-muted">
@@ -284,4 +260,6 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
     </main>
   );
 }
+
+
 

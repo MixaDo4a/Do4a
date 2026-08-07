@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
+import { BadgePercent, Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo } from "react";
@@ -30,7 +30,7 @@ const items: BottomNavItem[] = [
   },
   {
     href: "/procurement",
-    label: "Акции",
+    label: "Закуп/Акции",
     icon: PackageSearch,
     roles: PROCUREMENT_ROLES,
     hideForAuditorOnly: false,
@@ -67,6 +67,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !roles.some((role) => managementRoles.includes(role));
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !roles.some((role) => managementRoles.includes(role));
   const buyerOnly = roles.includes("buyer") && !roles.some((role) => managementRoles.includes(role));
+  const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
 
   useEffect(() => {
     let cancelled = false;
@@ -157,7 +158,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
 
         return !item.roles || item.roles.some((role) => roles.includes(role));
       }),
-    [auditorOnly, buyerOnly, roles, warehouseAssistantOnly, warehouseManagerOnly],
+    [auditorOnly, buyerOnly, managerOnly, roles, warehouseAssistantOnly, warehouseManagerOnly],
   );
 
   return (
@@ -168,8 +169,8 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
       >
         {visibleItems.map((item) => {
           const active = pathname === item.href || (item.href !== "/" && item.href !== "/checklists" && pathname.startsWith(item.href));
-          const Icon = item.icon;
-          const label = warehouseManagerOnly && item.href === "/admin" ? "Вычеты" : item.label;
+          const Icon = item.href === "/procurement" && managerOnly ? BadgePercent : item.icon;
+          const label = warehouseManagerOnly && item.href === "/admin" ? "Вычеты" : item.href === "/procurement" && managerOnly ? "Акции" : item.label;
           const isNotifications = item.href === "/notifications";
 
           return (
@@ -209,5 +210,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
     </nav>
   );
 }
+
+
 
 
