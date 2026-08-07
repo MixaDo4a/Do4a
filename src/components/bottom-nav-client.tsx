@@ -30,7 +30,7 @@ const items: BottomNavItem[] = [
   },
   {
     href: "/procurement",
-    label: "Закуп",
+    label: "Акции",
     icon: PackageSearch,
     roles: PROCUREMENT_ROLES,
     hideForAuditorOnly: false,
@@ -209,4 +209,5 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
     </nav>
   );
 }
+
 

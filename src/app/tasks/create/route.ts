@@ -30,7 +30,18 @@ function tasksUrl(request: NextRequest, message: string, detail?: string) {
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
-  const storeId = value(formData, "store_id");
+  const storeIds = Array.from(
+    new Set(
+      formData
+        .getAll("store_ids")
+        .map((entry) => String(entry).trim())
+        .filter(Boolean),
+    ),
+  );
+  const fallbackStoreId = value(formData, "store_id");
+  if (storeIds.length === 0 && fallbackStoreId) {
+    storeIds.push(fallbackStoreId);
+  }
   const assigneeEmployeeId = value(formData, "assignee_employee_id");
   const title = value(formData, "title");
   const description = value(formData, "description");
@@ -38,7 +49,7 @@ export async function POST(request: NextRequest) {
   const priority = value(formData, "priority") || "normal";
   const recurrenceFrequency = value(formData, "recurrence_frequency");
 
-  if (!storeId || !assigneeEmployeeId || !title) {
+  if (storeIds.length === 0 || !assigneeEmployeeId || !title) {
     return NextResponse.redirect(tasksUrl(request, "task-required"), 303);
   }
 
@@ -82,40 +93,40 @@ export async function POST(request: NextRequest) {
   const { employeeId } = await getCurrentEmployeeId();
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = new Set(accessibleStores.map((store) => store.id));
-  if (!accessibleStoreIds.has(storeId)) {
+  if (storeIds.some((storeId) => !accessibleStoreIds.has(storeId))) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Можно ставить задачи только по доступным магазинам."), 303);
   }
 
   const duplicateWindowStart = new Date(Date.now() - 15_000).toISOString();
-  const { data: duplicateTask, error: duplicateError } = await supabase
+  const { data: duplicateTasks, error: duplicateError } = await supabase
     .from("tasks")
     .select("id")
-    .eq("store_id", storeId)
+    .in("store_id", storeIds)
     .eq("assignee_employee_id", assigneeEmployeeId)
     .eq("title", title)
     .eq("priority", priority)
     .eq("status", "open")
     .gte("created_at", duplicateWindowStart)
-    .maybeSingle<{ id: string }>();
+    .returns<{ id: string }[]>();
 
   if (duplicateError) {
     return NextResponse.redirect(tasksUrl(request, "task-error", duplicateError.message), 303);
   }
 
-  if (duplicateTask) {
+  if ((duplicateTasks ?? []).length > 0) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Похоже, такая задача уже была создана только что."), 303);
   }
 
   const { data: assigneeStoreAssignment, error: assigneeStoreError } = await supabase
     .from("employee_store_assignments")
-    .select("employee_id")
+    .select("store_id")
     .eq("employee_id", assigneeEmployeeId)
-    .eq("store_id", storeId)
+    .in("store_id", storeIds)
     .lte("valid_from", new Date().toISOString().slice(0, 10))
     .or(`valid_to.is.null,valid_to.gte.${new Date().toISOString().slice(0, 10)}`)
-    .maybeSingle<{ employee_id: string }>();
+    .returns<{ store_id: string }[]>();
 
-  if (assigneeStoreError || !assigneeStoreAssignment) {
+  if (assigneeStoreError || (assigneeStoreAssignment?.length ?? 0) !== storeIds.length) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Можно ставить задачи только сотрудникам выбранного магазина."), 303);
   }
 
@@ -149,11 +160,12 @@ export async function POST(request: NextRequest) {
   }
 
   let recurrenceRuleId: string | null = null;
-  if (recurrenceEnabled) {
-    const recurrenceDueAt = advanceTaskRecurrenceRun(new Date(dueAtIso as string), recurrenceFrequency as TaskRecurrenceFrequency).toISOString();
-    const { data: recurrenceRule, error: recurrenceError } = await supabase
-      .from("task_recurrence_rules")
-      .insert({
+  const recurrenceDueAt = recurrenceEnabled
+    ? advanceTaskRecurrenceRun(new Date(dueAtIso as string), recurrenceFrequency as TaskRecurrenceFrequency).toISOString()
+    : null;
+
+  const recurrenceRuleRows = recurrenceEnabled
+    ? storeIds.map((storeId) => ({
         store_id: storeId,
         assignee_employee_id: assigneeEmployeeId,
         title,
@@ -161,87 +173,102 @@ export async function POST(request: NextRequest) {
         frequency: recurrenceFrequency,
         next_run_at: recurrenceDueAt,
         created_by: user.id,
-      })
-      .select("id")
-      .single<{ id: string }>();
+      }))
+    : [];
 
-    if (recurrenceError || !recurrenceRule) {
+  let recurrenceRuleIdsByStoreId = new Map<string, string>();
+  if (recurrenceEnabled) {
+    const { data: recurrenceRules, error: recurrenceError } = await supabase
+      .from("task_recurrence_rules")
+      .insert(recurrenceRuleRows)
+      .select("id, store_id")
+      .returns<{ id: string; store_id: string }[]>();
+
+    if (recurrenceError || !recurrenceRules) {
       return NextResponse.redirect(tasksUrl(request, "task-error", recurrenceError?.message ?? "Не удалось создать правило повторения задачи."), 303);
     }
 
-    recurrenceRuleId = recurrenceRule.id;
+    recurrenceRuleIdsByStoreId = new Map(recurrenceRules.map((rule) => [rule.store_id, rule.id]));
   }
+
+  const taskRows = storeIds.map((storeId) => ({
+    store_id: storeId,
+    assignee_employee_id: assigneeEmployeeId,
+    created_by: user.id,
+    title,
+    description: description || null,
+    due_at: dueAtIso,
+    priority,
+    status: "open" as const,
+    recurrence_rule_id: recurrenceRuleIdsByStoreId.get(storeId) ?? null,
+  }));
 
   const { data, error } = await supabase
     .from("tasks")
-    .insert({
-      store_id: storeId,
-      assignee_employee_id: assigneeEmployeeId,
-      created_by: user.id,
-      title,
-      description: description || null,
-      due_at: dueAtIso,
-      priority,
-      status: "open",
-      recurrence_rule_id: recurrenceRuleId,
-    })
-    .select("id")
-    .single();
+    .insert(taskRows)
+    .select("id, store_id")
+    .returns<{ id: string; store_id: string }[]>();
 
   if (error || !data) {
-    if (recurrenceRuleId) {
-      await supabase.from("task_recurrence_rules").delete().eq("id", recurrenceRuleId);
+    if (recurrenceEnabled) {
+      await supabase.from("task_recurrence_rules").delete().in("store_id", storeIds).eq("assignee_employee_id", assigneeEmployeeId).eq("title", title);
     }
     return NextResponse.redirect(tasksUrl(request, "task-error", error?.message), 303);
   }
 
-  const [{ data: storeRow }, { data: employeeRow }, { data: assigneeRow }] = await Promise.all([
-    supabase.from("stores").select("name, city").eq("id", storeId).maybeSingle<{ name: string; city: string }>(),
+  const [{ data: storeRows }, { data: employeeRow }, { data: assigneeRow }] = await Promise.all([
+    supabase.from("stores").select("id, name, city").in("id", storeIds).returns<{ id: string; name: string; city: string }[]>(),
     employeeId
       ? supabase.from("employees").select("full_name").eq("id", employeeId).maybeSingle<{ full_name: string }>()
       : Promise.resolve({ data: null, error: null }),
     supabase.from("employees").select("full_name").eq("id", assigneeEmployeeId).maybeSingle<{ full_name: string }>(),
   ]);
-  const storeLabel = storeRow ? `${storeRow.name}, ${storeRow.city}` : storeId;
+  const storeRowById = new Map((storeRows ?? []).map((storeRow) => [storeRow.id, storeRow]));
   const authorLabel = employeeRow?.full_name ?? "Сотрудник";
   const assigneeLabel = assigneeRow?.full_name ?? "Сотрудник";
-  const taskBody = `${assigneeLabel} · ${storeLabel} · ${title}`;
+  await Promise.all(
+    data.map(async (task) => {
+      const storeRow = storeRowById.get(task.store_id);
+      const storeLabel = storeRow ? `${storeRow.name}, ${storeRow.city}` : task.store_id;
+      const taskBody = `${assigneeLabel} · ${storeLabel} · ${title}`;
 
-  await supabase.rpc("send_employee_notification", {
-    p_employee_id: assigneeEmployeeId,
-    p_event_type: "new_task",
-    p_title: "Новая задача",
-    p_body: taskBody,
-    p_related_entity_type: "task",
-    p_related_entity_id: data.id,
-  });
+      await supabase.rpc("send_employee_notification", {
+        p_employee_id: assigneeEmployeeId,
+        p_event_type: "new_task",
+        p_title: "Новая задача",
+        p_body: taskBody,
+        p_related_entity_type: "task",
+        p_related_entity_id: task.id,
+      });
 
-  await supabase.rpc("send_store_managers_notification", {
-    p_store_id: storeId,
-    p_event_type: "new_task",
-    p_title: "Новая задача",
-    p_body: `${authorLabel} поставил задачу на магазин ${storeLabel}: ${title}`,
-    p_exclude_profile_id: user.id,
-    p_related_entity_type: "task",
-    p_related_entity_id: data.id,
-  });
+      await supabase.rpc("send_store_managers_notification", {
+        p_store_id: task.store_id,
+        p_event_type: "new_task",
+        p_title: "Новая задача",
+        p_body: `${authorLabel} поставил задачу на магазин ${storeLabel}: ${title}`,
+        p_exclude_profile_id: user.id,
+        p_related_entity_type: "task",
+        p_related_entity_id: task.id,
+      });
 
-  await supabase.rpc("send_store_employees_notification", {
-    p_store_id: storeId,
-    p_event_type: "new_task",
-    p_title: "Новая задача",
-    p_body: taskBody,
-    p_exclude_employee_id: assigneeEmployeeId,
-    p_exclude_profile_id: user.id,
-    p_related_entity_type: "task",
-    p_related_entity_id: data.id,
-  });
+      await supabase.rpc("send_store_employees_notification", {
+        p_store_id: task.store_id,
+        p_event_type: "new_task",
+        p_title: "Новая задача",
+        p_body: taskBody,
+        p_exclude_employee_id: assigneeEmployeeId,
+        p_exclude_profile_id: user.id,
+        p_related_entity_type: "task",
+        p_related_entity_id: task.id,
+      });
 
-  await dispatchPushNotificationsFromEvent(supabase, {
-    eventType: "new_task",
-    relatedEntityType: "task",
-    relatedEntityId: data.id,
-  }).catch(() => null);
+      await dispatchPushNotificationsFromEvent(supabase, {
+        eventType: "new_task",
+        relatedEntityType: "task",
+        relatedEntityId: task.id,
+      }).catch(() => null);
+    }),
+  );
 
   return NextResponse.redirect(tasksUrl(request, "task-created"), 303);
 }

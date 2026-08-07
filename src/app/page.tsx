@@ -445,7 +445,7 @@ export default async function HomePage() {
                 : storeManagerView
                   ? "Управление магазинами"
                   : buyerOnlyView
-                    ? "Закупки"
+                    ? "Акции"
                     : warehouseManagerOnlyView || warehouseAssistantOnlyView
                       ? "Склад и задачи"
                       : "Смена и задачи"}
@@ -624,7 +624,7 @@ export default async function HomePage() {
 
             {buyerOnlyView || warehouseManagerOnlyView ? (
               <section className="mt-6 ui-panel p-4">
-                <SectionHeader icon={PackageSearch} title="Закупки" action="Открыть" href="/procurement" />
+                <SectionHeader icon={PackageSearch} title="Акции" action="Открыть" href="/procurement" />
                 <p className="mt-3 text-sm text-muted">
                   Заказы поставщиков, счета, статусы приемки и проблемные поставки.
                 </p>
@@ -707,6 +707,7 @@ export default async function HomePage() {
     </main>
   );
 }
+
 
 
 

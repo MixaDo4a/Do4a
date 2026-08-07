@@ -270,13 +270,18 @@ export default async function TasksPage({ searchParams }: PageProps) {
               <input className="h-11 rounded-md border border-line px-3 outline-none focus:border-brand" name="title" placeholder="Название" />
               <textarea className="min-h-20 rounded-md border border-line px-3 py-2 outline-none focus:border-brand" name="description" placeholder="Описание" />
               <div className="grid gap-3 sm:grid-cols-2">
-                <select className="h-11 rounded-md border border-line px-3" name="store_id">
-                  {stores.map((store) => (
-                    <option key={store.id} value={store.id}>
-                      {store.name}
-                    </option>
-                  ))}
-                </select>
+                <fieldset className="rounded-md border border-line p-3 sm:col-span-2">
+                  <legend className="px-1 text-sm font-medium">Магазины</legend>
+                  <p className="mt-1 text-xs text-muted">Можно выбрать несколько магазинов.</p>
+                  <div className="mt-3 grid max-h-48 gap-2 overflow-auto pr-1">
+                    {stores.map((store) => (
+                      <label key={store.id} className="flex cursor-pointer items-center gap-3 rounded-md border border-line px-3 py-2 text-sm transition hover:border-brand/40 hover:bg-brand/5">
+                        <input className="h-4 w-4 accent-brand" name="store_ids" type="checkbox" value={store.id} />
+                        <span>{store.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 <select className="h-11 rounded-md border border-line px-3" name="assignee_employee_id">
                   {taskAssignees.map((employee) => (
                     <option key={employee.id} value={employee.id}>
@@ -298,6 +303,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   <option value="monthly">Каждый месяц</option>
                 </select>
               </div>
+              <p className="text-xs text-muted">Сотрудник должен иметь доступ ко всем выбранным магазинам.</p>
               <p className="text-xs text-muted">
                 Если дата не указана, задача считается бессрочной и остаётся в активных до закрытия.
               </p>
