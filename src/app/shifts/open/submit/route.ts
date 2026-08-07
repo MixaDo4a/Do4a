@@ -14,14 +14,20 @@ function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
+function todayIso() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Vladivostok",
+  }).format(new Date());
+}
+
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const storeId = value(formData, "store_id");
-  const shiftDate = value(formData, "shift_date");
   const primaryEmployeeId = value(formData, "primary_employee_id");
   const secondaryEmployeeId = value(formData, "secondary_employee_id");
+  const shiftDate = todayIso();
 
-  if (!storeId || !shiftDate || !primaryEmployeeId) {
+  if (!storeId || !primaryEmployeeId) {
     return NextResponse.redirect(openUrl(request, "required"), 303);
   }
 

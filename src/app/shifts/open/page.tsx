@@ -30,6 +30,12 @@ const messages: Record<string, string> = {
   opened: "Смена открыта.",
 };
 
+function todayIso() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Vladivostok",
+  }).format(new Date());
+}
+
 export default async function OpenShiftPage({ searchParams }: PageProps) {
   const { message, detail } = await searchParams;
   const supabase = await createSupabaseServerClient();
@@ -68,6 +74,7 @@ export default async function OpenShiftPage({ searchParams }: PageProps) {
   const storeIds = new Set(accessibleStores.map((store) => store.id));
   const filteredEmployees = employees.filter((employee) => employee.primary_store_id ? storeIds.has(employee.primary_store_id) : true);
   const canOpen = accessibleStores.length > 0 && filteredEmployees.length > 0;
+  const shiftDate = todayIso();
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -97,12 +104,10 @@ export default async function OpenShiftPage({ searchParams }: PageProps) {
               </label>
               <label className="grid gap-1 text-sm">
                 <span className="text-muted">Дата</span>
-                <input
-                  className="h-11 rounded-md border border-line px-3"
-                  defaultValue={new Date().toISOString().slice(0, 10)}
-                  name="shift_date"
-                  type="date"
-                />
+                <div className="flex h-11 items-center rounded-md border border-line px-3 text-ink/90">
+                  {shiftDate}
+                </div>
+                <input name="shift_date" type="hidden" value={shiftDate} />
               </label>
             </div>
           </section>
