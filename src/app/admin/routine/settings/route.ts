@@ -117,14 +117,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { error } = await supabase.rpc("save_day_routine_item_settings", {
-    p_template_id: templateId,
-    p_settings: settings,
-  });
+  const { error: deleteError } = await serviceSupabase
+    .from("day_routine_template_item_settings")
+    .delete()
+    .eq("template_id", templateId);
 
-  if (error) {
-    return NextResponse.redirect(redirectUrl(request, "routine-error", error.message, storeId), 303);
+  if (deleteError) {
+    return NextResponse.redirect(redirectUrl(request, "routine-error", deleteError.message, storeId), 303);
+  }
+
+  if (settings.length > 0) {
+    const { error: insertError } = await serviceSupabase.from("day_routine_template_item_settings").insert(
+      settings.map((setting) => ({
+        template_id: templateId,
+        item_key: setting.item_key,
+        requires_photo: setting.requires_photo,
+        ai_review_enabled: setting.ai_review_enabled,
+        reference_photo_file_id: setting.reference_photo_file_id,
+        created_by: user.id,
+        updated_by: user.id,
+      })),
+    );
+
+    if (insertError) {
+      return NextResponse.redirect(redirectUrl(request, "routine-error", insertError.message, storeId), 303);
+    }
   }
 
   return NextResponse.redirect(redirectUrl(request, "routine-saved", "Фото-настройки распорядка сохранены.", storeId), 303);
 }
+
