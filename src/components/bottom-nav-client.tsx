@@ -284,7 +284,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   }, [pathname, router, visibleItems]);
 
   return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-20 border-t border-line bg-[#090607]/78 px-2 pt-2 backdrop-blur-2xl" style={{ touchAction: "pan-y" }}>
+    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-50 border-t border-line bg-[#090607]/95 px-2 pt-2" style={{ touchAction: "pan-y" }}>
       <div
         ref={navGridRef}
         className="relative mx-auto grid max-w-[390px] gap-1"
