@@ -12,7 +12,7 @@ export type RoutineTemplateItemNode = {
 export type RoutineTemplateItemFlatRow = {
   id: string;
   parent_item_id: string | null;
-  item_key: string;
+  item_key?: string;
   title: string;
   level: number;
   sort_order: number;
@@ -107,7 +107,7 @@ export function buildRoutineTree(rows: RoutineTemplateItemFlatRow[]) {
     .forEach((row) => {
       nodes.set(row.id, {
         id: row.id,
-        itemKey: row.item_key,
+        itemKey: row.item_key ?? row.id,
         title: row.title,
         level: row.level,
         sortOrder: row.sort_order,

@@ -259,9 +259,9 @@ export default async function AdminRoutinePage({ searchParams }: PageProps) {
 
   const { data: templateRows, error: templateError } = selectedStoreId
     ? await supabase
-        .from("day_routine_templates")
-        .select(
-          "id, store_id, routine_kind, title, day_routine_template_items(id, item_key, parent_item_id, title, level, sort_order, is_active)",
+      .from("day_routine_templates")
+      .select(
+          "id, store_id, routine_kind, title, day_routine_template_items(id, parent_item_id, title, level, sort_order, is_active)",
         )
         .eq("store_id", selectedStoreId)
         .in("routine_kind", ["morning", "evening"])
@@ -283,9 +283,15 @@ export default async function AdminRoutinePage({ searchParams }: PageProps) {
         .returns<RoutineTemplateItemSettingsRow[]>()
     : { data: [] as RoutineTemplateItemSettingsRow[], error: null };
 
-  if (settingsError) {
-    throw new Error(settingsError.message);
-  }
+  const templateSettingsRows =
+    settingsError && /does not exist|Could not find the table|Could not find the relationship/i.test(settingsError.message)
+      ? []
+      : (() => {
+          if (settingsError) {
+            throw new Error(settingsError.message);
+          }
+          return settingsRows ?? [];
+        })();
 
   const templatesByKind = new Map<RoutineKind, TemplateRow>();
   (templateRows ?? []).forEach((template) => {
@@ -296,7 +302,7 @@ export default async function AdminRoutinePage({ searchParams }: PageProps) {
   for (const template of templateRows ?? []) {
     settingsByTemplateId.set(
       template.id,
-      buildTemplateSettingsMap((settingsRows ?? []).filter((row) => row.template_id === template.id)),
+      buildTemplateSettingsMap(templateSettingsRows.filter((row) => row.template_id === template.id)),
     );
   }
 

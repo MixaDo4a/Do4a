@@ -100,9 +100,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   ] = await Promise.all([
     supabase
       .from("day_routine_template_items")
-      .select("id, template_id, item_key, title")
+      .select("id, template_id, title")
       .eq("id", templateItemId)
-      .maybeSingle<{ id: string; template_id: string; item_key: string; title: string }>(),
+      .maybeSingle<{ id: string; template_id: string; title: string }>(),
     supabase
       .from("day_routine_templates")
       .select("id, store_id, routine_kind, title")
@@ -126,13 +126,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Template item not found" }, { status: 404 });
   }
 
-  const { data: itemSettings, error: settingsError } = await supabase
+  const templateItemKey = templateItem.id;
+  const itemSettingsResult = await supabase
     .from("day_routine_template_item_settings")
     .select(
       "id, template_id, item_key, requires_photo, ai_review_enabled, reference_photo_file_id, reference_photo_file:files(id, bucket, path, mime_type)",
     )
     .eq("template_id", templateRow.id)
-    .eq("item_key", templateItem.item_key)
+    .eq("item_key", templateItemKey)
     .maybeSingle<{
       id: string;
       template_id: string;
@@ -143,8 +144,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       reference_photo_file: { id: string; bucket: string; path: string; mime_type: string | null } | null;
     }>();
 
-  if (settingsError) {
-    return NextResponse.json({ error: settingsError.message }, { status: 400 });
+  const itemSettings =
+    itemSettingsResult.error && /does not exist|Could not find the table|Could not find the relationship/i.test(itemSettingsResult.error.message)
+      ? null
+      : itemSettingsResult.data;
+
+  if (itemSettingsResult.error && !itemSettings) {
+    return NextResponse.json({ error: itemSettingsResult.error.message }, { status: 400 });
   }
 
   if (completed && itemSettings?.requires_photo && !photo) {
@@ -158,7 +164,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     uploadedFileId = await uploadFormFile(
       serviceSupabase,
       "routine-photos",
-      `sessions/${shiftId}/${kind}/${templateItem.item_key}`,
+      `sessions/${shiftId}/${kind}/${templateItemKey}`,
       photo,
       user.id,
       "day_routine_session_item_photo",

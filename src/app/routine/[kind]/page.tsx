@@ -117,7 +117,7 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
     supabase
       .from("day_routine_templates")
       .select(
-        "id, store_id, routine_kind, title, day_routine_template_items(id, item_key, parent_item_id, title, level, sort_order, is_active)",
+        "id, store_id, routine_kind, title, day_routine_template_items(id, parent_item_id, title, level, sort_order, is_active)",
       )
       .eq("store_id", shiftData.store_id)
       .eq("routine_kind", kind)
@@ -161,14 +161,20 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
         .returns<RoutineTemplateItemSettingsRow[]>()
     : { data: [] as RoutineTemplateItemSettingsRow[], error: null };
 
-  if (settingsError) {
-    throw new Error(settingsError.message);
-  }
+  const templateSettingsRows =
+    settingsError && /does not exist|Could not find the table|Could not find the relationship/i.test(settingsError.message)
+      ? []
+      : (() => {
+          if (settingsError) {
+            throw new Error(settingsError.message);
+          }
+          return settingsRows ?? [];
+        })();
 
   const template = templateRows?.day_routine_template_items ?? [];
   const tree = buildRoutineTree(template);
   const itemSettings: TemplateSettingsMap = Object.fromEntries(
-    (settingsRows ?? []).map((row) => [
+    templateSettingsRows.map((row) => [
       row.item_key,
       {
         requiresPhoto: row.requires_photo,
