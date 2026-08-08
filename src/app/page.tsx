@@ -254,6 +254,17 @@ export default async function HomePage() {
         .returns<TaskPreview[]>()
     : Promise.resolve({ data: [] as TaskPreview[], error: null });
 
+  const personalTasksQuery = profile?.employee_id
+    ? supabase
+        .from("tasks")
+        .select("id, title, due_at")
+        .eq("assignee_employee_id", profile.employee_id)
+        .in("status", ["open", "in_progress", "overdue"])
+        .order("due_at", { ascending: true, nullsFirst: false })
+        .limit(3)
+        .returns<TaskPreview[]>()
+    : Promise.resolve({ data: [] as TaskPreview[], error: null });
+
   const checklistArchiveQuery =
     auditorOnly && profile?.employee_id
       ? supabase
@@ -280,7 +291,7 @@ export default async function HomePage() {
     checklistArchiveResult,
     employeesLookupResult,
     cashShiftsResult,
-  ] = await Promise.all([
+  ] = (await Promise.all([
     auditorOnly || supportOnlyView
       ? Promise.resolve({
           data: [] as { id: string; shift_date: string; status: string; stores: { name: string } | null }[],
@@ -301,6 +312,7 @@ export default async function HomePage() {
           .limit(1)
           .returns<{ id: string; shift_date: string; status: string; stores: { name: string } | null }[]>(),
     tasksQuery,
+    personalTasksQuery,
     supabase
       .from("notifications")
       .select("id", { count: "exact", head: true })
@@ -315,7 +327,7 @@ export default async function HomePage() {
     checklistArchiveQuery,
     employeesLookupQuery,
     cashShiftsQuery,
-  ]);
+  ])) as any;
 
   if (shiftsResult.error) {
     redirectInvalidSession(shiftsResult.error);
@@ -339,15 +351,24 @@ export default async function HomePage() {
     throw new Error(employeesLookupResult.error.message);
   }
 
-  const activeShift = shiftsResult.data[0];
-  const tasks = tasksResult.data;
-  const checklistArchive = checklistArchiveResult.data;
-  const averageChecklist = checklistResult.data?.length
-    ? checklistResult.data.reduce((sum, row) => sum + Number(row.average_score), 0) / checklistResult.data.length
+  const shifts = (shiftsResult.data ?? []) as {
+    id: string;
+    shift_date: string;
+    status: string;
+    stores: { name: string } | null;
+  }[];
+  const tasks = (tasksResult.data ?? []) as TaskPreview[];
+  const personalTasks = ((await personalTasksQuery).data ?? []) as TaskPreview[];
+  const checklistArchive = (checklistArchiveResult.data ?? []) as ChecklistPreview[];
+  const checklistScores = (checklistResult.data ?? []) as { average_score: number | string }[];
+  const averageChecklist = checklistScores.length
+    ? checklistScores.reduce((sum: number, row: { average_score: number | string }) => sum + Number(row.average_score), 0) / checklistScores.length
     : 10;
+  const activeShift = shifts[0];
   const payrollPreview = payrollResult.data?.[0]?.total_payout_amount ?? 0;
   const cashBalances = buildStoreCashBalances(cashShiftsResult.data ?? []);
   const totalCashBalance = cashBalances.reduce((sum, row) => sum + row.balance, 0);
+  const notificationsCount = notificationsResult.count ?? 0;
   const scheduleDates = Array.from({ length: new Date(`${selectedMonthEnd}T00:00:00Z`).getUTCDate() }, (_, index) => {
     const current = new Date(`${selectedMonth.slice(0, 7)}-${String(index + 1).padStart(2, "0")}T00:00:00Z`);
     return {
@@ -356,7 +377,9 @@ export default async function HomePage() {
       weekday: new Intl.DateTimeFormat("ru-RU", { weekday: "short" }).format(current),
     };
   });
-  const employeeNameById = new Map(employeesLookupResult.data.map((employee) => [employee.id, employee.full_name]));
+  const employeeNameById = new Map<string, string>(
+    (employeesLookupResult.data ?? []).map((employee: EmployeeLookupRow) => [employee.id, employee.full_name] as const),
+  );
   const schedulePreviewQuery =
     managerOnlyView && profile?.employee_id
       ? supabase
@@ -399,7 +422,6 @@ export default async function HomePage() {
   const upcomingSchedules = schedulePreview
     .filter((row) => row.shift_date >= todayIso && ["planned", "planned_secondary"].includes(row.status))
     .sort((left, right) => left.shift_date.localeCompare(right.shift_date))
-    .slice(0, 2)
     .map((row) => ({
       id: row.id,
       shift_date: row.shift_date,
@@ -459,11 +481,11 @@ export default async function HomePage() {
           >
             <Bell
               size={20}
-              className={notificationsResult.count ? "relative z-10 text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : "relative z-10"}
+              className={notificationsCount ? "relative z-10 text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : "relative z-10"}
             />
-            {notificationsResult.count ? (
+            {notificationsCount ? (
               <span className="pointer-events-none absolute right-[-0.45rem] top-[-0.45rem] z-30 grid min-h-5 min-w-5 place-items-center rounded-full border border-white/20 bg-brand px-1 text-[10px] font-semibold leading-none text-white shadow-[0_0_12px_rgba(255,57,72,0.6)]">
-                {notificationsResult.count}
+                {notificationsCount}
               </span>
             ) : null}
           </a>
@@ -562,10 +584,10 @@ export default async function HomePage() {
             <section className="mt-6 ui-panel p-4">
               <SectionHeader icon={ShieldCheck} title="Текущая смена" action="Открыть" href="/shifts" />
               <div className="mt-4 grid gap-3">
-                {shiftsResult.data.length === 0 ? (
+                {shifts.length === 0 ? (
                   <p className="rounded-md bg-surface p-3 text-sm text-muted">Открытых смен нет.</p>
                 ) : (
-                  shiftsResult.data.map((shift) => (
+                  shifts.map((shift) => (
                     <div key={shift.id} className="rounded-md border border-line p-3">
                       <p className="font-medium">{shift.stores?.name ?? "Магазин"}</p>
                       <p className="mt-1 text-sm text-muted">{formatDate(shift.shift_date)} · {statusLabels[shift.status] ?? shift.status}</p>
@@ -586,6 +608,25 @@ export default async function HomePage() {
                       <CheckCircle2 className="mt-0.5 text-brand" size={18} />
                       <div className="min-w-0 flex-1">
                     <p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p>
+                        <p className="mt-1 text-sm text-muted">{formatDate(task.due_at)}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="mt-6">
+              <SectionHeader icon={CheckCircle2} title="Задачи лично мне" action="Все" href="/tasks" />
+              <div className="mt-3 divide-y divide-line ui-panel shadow-soft">
+                {personalTasks.length === 0 ? (
+                  <p className="p-4 text-sm text-muted">Личных задач пока нет.</p>
+                ) : (
+                  personalTasks.map((task) => (
+                    <div key={task.id} className="flex items-start gap-3 p-4">
+                      <CheckCircle2 className="mt-0.5 text-brand" size={18} />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p>
                         <p className="mt-1 text-sm text-muted">{formatDate(task.due_at)}</p>
                       </div>
                     </div>
@@ -645,7 +686,7 @@ export default async function HomePage() {
                 <Metric icon={ReceiptText} label="К выплате" value={money(payrollPreview)} />
                 <Metric icon={ClipboardCheck} label="Чек-лист" value={averageChecklist.toFixed(2)} />
                 <Metric icon={ListTodo} label="Задачи" value={`${tasks.length} задач`} />
-                <Metric icon={WalletCards} label="Уведомления" value={`${notificationsResult.count ?? 0}`} />
+                <Metric icon={WalletCards} label="Уведомления" value={`${notificationsCount}`} />
               </section>
             ) : null}
 

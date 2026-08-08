@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { BadgePercent, Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -92,6 +93,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const navGridRef = useRef<HTMLDivElement | null>(null);
   const navItemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
   const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number } | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const hasUnreadNotifications = unreadCount > 0;
   const auditorOnly = roles.includes("auditor") && !roles.some((role) => managementRoles.includes(role));
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !roles.some((role) => managementRoles.includes(role));
@@ -100,6 +102,8 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
 
   useEffect(() => {
+    setIsMounted(true);
+
     let cancelled = false;
 
     void registerPushServiceWorker();
@@ -283,8 +287,12 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
     };
   }, [pathname, router, visibleItems]);
 
-  return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-50 border-t border-line bg-[#090607]/95 px-2 pt-2" style={{ touchAction: "pan-y" }}>
+  if (!isMounted) {
+    return null;
+  }
+
+  return createPortal(
+    <nav className="bottom-nav-shell border-t border-line bg-[#090607]/95 px-2 pt-2" style={{ touchAction: "pan-y" }}>
       <div
         ref={navGridRef}
         className="relative mx-auto grid max-w-[390px] gap-1"
@@ -343,7 +351,8 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
           );
         })}
       </div>
-    </nav>
+    </nav>,
+    document.body,
   );
 }
 

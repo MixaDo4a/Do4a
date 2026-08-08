@@ -37,6 +37,19 @@ select {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
+.bottom-nav-shell {
+  position: fixed !important;
+  inset-inline: 0 !important;
+  bottom: 0 !important;
+  z-index: 80 !important;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 textarea,
 select {

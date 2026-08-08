@@ -70,6 +70,7 @@ export default async function ShiftsPage({ searchParams }: ShiftsPageProps) {
   const { employeeId } = await getCurrentEmployeeId();
   const { roles } = await getCurrentRoleCodes();
   const canOpenShift = hasAnyRole(roles, OPEN_SHIFT_ROLES);
+  const canSeeClosedShiftArchive = hasAnyRole(roles, ["manager", "store_manager", "super_admin", "developer"]);
   const defaultDate = todayIso();
   const dateFrom = params.dateFrom || defaultDate;
   const dateTo = params.dateTo || defaultDate;
@@ -104,6 +105,7 @@ export default async function ShiftsPage({ searchParams }: ShiftsPageProps) {
   let datedShiftsQuery = supabase
     .from("shifts")
     .select(shiftSelect)
+    .in("status", ["opened", "correction_required"])
     .gte("shift_date", dateFrom)
     .lte("shift_date", dateTo)
     .order("shift_date", { ascending: true });
@@ -165,6 +167,14 @@ export default async function ShiftsPage({ searchParams }: ShiftsPageProps) {
           href={canOpenShift ? "/shifts/open" : undefined}
           showBack
         />
+
+        {canSeeClosedShiftArchive ? (
+          <div className="mt-3 flex justify-end">
+            <a className="ui-panel px-4 py-2 text-sm font-semibold" href="/admin/closed-shifts">
+              Архив закрытых смен
+            </a>
+          </div>
+        ) : null}
 
         {params.message ? (
           <p className="mt-4 ui-panel p-3 text-sm text-muted shadow-soft">

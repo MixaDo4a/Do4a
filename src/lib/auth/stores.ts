@@ -74,11 +74,12 @@ export async function getAccessibleStores() {
   }
 
   const employeeCity = scope.city?.trim().toLowerCase() ?? "";
+  const shouldFilterByCity = !scope.roles.includes("store_manager") && !scope.roles.includes("manager");
 
   return (data
     .map((row) => (Array.isArray(row.stores) ? row.stores[0] : row.stores))
     .filter(Boolean) as AccessibleStoreRow[])
     .filter((store) => store.status === "active")
-    .filter((store) => !employeeCity || store.city.trim().toLowerCase() === employeeCity)
+    .filter((store) => !shouldFilterByCity || !employeeCity || store.city.trim().toLowerCase() === employeeCity)
     .filter((store, index, list) => list.findIndex((item) => item.id === store.id) === index);
 }
