@@ -435,7 +435,7 @@ export default async function HomePage() {
       stores: row.stores,
       employeeName: employeeNameById.get(row.employee_id) ?? "Сотрудник",
     }));
-  const upcomingSchedulePreview = upcomingSchedules.slice(0, 2);
+  const upcomingSchedulePreview = managementView ? upcomingSchedules : upcomingSchedules.slice(0, 2);
   const scheduleGroups = new Map<
     string,
     {
@@ -590,15 +590,16 @@ export default async function HomePage() {
           <>
             <section className="mt-6 ui-panel p-4">
               <SectionHeader icon={ShieldCheck} title="Текущая смена" action="Смены" href="/shifts" />
-              <div className="mt-4 rounded-md border border-line bg-surface p-4">
-                {activeShift ? (
-                  <>
-                    <p className="font-medium">{activeShift.stores?.name ?? "Магазин"}</p>
-                    <p className="mt-1 text-sm text-muted">
-                      Смена открыта · {formatDate(activeShift.shift_date)} · {statusLabels[activeShift.status] ?? activeShift.status}
-                    </p>
-                    {shifts.length > 1 ? <p className="mt-2 text-xs text-muted">Ещё открыто смен: {shifts.length - 1}</p> : null}
-                  </>
+              <div className="mt-4 grid gap-3">
+                {shifts.length > 0 ? (
+                  shifts.map((shift) => (
+                    <div key={shift.id} className="rounded-md border border-line bg-surface p-4">
+                      <p className="font-medium">{shift.stores?.name ?? "Магазин"}</p>
+                      <p className="mt-1 text-sm text-muted">
+                        Смена открыта · {formatDate(shift.shift_date)} · {statusLabels[shift.status] ?? shift.status}
+                      </p>
+                    </div>
+                  ))
                 ) : (
                   <p className="text-sm text-muted">Открытых смен нет.</p>
                 )}
