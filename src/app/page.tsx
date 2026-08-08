@@ -170,20 +170,24 @@ function monthTitle(value: string) {
   return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(new Date(`${value}-01T00:00:00Z`));
 }
 
-function groupUpcomingSchedulesByCity(items: UpcomingScheduleItem[]) {
+function formatWeekdayDate(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  return new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric", month: "short" }).format(date);
+}
+
+function groupUpcomingSchedulesByStore(items: UpcomingScheduleItem[]) {
   const groups = new Map<string, UpcomingScheduleItem[]>();
 
   for (const item of items) {
-    const city = item.stores?.city?.trim() || "Без города";
-    const current = groups.get(city) ?? [];
+    const storeId = item.stores?.id ?? item.id;
+    const current = groups.get(storeId) ?? [];
     if (current.length < 2) {
       current.push(item);
-      groups.set(city, current);
+      groups.set(storeId, current);
     }
   }
 
-  return Array.from(groups.entries()).map(([city, groupedItems]) => ({
-    city,
+  return Array.from(groups.entries()).map(([, groupedItems]) => ({
     items: groupedItems,
   }));
 }
@@ -468,7 +472,7 @@ export default async function HomePage() {
       employeeName: employeeNameById.get(row.employee_id) ?? "Сотрудник",
     }));
   const upcomingSchedulePreview = managementView ? upcomingSchedules : upcomingSchedules.slice(0, 2);
-  const upcomingScheduleCityGroups = managementView ? groupUpcomingSchedulesByCity(upcomingSchedules) : [];
+  const upcomingScheduleStoreGroups = managementView ? groupUpcomingSchedulesByStore(upcomingSchedules) : [];
   const scheduleGroups = new Map<
     string,
     {
@@ -616,19 +620,18 @@ export default async function HomePage() {
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
                 <div className="grid gap-3">
-                  {upcomingScheduleCityGroups.length === 0 ? (
+                  {upcomingScheduleStoreGroups.length === 0 ? (
                     <p className="rounded-md bg-surface p-3 text-sm text-muted">Ближайших смен в графике нет.</p>
                   ) : (
-                    upcomingScheduleCityGroups.map((group) => (
-                      <div key={group.city} className="rounded-md border border-line bg-surface p-3">
-                        <p className="text-sm font-semibold">{group.city}</p>
+                    upcomingScheduleStoreGroups.map((group, index) => (
+                      <div key={`${group.items[0]?.stores?.id ?? index}`} className="rounded-md border border-line bg-surface p-3">
+                        <p className="text-sm font-semibold">{group.items[0]?.stores?.name ?? "Магазин"}</p>
                         <div className="mt-3 grid gap-2">
                           {group.items.map((item) => (
                             <div key={item.id} className="flex items-start justify-between gap-3 rounded-md border border-line/70 bg-background/30 p-3">
                               <div className="min-w-0 flex-1">
-                                <p className="font-semibold">{formatDate(item.shift_date)}</p>
-                                <p className="mt-1 break-words text-sm text-muted">{item.stores?.name ?? "Магазин"}</p>
-                                <p className="mt-1 break-words text-sm text-muted">{item.employeeName}</p>
+                                <p className="font-semibold">{item.employeeName}</p>
+                                <p className="mt-1 break-words text-sm text-muted">{formatWeekdayDate(item.shift_date)}</p>
                               </div>
                               <span className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-black ${scheduleStatusBadgeClass(item.status)}`}>
                                 {scheduleStatusLabel(item.status)}
