@@ -210,6 +210,7 @@ export default async function HomePage() {
   const canSeeAccessibleStoreSchedules = managementView || auditorOnly || warehouseManagerOnlyView || buyerOnlyView;
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
+  const hasAccessibleStores = accessibleStoreIds.length > 0;
   const cashShiftsQuery =
     accessibleStoreIds.length > 0
       ? supabase
@@ -235,14 +236,16 @@ export default async function HomePage() {
   }
 
   const tasksQuery = managementView || auditorOnly || warehouseManagerOnlyView
-    ? supabase
-        .from("tasks")
-        .select("id, title, due_at")
-        .in("store_id", accessibleStoreIds)
-        .in("status", ["open", "in_progress", "overdue"])
-        .order("due_at", { ascending: true, nullsFirst: false })
-        .limit(3)
-        .returns<TaskPreview[]>()
+    ? hasAccessibleStores
+      ? supabase
+          .from("tasks")
+          .select("id, title, due_at")
+          .in("store_id", accessibleStoreIds)
+          .in("status", ["open", "in_progress", "overdue"])
+          .order("due_at", { ascending: true, nullsFirst: false })
+          .limit(3)
+          .returns<TaskPreview[]>()
+      : Promise.resolve({ data: [] as TaskPreview[], error: null })
     : profile?.employee_id
     ? supabase
         .from("tasks")
