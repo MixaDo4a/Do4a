@@ -21,6 +21,7 @@ import { cleanText, employeeName } from "@/lib/display";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { buildStoreCashBalances, type StoreCashShiftRow } from "@/lib/cash";
 import { redirectInvalidSession } from "@/lib/supabase/errors";
+import { scheduleStatusBadgeClass, scheduleStatusLabel } from "@/lib/schedule-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type ProfileRow = {
@@ -55,6 +56,19 @@ type SchedulePreview = {
   status: string;
   stores: { id: string; name: string; city: string } | null;
   employee_id: string;
+};
+
+type UpcomingScheduleItem = {
+  id: string;
+  shift_date: string;
+  status: string;
+  stores: { id: string; name: string; city: string } | null;
+  employeeName: string;
+};
+
+type UpcomingScheduleCityGroup = {
+  city: string;
+  items: UpcomingScheduleItem[];
 };
 
 type EmployeeLookupRow = {
@@ -154,6 +168,24 @@ function monthEndDate(monthStartValue: string) {
 
 function monthTitle(value: string) {
   return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(new Date(`${value}-01T00:00:00Z`));
+}
+
+function groupUpcomingSchedulesByCity(items: UpcomingScheduleItem[]) {
+  const groups = new Map<string, UpcomingScheduleItem[]>();
+
+  for (const item of items) {
+    const city = item.stores?.city?.trim() || "Без города";
+    const current = groups.get(city) ?? [];
+    if (current.length < 2) {
+      current.push(item);
+      groups.set(city, current);
+    }
+  }
+
+  return Array.from(groups.entries()).map(([city, groupedItems]) => ({
+    city,
+    items: groupedItems,
+  }));
 }
 
 export default async function HomePage() {
@@ -436,6 +468,7 @@ export default async function HomePage() {
       employeeName: employeeNameById.get(row.employee_id) ?? "Сотрудник",
     }));
   const upcomingSchedulePreview = managementView ? upcomingSchedules : upcomingSchedules.slice(0, 2);
+  const upcomingScheduleCityGroups = managementView ? groupUpcomingSchedulesByCity(upcomingSchedules) : [];
   const scheduleGroups = new Map<
     string,
     {
@@ -582,7 +615,31 @@ export default async function HomePage() {
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
-                <UpcomingScheduleList items={upcomingSchedulePreview} />
+                <div className="grid gap-3">
+                  {upcomingScheduleCityGroups.length === 0 ? (
+                    <p className="rounded-md bg-surface p-3 text-sm text-muted">Ближайших смен в графике нет.</p>
+                  ) : (
+                    upcomingScheduleCityGroups.map((group) => (
+                      <div key={group.city} className="rounded-md border border-line bg-surface p-3">
+                        <p className="text-sm font-semibold">{group.city}</p>
+                        <div className="mt-3 grid gap-2">
+                          {group.items.map((item) => (
+                            <div key={item.id} className="flex items-start justify-between gap-3 rounded-md border border-line/70 bg-background/30 p-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold">{formatDate(item.shift_date)}</p>
+                                <p className="mt-1 break-words text-sm text-muted">{item.stores?.name ?? "Магазин"}</p>
+                                <p className="mt-1 break-words text-sm text-muted">{item.employeeName}</p>
+                              </div>
+                              <span className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-black ${scheduleStatusBadgeClass(item.status)}`}>
+                                {scheduleStatusLabel(item.status)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </section>
           </>
