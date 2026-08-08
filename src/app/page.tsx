@@ -288,6 +288,7 @@ export default async function HomePage() {
   const [
     shiftsResult,
     tasksResult,
+    personalTasksResult,
     notificationsResult,
     checklistResult,
     payrollResult,
@@ -361,7 +362,7 @@ export default async function HomePage() {
     stores: { name: string } | null;
   }[];
   const tasks = (tasksResult.data ?? []) as TaskPreview[];
-  const personalTasks = ((await personalTasksQuery).data ?? []) as TaskPreview[];
+  const personalTasks = (personalTasksResult.data ?? []) as TaskPreview[];
   const checklistArchive = (checklistArchiveResult.data ?? []) as ChecklistPreview[];
   const checklistScores = (checklistResult.data ?? []) as { average_score: number | string }[];
   const averageChecklist = checklistScores.length
