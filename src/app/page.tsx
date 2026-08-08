@@ -306,12 +306,14 @@ export default async function HomePage() {
             .from("shifts")
             .select("id, shift_date, status, stores(name)")
             .in("store_id", accessibleStoreIds)
+            .in("status", ["opened", "correction_required"])
             .order("shift_date", { ascending: false })
             .limit(8)
             .returns<{ id: string; shift_date: string; status: string; stores: { name: string } | null }[]>()
       : supabase
           .from("shifts")
           .select("id, shift_date, status, stores(name)")
+          .in("status", ["opened", "correction_required"])
           .order("shift_date", { ascending: false })
           .limit(1)
           .returns<{ id: string; shift_date: string; status: string; stores: { name: string } | null }[]>(),
@@ -433,6 +435,7 @@ export default async function HomePage() {
       stores: row.stores,
       employeeName: employeeNameById.get(row.employee_id) ?? "Сотрудник",
     }));
+  const upcomingSchedulePreview = upcomingSchedules.slice(0, 2);
   const scheduleGroups = new Map<
     string,
     {
@@ -579,24 +582,25 @@ export default async function HomePage() {
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
-                <UpcomingScheduleList items={upcomingSchedules} />
+                <UpcomingScheduleList items={upcomingSchedulePreview} />
               </div>
             </section>
           </>
         ) : storeManagerView ? (
           <>
             <section className="mt-6 ui-panel p-4">
-              <SectionHeader icon={ShieldCheck} title="Текущая смена" action="Открыть" href="/shifts" />
-              <div className="mt-4 grid gap-3">
-                {shifts.length === 0 ? (
-                  <p className="rounded-md bg-surface p-3 text-sm text-muted">Открытых смен нет.</p>
+              <SectionHeader icon={ShieldCheck} title="Текущая смена" action="Смены" href="/shifts" />
+              <div className="mt-4 rounded-md border border-line bg-surface p-4">
+                {activeShift ? (
+                  <>
+                    <p className="font-medium">{activeShift.stores?.name ?? "Магазин"}</p>
+                    <p className="mt-1 text-sm text-muted">
+                      Смена открыта · {formatDate(activeShift.shift_date)} · {statusLabels[activeShift.status] ?? activeShift.status}
+                    </p>
+                    {shifts.length > 1 ? <p className="mt-2 text-xs text-muted">Ещё открыто смен: {shifts.length - 1}</p> : null}
+                  </>
                 ) : (
-                  shifts.map((shift) => (
-                    <div key={shift.id} className="rounded-md border border-line p-3">
-                      <p className="font-medium">{shift.stores?.name ?? "Магазин"}</p>
-                      <p className="mt-1 text-sm text-muted">{formatDate(shift.shift_date)} · {statusLabels[shift.status] ?? shift.status}</p>
-                    </div>
-                  ))
+                  <p className="text-sm text-muted">Открытых смен нет.</p>
                 )}
               </div>
             </section>
@@ -642,7 +646,7 @@ export default async function HomePage() {
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
-                <UpcomingScheduleList items={upcomingSchedules} />
+                <UpcomingScheduleList items={upcomingSchedulePreview} />
               </div>
             </section>
           </>
@@ -679,7 +683,7 @@ export default async function HomePage() {
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
-                <UpcomingScheduleList items={upcomingSchedules} />
+                <UpcomingScheduleList items={upcomingSchedulePreview} />
               </div>
             </section>
           </>
@@ -742,7 +746,7 @@ export default async function HomePage() {
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
-                <UpcomingScheduleList items={upcomingSchedules} />
+                <UpcomingScheduleList items={upcomingSchedulePreview} />
               </div>
             </section>
           </>

@@ -26,15 +26,15 @@ export function UpcomingScheduleList({ items }: { items: UpcomingScheduleItem[] 
       {items.map((item) => (
         <div key={item.id} className="rounded-md border border-line bg-surface p-3 text-sm">
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="font-semibold">{formatDate(item.shift_date)}</p>
-              <p className="mt-1 text-muted">
+              <p className="mt-1 break-words text-muted">
                 {item.stores?.name ?? "Магазин"}
                 {item.stores?.city ? `, ${item.stores.city}` : ""}
               </p>
-              <p className="mt-1 text-muted">{item.employeeName}</p>
+              <p className="mt-1 break-words text-muted">{item.employeeName}</p>
             </div>
-            <span className={`rounded-lg border px-2 py-1 text-xs font-black ${scheduleStatusBadgeClass(item.status)}`}>
+            <span className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-black ${scheduleStatusBadgeClass(item.status)}`}>
               {scheduleStatusLabel(item.status)}
             </span>
           </div>
