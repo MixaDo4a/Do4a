@@ -71,6 +71,20 @@ type UpcomingScheduleCityGroup = {
   items: UpcomingScheduleItem[];
 };
 
+type ManagerSchedulePreviewGroup = {
+  store: { id: string; name: string; city: string } | null;
+  dates: {
+    date: string;
+    day: string;
+    weekday: string;
+  }[];
+  rows: Array<{
+    employeeId: string;
+    employeeName: string;
+    statuses: Map<string, string>;
+  }>;
+};
+
 type EmployeeLookupRow = {
   id: string;
   full_name: string;
@@ -170,26 +184,63 @@ function monthTitle(value: string) {
   return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(new Date(`${value}-01T00:00:00Z`));
 }
 
-function formatWeekdayDate(value: string) {
+function formatGraphDate(value: string) {
   const date = new Date(`${value}T00:00:00Z`);
-  return new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "numeric", month: "short" }).format(date);
+  return {
+    weekday: new Intl.DateTimeFormat("ru-RU", { weekday: "short" }).format(date),
+    day: new Intl.DateTimeFormat("ru-RU", { day: "2-digit" }).format(date),
+  };
 }
 
-function groupUpcomingSchedulesByStore(items: UpcomingScheduleItem[]) {
-  const groups = new Map<string, UpcomingScheduleItem[]>();
-
-  for (const item of items) {
-    const storeId = item.stores?.id ?? item.id;
-    const current = groups.get(storeId) ?? [];
-    if (current.length < 2) {
-      current.push(item);
-      groups.set(storeId, current);
+function buildManagerSchedulePreview(schedulePreview: SchedulePreview[], employeeNameById: Map<string, string>) {
+  const storeGroups = new Map<
+    string,
+    {
+      store: { id: string; name: string; city: string } | null;
+      dates: Set<string>;
+      rows: Map<string, { employeeId: string; employeeName: string; statuses: Map<string, string> }>;
     }
+  >();
+
+  for (const row of schedulePreview) {
+    const storeKey = row.stores?.id ?? row.store_id;
+    const group = storeGroups.get(storeKey) ?? {
+      store: row.stores,
+      dates: new Set<string>(),
+      rows: new Map<string, { employeeId: string; employeeName: string; statuses: Map<string, string> }>(),
+    };
+
+    group.dates.add(row.shift_date);
+    const employeeRow = group.rows.get(row.employee_id) ?? {
+      employeeId: row.employee_id,
+      employeeName: employeeNameById.get(row.employee_id) ?? "Сотрудник",
+      statuses: new Map<string, string>(),
+    };
+    employeeRow.statuses.set(row.shift_date, row.status);
+    group.rows.set(row.employee_id, employeeRow);
+    storeGroups.set(storeKey, group);
   }
 
-  return Array.from(groups.entries()).map(([, groupedItems]) => ({
-    items: groupedItems,
-  }));
+  return Array.from(storeGroups.values()).map((group) => {
+    const dates = [...group.dates]
+      .sort((left, right) => left.localeCompare(right))
+      .slice(0, 2)
+      .map((date) => ({ date, ...formatGraphDate(date) }));
+    const visibleDateSet = new Set(dates.map((item) => item.date));
+    const rows = [...group.rows.values()]
+      .map((row) => ({
+        ...row,
+        statuses: new Map([...row.statuses.entries()].filter(([date]) => visibleDateSet.has(date))),
+      }))
+      .filter((row) => row.statuses.size > 0)
+      .sort((left, right) => left.employeeName.localeCompare(right.employeeName, "ru"));
+
+    return {
+      store: group.store,
+      dates,
+      rows,
+    } satisfies ManagerSchedulePreviewGroup;
+  });
 }
 
 export default async function HomePage() {
@@ -472,7 +523,7 @@ export default async function HomePage() {
       employeeName: employeeNameById.get(row.employee_id) ?? "Сотрудник",
     }));
   const upcomingSchedulePreview = managementView ? upcomingSchedules : upcomingSchedules.slice(0, 2);
-  const upcomingScheduleStoreGroups = managementView ? groupUpcomingSchedulesByStore(upcomingSchedules) : [];
+  const managerSchedulePreviewGroups = managementView ? buildManagerSchedulePreview(schedulePreview, employeeNameById) : [];
   const scheduleGroups = new Map<
     string,
     {
@@ -620,24 +671,52 @@ export default async function HomePage() {
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
                 <div className="grid gap-3">
-                  {upcomingScheduleStoreGroups.length === 0 ? (
+                  {managerSchedulePreviewGroups.length === 0 ? (
                     <p className="rounded-md bg-surface p-3 text-sm text-muted">Ближайших смен в графике нет.</p>
                   ) : (
-                    upcomingScheduleStoreGroups.map((group, index) => (
-                      <div key={`${group.items[0]?.stores?.id ?? index}`} className="rounded-md border border-line bg-surface p-3">
-                        <p className="text-sm font-semibold">{group.items[0]?.stores?.name ?? "Магазин"}</p>
-                        <div className="mt-3 grid gap-2">
-                          {group.items.map((item) => (
-                            <div key={item.id} className="flex items-start justify-between gap-3 rounded-md border border-line/70 bg-background/30 p-3">
-                              <div className="min-w-0 flex-1">
-                                <p className="font-semibold">{item.employeeName}</p>
-                                <p className="mt-1 break-words text-sm text-muted">{formatWeekdayDate(item.shift_date)}</p>
-                              </div>
-                              <span className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-black ${scheduleStatusBadgeClass(item.status)}`}>
-                                {scheduleStatusLabel(item.status)}
-                              </span>
-                            </div>
-                          ))}
+                    managerSchedulePreviewGroups.map((group) => (
+                      <div key={group.store?.id ?? group.store?.name ?? "store"} className="overflow-hidden rounded-md border border-line bg-surface p-3">
+                        <div className="mb-3">
+                          <p className="font-semibold">{group.store?.name ?? "Магазин"}</p>
+                          {group.store?.city ? <p className="text-xs text-muted">{group.store.city}</p> : null}
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="min-w-[420px] table-fixed border-collapse text-xs">
+                            <thead>
+                              <tr>
+                                <th className="sticky left-0 z-20 w-[180px] border border-line bg-white px-3 py-2 text-left">
+                                  Сотрудник
+                                </th>
+                                {group.dates.map((cell) => (
+                                  <th key={cell.date} className="w-[120px] border border-line bg-white px-2 py-2 text-center">
+                                    <div className="font-semibold">{cell.weekday}</div>
+                                    <div className="text-[11px] text-muted">{cell.day}</div>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.rows.map((employeeRow) => (
+                                <tr key={`${group.store?.id ?? "store"}_${employeeRow.employeeId}`}>
+                                  <td className="sticky left-0 z-20 border border-line bg-white px-3 py-2 font-medium">
+                                    {employeeRow.employeeName}
+                                  </td>
+                                  {group.dates.map((cell) => {
+                                    const status = employeeRow.statuses.get(cell.date) ?? "";
+                                    return (
+                                      <td key={cell.date} className="border border-line px-2 py-2 text-center">
+                                        <span
+                                          className={`inline-flex min-w-10 items-center justify-center rounded-lg border px-2 py-1 text-xs font-black ${scheduleStatusBadgeClass(status)}`}
+                                        >
+                                          {scheduleStatusLabel(status)}
+                                        </span>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     ))
