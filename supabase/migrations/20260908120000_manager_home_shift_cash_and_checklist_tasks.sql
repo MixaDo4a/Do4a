@@ -1,9 +1,37 @@
 alter table public.tasks
   add column if not exists source_checklist_submission_id uuid references public.checklist_submissions(id) on delete set null;
 
-create unique index if not exists shifts_one_active_opened_by_employee
-  on public.shifts (opened_by_employee_id)
-  where status in ('opened', 'correction_required');
+create or replace function app_private.prevent_multiple_active_shifts()
+returns trigger
+language plpgsql
+set search_path = public, app_private
+as $$
+begin
+  if new.status in ('opened', 'correction_required')
+     and new.opened_by_employee_id is not null then
+    perform pg_advisory_xact_lock(
+      hashtextextended(new.opened_by_employee_id::text, 0)
+    );
+
+    if exists (
+      select 1
+      from public.shifts s
+      where s.opened_by_employee_id = new.opened_by_employee_id
+        and s.status in ('opened', 'correction_required')
+        and s.id <> new.id
+    ) then
+      raise exception 'Employee already has an active shift';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists prevent_multiple_active_shifts on public.shifts;
+create trigger prevent_multiple_active_shifts
+before insert or update of opened_by_employee_id, status on public.shifts
+for each row execute function app_private.prevent_multiple_active_shifts();
 
 create unique index if not exists tasks_one_checklist_defect_task
   on public.tasks (source_checklist_submission_id)
