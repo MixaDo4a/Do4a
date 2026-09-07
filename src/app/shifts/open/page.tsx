@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
-import { getCurrentRoleCodes, hasAnyRole, OPEN_SHIFT_ROLES } from "@/lib/auth/roles";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, OPEN_SHIFT_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -48,6 +48,7 @@ export default async function OpenShiftPage({ searchParams }: PageProps) {
   }
 
   const { roles } = await getCurrentRoleCodes();
+  const { employeeId: currentEmployeeId } = await getCurrentEmployeeId();
 
   if (!hasAnyRole(roles, OPEN_SHIFT_ROLES)) {
     redirect("/shifts");
@@ -75,6 +76,8 @@ export default async function OpenShiftPage({ searchParams }: PageProps) {
   const filteredEmployees = employees.filter((employee) => employee.primary_store_id ? storeIds.has(employee.primary_store_id) : true);
   const canOpen = accessibleStores.length > 0 && filteredEmployees.length > 0;
   const shiftDate = todayIso();
+  const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  const currentEmployee = filteredEmployees.find((employee) => employee.id === currentEmployeeId);
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -117,13 +120,20 @@ export default async function OpenShiftPage({ searchParams }: PageProps) {
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1 text-sm">
                 <span className="text-muted">Основной продавец</span>
-                <select className="h-11 rounded-md border border-line px-3" name="primary_employee_id">
-                  {filteredEmployees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.full_name}
-                    </option>
-                  ))}
-                </select>
+                {managerOnly ? (
+                  <>
+                    <div className="flex h-11 items-center rounded-md border border-line px-3">{currentEmployee?.full_name ?? "Текущий сотрудник не найден"}</div>
+                    <input name="primary_employee_id" type="hidden" value={currentEmployeeId ?? ""} />
+                  </>
+                ) : (
+                  <select className="h-11 rounded-md border border-line px-3" name="primary_employee_id">
+                    {filteredEmployees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.full_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </label>
               <label className="grid gap-1 text-sm">
                 <span className="text-muted">Второй продавец</span>

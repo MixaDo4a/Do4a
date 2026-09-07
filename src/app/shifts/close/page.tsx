@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { PhotoFileInput } from "@/components/photo-file-input";
 import { SectionHeader } from "@/components/section-header";
+import { getCurrentEmployeeId, getCurrentRoleCodes } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type CloseShiftPageProps = {
@@ -78,7 +79,7 @@ function formatShiftOption(shift: ShiftOption) {
 
 export default async function CloseShiftPage({ searchParams }: CloseShiftPageProps) {
   const params = await searchParams;
-  const { message, shiftId, detail } = params;
+  const { message, shiftId, detail, hideCash } = params;
   const messageText = message ? messages[message] : null;
 
   const supabase = await createSupabaseServerClient();
@@ -90,6 +91,11 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
     redirect("/login");
   }
 
+  const { roles } = await getCurrentRoleCodes();
+  const { employeeId } = await getCurrentEmployeeId();
+  const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  const compactClose = managerOnly && hideCash === "1";
+
   const [denominationsResult, shiftsResult] = await Promise.all([
     supabase
       .from("cash_denominations")
@@ -97,12 +103,15 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
       .eq("is_active", true)
       .order("value", { ascending: false })
       .returns<Denomination[]>(),
-    supabase
-      .from("shifts")
-      .select("id, shift_date, stores(name), shift_participants(participant_role, employees(full_name))")
-      .in("status", ["opened", "correction_required"])
-      .order("shift_date", { ascending: false })
-      .returns<ShiftOption[]>(),
+    (() => {
+      let query = supabase
+        .from("shifts")
+        .select("id, shift_date, stores(name), shift_participants(participant_role, employees(full_name))")
+        .in("status", ["opened", "correction_required"])
+        .order("shift_date", { ascending: false });
+      if (managerOnly && employeeId) query = query.eq("opened_by_employee_id", employeeId);
+      return query.returns<ShiftOption[]>();
+    })(),
   ]);
 
   if (denominationsResult.error) {
@@ -127,6 +136,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
         ) : null}
 
         <form action="/shifts/close/submit" className="mt-4 grid gap-4" encType="multipart/form-data" method="post">
+          {compactClose ? <input name="hide_cash" type="hidden" value="1" /> : null}
           <section className="ui-panel p-4">
             <h2 className="text-base font-semibold">Смена</h2>
             <label className="mt-4 grid gap-1 text-sm">
@@ -178,7 +188,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
             </label>
           </section>
 
-          <section className="ui-panel p-4">
+          {!compactClose ? <section className="ui-panel p-4">
             <h2 className="text-base font-semibold">Покупюрник</h2>
             <div className="mt-4 grid gap-2">
               {denominationsResult.data.filter((denomination) => denomination.value >= 1).map((denomination) => (
@@ -200,7 +210,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
                 </label>
               ))}
             </div>
-          </section>
+          </section> : null}
 
           <section className="ui-panel p-4">
             <h2 className="text-base font-semibold">Отчёт ККМ</h2>

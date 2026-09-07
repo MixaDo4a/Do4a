@@ -189,6 +189,9 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
         if (buyerOnly && !["/", "/procurement", "/notifications"].includes(item.href)) {
           return false;
         }
+        if (managerOnly && ["/shifts", "/routine"].includes(item.href)) {
+          return false;
+        }
 
         return !item.roles || item.roles.some((role) => roles.includes(role));
       }),

@@ -177,6 +177,7 @@ async function notifyShiftClosed(
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const shiftId = String(formData.get("shift_id") ?? "").trim();
+  const hideCash = String(formData.get("hide_cash") ?? "") === "1";
 
   if (!shiftId) return NextResponse.redirect(closeUrl(request, formData, "shift-required"), 303);
 
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(closeUrl(request, formData, "photo-required"), 303);
   }
 
-  const hasEmptyCashCount = denominationIds.some((value) => String(formData.get(`denomination_${value}`) ?? "").trim() === "");
+  const hasEmptyCashCount = !hideCash && denominationIds.some((value) => String(formData.get(`denomination_${value}`) ?? "").trim() === "");
   if (hasEmptyCashCount) return NextResponse.redirect(closeUrl(request, formData, "cash-counts-required"), 303);
 
   let payload: {
@@ -209,7 +210,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(closeUrl(request, formData, "cash-comment-required"), 303);
     }
 
-    const cashCounts = denominationIds
+    const cashCounts = hideCash ? [] : denominationIds
       .map((value) => {
         const quantity = integer(formData, `denomination_${value}`) ?? 0;
         return {

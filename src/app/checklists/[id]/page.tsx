@@ -62,7 +62,8 @@ export default async function ChecklistViewPage({ params }: PageProps) {
   }
 
   const { roles } = await getCurrentRoleCodes();
-  if (!hasAnyRole(roles, CHECKLIST_ROLES)) {
+  const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  if (!hasAnyRole(roles, CHECKLIST_ROLES) && !managerOnly) {
     redirect("/");
   }
 

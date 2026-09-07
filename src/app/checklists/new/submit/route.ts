@@ -261,6 +261,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(new URL("/checklists/new?message=save-error", request.url), 303);
   }
 
+  if (averageScore < 10) {
+    const { data: defectTask } = await supabase
+      .from("tasks")
+      .insert({
+        store_id: storeId,
+        assignee_employee_id: employeeId,
+        created_by: user.id,
+        title: "Исправить недочёты проведённого чек листа",
+        description: "Зайди, проверь и исправь недочёты выявленные на чек листе",
+        status: "open",
+        priority: "normal",
+        source_checklist_submission_id: submission.id,
+      })
+      .select("id")
+      .maybeSingle<{ id: string }>();
+
+    if (defectTask) {
+      await supabase.rpc("send_employee_notification", {
+        p_employee_id: employeeId,
+        p_event_type: "task_created",
+        p_title: "Новая задача",
+        p_body: `${employeeLabel} · ${storeLabel} · Исправить недочёты проведённого чек листа`,
+        p_related_entity_type: "task",
+        p_related_entity_id: defectTask.id,
+      });
+      await dispatchPushNotificationsFromEvent(supabase, {
+        eventType: "task_created",
+        relatedEntityType: "task",
+        relatedEntityId: defectTask.id,
+      }).catch(() => null);
+    }
+  }
+
   await supabase.rpc("send_employee_notification", {
     p_employee_id: employeeId,
     p_event_type: "checklist_saved",

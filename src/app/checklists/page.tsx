@@ -66,15 +66,26 @@ export default async function ChecklistsArchivePage({ searchParams }: PageProps)
   }
 
   const { roles } = await getCurrentRoleCodes();
-  if (!hasAnyRole(roles, CHECKLIST_ROLES)) {
+  const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  if (!hasAnyRole(roles, CHECKLIST_ROLES) && !managerOnly) {
     redirect("/");
   }
 
   const { employeeId } = await getCurrentEmployeeId();
   const canSeeAll = hasAnyRole(roles, ["super_admin", "developer"]);
-  const canSeeStoreArchive = hasAnyRole(roles, ["store_manager"]);
+  const canSeeStoreArchive = hasAnyRole(roles, ["store_manager"]) || managerOnly;
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
+  const { data: managerShift } = managerOnly && employeeId
+    ? await supabase
+        .from("shifts")
+        .select("store_id")
+        .eq("opened_by_employee_id", employeeId)
+        .in("status", ["opened", "correction_required"])
+        .order("opened_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ store_id: string }>()
+    : { data: null };
 
   let query = supabase
     .from("checklist_submissions")
@@ -84,7 +95,9 @@ export default async function ChecklistsArchivePage({ searchParams }: PageProps)
     .order("submitted_at", { ascending: false })
     .limit(100);
 
-  if (!canSeeAll && !canSeeStoreArchive && employeeId) {
+  if (managerOnly && managerShift?.store_id) {
+    query = query.eq("store_id", managerShift.store_id);
+  } else if (!canSeeAll && !canSeeStoreArchive && employeeId) {
     query = query.eq("auditor_employee_id", employeeId);
   }
   if (params.store_id) {
@@ -137,7 +150,7 @@ export default async function ChecklistsArchivePage({ searchParams }: PageProps)
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-5xl">
-        <SectionHeader icon={ClipboardCheck} title="Архив чек-листов" action="Новый чек" href="/checklists/new" showBack />
+        <SectionHeader icon={ClipboardCheck} title="Архив чек-листов" action={managerOnly ? undefined : "Новый чек"} href={managerOnly ? undefined : "/checklists/new"} showBack />
 
         <section className="mt-4 ui-panel p-4">
           <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

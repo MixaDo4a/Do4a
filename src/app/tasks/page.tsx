@@ -118,12 +118,23 @@ export default async function TasksPage({ searchParams }: PageProps) {
 
   const { roles } = await getCurrentRoleCodes();
   const { employeeId } = await getCurrentEmployeeId();
+  const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
   const canCreateTask = hasAnyRole(roles, TASK_CREATOR_ROLES);
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !hasAnyRole(roles, MANAGE_ROLES);
   const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || warehouseManagerOnly;
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
+  const { data: managerShift } = managerOnly && employeeId
+    ? await supabase
+        .from("shifts")
+        .select("store_id")
+        .eq("opened_by_employee_id", employeeId)
+        .in("status", ["opened", "correction_required"])
+        .order("opened_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ store_id: string }>()
+    : { data: null };
 
   const [tasksResult, employeesResult, profilesResult, userRolesResult] = await Promise.all([
     canSeeAllTasks
@@ -208,9 +219,12 @@ export default async function TasksPage({ searchParams }: PageProps) {
         ) : null}
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <Link className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-brand/30 bg-brand/10 px-4 text-sm font-semibold text-brand transition hover:border-brand/60 hover:bg-brand/15" href="/tasks/archive">
-            Архив закрытых задач
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-brand/30 bg-brand/10 px-4 text-sm font-semibold text-brand transition hover:border-brand/60 hover:bg-brand/15" href="/tasks/archive">
+              Архив закрытых задач
+            </Link>
+            {managerOnly && managerShift?.store_id ? <Link className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-brand/30 bg-brand/10 px-4 text-sm font-semibold text-brand" href={`/checklists?store_id=${managerShift.store_id}`}>Архив чек-листов</Link> : null}
+          </div>
         </div>
 
         {canSeeAllTasks ? (

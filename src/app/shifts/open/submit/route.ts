@@ -1,5 +1,5 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { getCurrentRoleCodes, hasAnyRole, OPEN_SHIFT_ROLES } from "@/lib/auth/roles";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, OPEN_SHIFT_ROLES } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
@@ -49,6 +49,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(openUrl(request, "open-error", "Недостаточно прав для открытия смены."), 303);
   }
 
+  const { employeeId: currentEmployeeId } = await getCurrentEmployeeId();
+  const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  if (managerOnly && (!currentEmployeeId || primaryEmployeeId !== currentEmployeeId)) {
+    return NextResponse.redirect(openUrl(request, "open-error", "Основным продавцом может быть только текущий сотрудник."), 303);
+  }
+
+  if (currentEmployeeId) {
+    const { data: activeParticipation, error: activeParticipationError } = await supabase
+      .from("shift_participants")
+      .select("shift_id, shifts!inner(status)")
+      .eq("employee_id", currentEmployeeId)
+      .in("shifts.status", ["opened", "correction_required"])
+      .limit(1)
+      .maybeSingle();
+
+    if (activeParticipationError) {
+      return NextResponse.redirect(openUrl(request, "open-error", activeParticipationError.message), 303);
+    }
+    if (activeParticipation) {
+      return NextResponse.redirect(openUrl(request, "open-error", "У сотрудника уже есть открытая смена."), 303);
+    }
+  }
+
   const { data: shift, error: shiftError } = await supabase
     .from("shifts")
     .insert({
@@ -64,7 +87,8 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (shiftError || !shift) {
-    return NextResponse.redirect(openUrl(request, "open-error", shiftError?.message), 303);
+    const detail = shiftError?.code === "23505" ? "У сотрудника уже есть открытая смена." : shiftError?.message;
+    return NextResponse.redirect(openUrl(request, "open-error", detail), 303);
   }
 
   const participants = [

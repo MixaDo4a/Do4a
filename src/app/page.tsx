@@ -66,6 +66,12 @@ type UpcomingScheduleItem = {
   employeeName: string;
 };
 
+type CashCountPreview = {
+  store_id: string;
+  cash_amount: number | string;
+  created_at: string;
+};
+
 type UpcomingScheduleCityGroup = {
   city: string;
   items: UpcomingScheduleItem[];
@@ -311,6 +317,16 @@ export default async function HomePage() {
           .limit(50)
           .returns<StoreCashShiftRow[]>()
       : Promise.resolve({ data: [] as StoreCashShiftRow[], error: null });
+  const cashCountsQuery =
+    accessibleStoreIds.length > 0
+      ? supabase
+          .from("store_cash_counts")
+          .select("store_id, cash_amount, created_at")
+          .in("store_id", accessibleStoreIds)
+          .order("created_at", { ascending: false })
+          .limit(100)
+          .returns<CashCountPreview[]>()
+      : Promise.resolve({ data: [] as CashCountPreview[], error: null });
 
   const payrollQuery = supabase
     .from("payroll_entries")
@@ -382,28 +398,32 @@ export default async function HomePage() {
     checklistArchiveResult,
     employeesLookupResult,
     cashShiftsResult,
+    cashCountsResult,
   ] = (await Promise.all([
     auditorOnly || supportOnlyView
       ? Promise.resolve({
-          data: [] as { id: string; shift_date: string; status: string; stores: { name: string } | null }[],
+          data: [] as { id: string; store_id: string; shift_date: string; status: string; stores: { name: string } | null }[],
           error: null,
         })
       : storeManagerView
         ? supabase
             .from("shifts")
-            .select("id, shift_date, status, stores(name)")
+            .select("id, store_id, shift_date, status, stores(name)")
             .in("store_id", accessibleStoreIds)
             .in("status", ["opened", "correction_required"])
             .order("shift_date", { ascending: false })
             .limit(8)
-            .returns<{ id: string; shift_date: string; status: string; stores: { name: string } | null }[]>()
-      : supabase
-          .from("shifts")
-          .select("id, shift_date, status, stores(name)")
-          .in("status", ["opened", "correction_required"])
-          .order("shift_date", { ascending: false })
-          .limit(1)
-          .returns<{ id: string; shift_date: string; status: string; stores: { name: string } | null }[]>(),
+            .returns<{ id: string; store_id: string; shift_date: string; status: string; stores: { name: string } | null }[]>()
+      : profile?.employee_id
+        ? supabase
+            .from("shifts")
+            .select("id, store_id, shift_date, status, stores(name)")
+            .eq("opened_by_employee_id", profile.employee_id)
+            .in("status", ["opened", "correction_required"])
+            .order("shift_date", { ascending: false })
+            .limit(1)
+            .returns<{ id: string; store_id: string; shift_date: string; status: string; stores: { name: string } | null }[]>()
+        : Promise.resolve({ data: [] as { id: string; store_id: string; shift_date: string; status: string; stores: { name: string } | null }[], error: null }),
     tasksQuery,
     personalTasksQuery,
     supabase
@@ -420,6 +440,7 @@ export default async function HomePage() {
     checklistArchiveQuery,
     employeesLookupQuery,
     cashShiftsQuery,
+    cashCountsQuery,
   ])) as any;
 
   if (shiftsResult.error) {
@@ -446,6 +467,7 @@ export default async function HomePage() {
 
   const shifts = (shiftsResult.data ?? []) as {
     id: string;
+    store_id: string;
     shift_date: string;
     status: string;
     stores: { name: string } | null;
@@ -460,6 +482,10 @@ export default async function HomePage() {
   const activeShift = shifts[0];
   const payrollPreview = payrollResult.data?.[0]?.total_payout_amount ?? 0;
   const cashBalances = buildStoreCashBalances(cashShiftsResult.data ?? []);
+  const latestCashCountByStore = new Map<string, CashCountPreview>();
+  for (const cashCount of cashCountsResult.data ?? []) {
+    if (!latestCashCountByStore.has(cashCount.store_id)) latestCashCountByStore.set(cashCount.store_id, cashCount);
+  }
   const totalCashBalance = cashBalances.reduce((sum, row) => sum + row.balance, 0);
   const notificationsCount = notificationsResult.count ?? 0;
   const scheduleDates = Array.from({ length: new Date(`${selectedMonthEnd}T00:00:00Z`).getUTCDate() }, (_, index) => {
@@ -553,10 +579,10 @@ export default async function HomePage() {
   return (
     <main className="app-shell min-h-dvh bg-surface text-ink">
       <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pb-24 pt-4 sm:px-6 lg:px-8">
-        <header className="flex items-start justify-between gap-4 border-b border-line pb-4">
-          <div>
-            <p className="text-sm font-medium text-muted">{todayLabel()}</p>
-            <h1 className="mt-1 text-2xl font-semibold">
+        <header className={`border-b border-line pb-4 ${managerOnlyView ? "grid grid-cols-[1fr_auto] items-start gap-3" : "flex items-start justify-between gap-4"}`}>
+          <div className={managerOnlyView ? "min-w-0" : undefined}>
+            {!managerOnlyView ? <p className="text-sm font-medium text-muted">{todayLabel()}</p> : null}
+            <h1 className={managerOnlyView ? "text-xl font-semibold" : "mt-1 text-2xl font-semibold"}>
               {auditorOnly
                 ? "Проверки и задачи"
                 : storeManagerView
@@ -565,8 +591,17 @@ export default async function HomePage() {
                     ? "Акции"
                     : warehouseManagerOnlyView || warehouseAssistantOnlyView
                       ? "Склад и задачи"
-                      : "Смена и задачи"}
+                      : managerOnlyView
+                        ? accountName
+                        : "Смена и задачи"}
             </h1>
+            {managerOnlyView ? (
+              <form action="/logout" className="mt-2" method="post">
+                <button className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-brand px-3 text-sm font-semibold text-white" type="submit">
+                  <LogOut size={15} /> Выйти
+                </button>
+              </form>
+            ) : null}
           </div>
           <a
             className="relative grid h-11 w-11 place-items-center ui-panel shadow-soft"
@@ -586,7 +621,7 @@ export default async function HomePage() {
           </a>
         </header>
 
-        <section className="mt-4 ui-panel p-4">
+        {!managerOnlyView ? <section className="mt-4 ui-panel p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-surface">
@@ -607,7 +642,7 @@ export default async function HomePage() {
               </button>
             </form>
           </div>
-        </section>
+        </section> : null}
 
         {cashBalances.length > 0 ? (
           <section className="mt-6 ui-panel p-4">
@@ -788,6 +823,49 @@ export default async function HomePage() {
               <div className="mt-3 ui-panel p-4">
                 <UpcomingScheduleList items={upcomingSchedulePreview} />
               </div>
+            </section>
+          </>
+        ) : managerOnlyView ? (
+          <>
+            <section className="mt-6 ui-panel p-4">
+              <SectionHeader icon={ShieldCheck} title="Текущая смена" />
+              {activeShift ? (
+                <>
+                  <p className="mt-4 text-lg font-semibold">{activeShift.stores?.name ?? "Магазин"} {new Intl.DateTimeFormat("ru-RU").format(new Date(`${activeShift.shift_date}T00:00:00Z`))}</p>
+                  <p className="mt-2 text-sm text-muted">Наличка в кассе</p>
+                  <p className="mt-1 text-xl font-semibold">
+                    {money(latestCashCountByStore.get(activeShift.store_id)?.cash_amount ?? 0)}
+                  </p>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <a className="inline-flex h-11 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white" href={`/shifts/close?shiftId=${activeShift.id}&hideCash=1`}>Закрыть смену</a>
+                    <a className="inline-flex h-11 items-center justify-center rounded-md ui-panel px-3 text-sm font-semibold" href={`/shifts/recount?storeId=${activeShift.store_id}&shiftId=${activeShift.id}`}>Пересчёт</a>
+                  </div>
+                </>
+              ) : (
+                <a className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white" href="/shifts/open">Открыть</a>
+              )}
+            </section>
+
+            <section className="mt-6 ui-panel p-4">
+              <SectionHeader icon={CalendarDays} title="Распорядок" />
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <a className="inline-flex h-14 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href="/routine/morning">Утро</a>
+                <a className="inline-flex h-14 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href="/routine/evening">Вечер</a>
+              </div>
+            </section>
+
+            <section className="mt-6">
+              <SectionHeader icon={ListTodo} title="Ближайшие задачи" action="Все" href="/tasks" />
+              <div className="mt-3 divide-y divide-line ui-panel shadow-soft">
+                {tasks.length === 0 ? <p className="p-4 text-sm text-muted">Открытых задач нет.</p> : tasks.map((task) => (
+                  <div key={task.id} className="flex items-start gap-3 p-4"><CheckCircle2 className="mt-0.5 text-brand" size={18} /><div className="min-w-0 flex-1"><p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p><p className="mt-1 text-sm text-muted">{formatDate(task.due_at)}</p></div></div>
+                ))}
+              </div>
+            </section>
+
+            <section className="mt-6">
+              <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
+              <div className="mt-3 ui-panel p-4"><UpcomingScheduleList items={upcomingSchedulePreview} /></div>
             </section>
           </>
         ) : supportOnlyView ? (
