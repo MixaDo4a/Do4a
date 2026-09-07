@@ -1,6 +1,5 @@
 ﻿import {
   Bell,
-  Banknote,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
@@ -19,7 +18,6 @@ import { SectionHeader } from "@/components/section-header";
 import { UpcomingScheduleList } from "@/components/upcoming-schedule-list";
 import { cleanText, employeeName } from "@/lib/display";
 import { getAccessibleStores } from "@/lib/auth/stores";
-import { buildStoreCashBalances, type StoreCashShiftRow } from "@/lib/cash";
 import { redirectInvalidSession } from "@/lib/supabase/errors";
 import { scheduleStatusBadgeClass, scheduleStatusLabel } from "@/lib/schedule-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -304,19 +302,6 @@ export default async function HomePage() {
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
   const hasAccessibleStores = accessibleStoreIds.length > 0;
-  const cashShiftsQuery =
-    accessibleStoreIds.length > 0
-      ? supabase
-          .from("shifts")
-          .select(
-            "store_id, shift_date, closed_at, status, stores(id, name, city), shift_closing_reports(cash_collection_amount, shift_cash_counts(line_amount))",
-          )
-          .in("store_id", accessibleStoreIds)
-          .in("status", ["closed", "auto_closed"])
-          .order("closed_at", { ascending: false })
-          .limit(50)
-          .returns<StoreCashShiftRow[]>()
-      : Promise.resolve({ data: [] as StoreCashShiftRow[], error: null });
   const cashCountsQuery =
     accessibleStoreIds.length > 0
       ? supabase
@@ -397,7 +382,6 @@ export default async function HomePage() {
     payrollResult,
     checklistArchiveResult,
     employeesLookupResult,
-    cashShiftsResult,
     cashCountsResult,
   ] = (await Promise.all([
     auditorOnly || supportOnlyView
@@ -439,7 +423,6 @@ export default async function HomePage() {
     auditorOnly || storeManagerView || supportOnlyView ? Promise.resolve({ data: [] as { total_payout_amount: number | string }[], error: null }) : payrollQuery,
     checklistArchiveQuery,
     employeesLookupQuery,
-    cashShiftsQuery,
     cashCountsQuery,
   ])) as any;
 
@@ -481,12 +464,10 @@ export default async function HomePage() {
     : 10;
   const activeShift = shifts[0];
   const payrollPreview = payrollResult.data?.[0]?.total_payout_amount ?? 0;
-  const cashBalances = buildStoreCashBalances(cashShiftsResult.data ?? []);
   const latestCashCountByStore = new Map<string, CashCountPreview>();
   for (const cashCount of cashCountsResult.data ?? []) {
     if (!latestCashCountByStore.has(cashCount.store_id)) latestCashCountByStore.set(cashCount.store_id, cashCount);
   }
-  const totalCashBalance = cashBalances.reduce((sum, row) => sum + row.balance, 0);
   const notificationsCount = notificationsResult.count ?? 0;
   const scheduleDates = Array.from({ length: new Date(`${selectedMonthEnd}T00:00:00Z`).getUTCDate() }, (_, index) => {
     const current = new Date(`${selectedMonth.slice(0, 7)}-${String(index + 1).padStart(2, "0")}T00:00:00Z`);
@@ -643,24 +624,6 @@ export default async function HomePage() {
             </form>
           </div>
         </section> : null}
-
-        {cashBalances.length > 0 ? (
-          <section className="mt-6 ui-panel p-4">
-            <SectionHeader icon={Banknote} title="Наличка в кассах" action="Все" href="/cash" />
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Metric icon={Banknote} label="Сумма по магазинам" value={money(totalCashBalance)} />
-              {cashBalances.slice(0, 3).map((store) => (
-                <div key={store.storeId} className="rounded-2xl border border-line bg-surface p-4">
-                  <p className="font-medium">{store.storeName}</p>
-                  <p className="mt-1 text-sm text-muted">
-                    {store.city} · {store.lastClosedAt ? formatDate(store.lastClosedAt) : "Нет закрытых смен"}
-                  </p>
-                  <p className="mt-2 text-base font-semibold">Наличка: {money(store.balance)}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : null}
 
         {auditorOnly ? (
           <>
