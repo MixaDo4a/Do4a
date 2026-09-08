@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
+import { ClipboardCheck, PackageSearch } from "lucide-react";
 import { EmployeeRoleStatusFields } from "@/components/employee-role-status-fields";
 import { SectionHeader } from "@/components/section-header";
 import { canDeleteTargetRole, DEDUCTION_ROLES, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, RoleRelation, roleCodeFromRelation, roleRank } from "@/lib/auth/roles";
@@ -486,6 +487,17 @@ export default async function AdminPage({ searchParams }: PageProps) {
               <p className="mt-3 text-sm text-muted">
                 Утренний и вечерний распорядок редактируются отдельно по каждому магазину.
               </p>
+            </div>
+            <div className="ui-panel p-4">
+              <SectionHeader icon={PackageSearch} title="Акции" action="Открыть" href="/procurement" />
+              <p className="mt-3 text-sm text-muted">Создание акций, действующие акции и архив.</p>
+            </div>
+            <div className="ui-panel p-4">
+              <SectionHeader icon={ClipboardCheck} title="Чек-листы" action="Провести" href="/checklists/new" />
+              <div className="mt-3 flex gap-2 text-sm">
+                <Link className="ui-panel px-3 py-2 font-semibold" href="/checklists/new">Провести чек-лист</Link>
+                <Link className="ui-panel px-3 py-2 font-semibold" href="/checklists">Архив чек-листов</Link>
+              </div>
             </div>
           </section>
         ) : null}

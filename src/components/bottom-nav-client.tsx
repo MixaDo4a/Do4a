@@ -55,7 +55,7 @@ const items: BottomNavItem[] = [
     roles: ["auditor", "store_manager", "super_admin", "developer"],
     hideForAuditorOnly: false,
   },
-  { href: "/payroll", label: "ЗП", icon: WalletCards, roles: null, hideForAuditorOnly: true },
+  { href: "/finances", label: "Финансы", icon: WalletCards, roles: null, hideForAuditorOnly: true },
   { href: "/notifications", label: "Увед.", icon: Bell, roles: null, hideForAuditorOnly: false },
   {
     href: "/admin",
@@ -100,6 +100,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !roles.some((role) => managementRoles.includes(role));
   const buyerOnly = roles.includes("buyer") && !roles.some((role) => managementRoles.includes(role));
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  const managementView = roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
 
   useEffect(() => {
     setIsMounted(true);
@@ -180,7 +181,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
         if (auditorOnly && item.hideForAuditorOnly) {
           return false;
         }
-        if (warehouseManagerOnly && ["/shifts", "/checklists", "/checklists/new", "/payroll"].includes(item.href)) {
+        if (warehouseManagerOnly && ["/shifts", "/checklists", "/checklists/new", "/finances"].includes(item.href)) {
           return false;
         }
         if (warehouseAssistantOnly && !["/", "/tasks", "/payroll", "/notifications"].includes(item.href)) {
@@ -192,10 +193,13 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
         if (managerOnly && ["/shifts", "/routine"].includes(item.href)) {
           return false;
         }
+        if (managementView && ["/shifts", "/routine", "/procurement", "/checklists", "/checklists/new"].includes(item.href)) {
+          return false;
+        }
 
         return !item.roles || item.roles.some((role) => roles.includes(role));
       }),
-    [auditorOnly, buyerOnly, managerOnly, roles, warehouseAssistantOnly, warehouseManagerOnly],
+    [auditorOnly, buyerOnly, managerOnly, managementView, roles, warehouseAssistantOnly, warehouseManagerOnly],
   );
 
   const activeIndex = useMemo(() => resolveActiveIndex(pathname, visibleItems), [pathname, visibleItems]);

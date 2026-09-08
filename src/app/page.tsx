@@ -386,28 +386,28 @@ export default async function HomePage() {
   ] = (await Promise.all([
     auditorOnly || supportOnlyView
       ? Promise.resolve({
-          data: [] as { id: string; store_id: string; shift_date: string; status: string; stores: { name: string } | null }[],
+          data: [] as { id: string; store_id: string; shift_date: string; status: string; opened_at: string; opened_by_employee_id: string; stores: { name: string } | null }[],
           error: null,
         })
-      : storeManagerView
+      : managementView
         ? supabase
             .from("shifts")
-            .select("id, store_id, shift_date, status, stores(name)")
+            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name)")
             .in("store_id", accessibleStoreIds)
             .in("status", ["opened", "correction_required"])
             .order("shift_date", { ascending: false })
             .limit(8)
-            .returns<{ id: string; store_id: string; shift_date: string; status: string; stores: { name: string } | null }[]>()
+            .returns<{ id: string; store_id: string; shift_date: string; status: string; opened_at: string; opened_by_employee_id: string; stores: { name: string } | null }[]>()
       : profile?.employee_id
         ? supabase
             .from("shifts")
-            .select("id, store_id, shift_date, status, stores(name)")
+            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name)")
             .eq("opened_by_employee_id", profile.employee_id)
             .in("status", ["opened", "correction_required"])
             .order("shift_date", { ascending: false })
             .limit(1)
-            .returns<{ id: string; store_id: string; shift_date: string; status: string; stores: { name: string } | null }[]>()
-        : Promise.resolve({ data: [] as { id: string; store_id: string; shift_date: string; status: string; stores: { name: string } | null }[], error: null }),
+            .returns<{ id: string; store_id: string; shift_date: string; status: string; opened_at: string; opened_by_employee_id: string; stores: { name: string } | null }[]>()
+        : Promise.resolve({ data: [] as { id: string; store_id: string; shift_date: string; status: string; opened_at: string; opened_by_employee_id: string; stores: { name: string } | null }[], error: null }),
     tasksQuery,
     personalTasksQuery,
     supabase
@@ -453,6 +453,8 @@ export default async function HomePage() {
     store_id: string;
     shift_date: string;
     status: string;
+    opened_at: string;
+    opened_by_employee_id: string;
     stores: { name: string } | null;
   }[];
   const tasks = (tasksResult.data ?? []) as TaskPreview[];
@@ -560,14 +562,14 @@ export default async function HomePage() {
   return (
     <main className="app-shell min-h-dvh bg-surface text-ink">
       <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pb-24 pt-4 sm:px-6 lg:px-8">
-        <header className={`border-b border-line pb-4 ${managerOnlyView ? "grid grid-cols-[1fr_auto] items-start gap-3" : "flex items-start justify-between gap-4"}`}>
-          <div className={managerOnlyView ? "min-w-0" : undefined}>
-            {!managerOnlyView ? <p className="text-sm font-medium text-muted">{todayLabel()}</p> : null}
-            <h1 className={managerOnlyView ? "text-xl font-semibold" : "mt-1 text-2xl font-semibold"}>
+        <header className={`border-b border-line pb-4 ${managementView ? "grid grid-cols-[1fr_auto] items-start gap-3" : managerOnlyView ? "grid grid-cols-[1fr_auto] items-start gap-3" : "flex items-start justify-between gap-4"}`}>
+          <div className={managementView || managerOnlyView ? "min-w-0" : undefined}>
+            {!managementView && !managerOnlyView ? <p className="text-sm font-medium text-muted">{todayLabel()}</p> : null}
+            <h1 className={managementView || managerOnlyView ? "text-xl font-semibold" : "mt-1 text-2xl font-semibold"}>
               {auditorOnly
                 ? "Проверки и задачи"
-                : storeManagerView
-                  ? "Управление магазинами"
+                : managementView
+                  ? accountName
                   : buyerOnlyView
                     ? "Акции"
                     : warehouseManagerOnlyView || warehouseAssistantOnlyView
@@ -602,7 +604,7 @@ export default async function HomePage() {
           </a>
         </header>
 
-        {!managerOnlyView ? <section className="mt-4 ui-panel p-4">
+        {!managerOnlyView && !managementView ? <section className="mt-4 ui-panel p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-surface">
@@ -723,18 +725,16 @@ export default async function HomePage() {
               </div>
             </section>
           </>
-        ) : storeManagerView ? (
+        ) : managementView ? (
           <>
             <section className="mt-6 ui-panel p-4">
-              <SectionHeader icon={ShieldCheck} title="Текущая смена" action="Смены" href="/shifts" />
+              <SectionHeader icon={ShieldCheck} title="Текущая смена" />
               <div className="mt-4 grid gap-3">
                 {shifts.length > 0 ? (
                   shifts.map((shift) => (
                     <div key={shift.id} className="rounded-md border border-line bg-surface p-4">
-                      <p className="font-medium">{shift.stores?.name ?? "Магазин"}</p>
-                      <p className="mt-1 text-sm text-muted">
-                        Смена открыта · {formatDate(shift.shift_date)} · {statusLabels[shift.status] ?? shift.status}
-                      </p>
+                      <p className="font-medium">{shift.stores?.name ?? "Магазин"} · {new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(shift.opened_at))}</p>
+                      <p className="mt-1 text-sm text-muted">{employeeNameById.get(shift.opened_by_employee_id) ?? "Менеджер"}</p>
                     </div>
                   ))
                 ) : (
@@ -746,10 +746,10 @@ export default async function HomePage() {
             <section className="mt-6">
               <SectionHeader icon={ListTodo} title="Ближайшие задачи" action="Все" href="/tasks" />
               <div className="mt-3 divide-y divide-line ui-panel shadow-soft">
-                {tasks.length === 0 ? (
+                {personalTasks.length === 0 ? (
                   <p className="p-4 text-sm text-muted">Открытых задач нет.</p>
                 ) : (
-                  tasks.map((task) => (
+                  personalTasks.map((task) => (
                     <div key={task.id} className="flex items-start gap-3 p-4">
                       <CheckCircle2 className="mt-0.5 text-brand" size={18} />
                       <div className="min-w-0 flex-1">
@@ -763,28 +763,20 @@ export default async function HomePage() {
             </section>
 
             <section className="mt-6">
-              <SectionHeader icon={CheckCircle2} title="Задачи лично мне" action="Все" href="/tasks" />
-              <div className="mt-3 divide-y divide-line ui-panel shadow-soft">
-                {personalTasks.length === 0 ? (
-                  <p className="p-4 text-sm text-muted">Личных задач пока нет.</p>
-                ) : (
-                  personalTasks.map((task) => (
-                    <div key={task.id} className="flex items-start gap-3 p-4">
-                      <CheckCircle2 className="mt-0.5 text-brand" size={18} />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p>
-                        <p className="mt-1 text-sm text-muted">{formatDate(task.due_at)}</p>
+              <SectionHeader icon={CalendarDays} title="Распорядок дня" action="Архив" href="/routine" />
+              <div className="mt-3 grid gap-3">
+                {accessibleStores.map((store) => {
+                  const shift = shifts.find((item) => item.store_id === store.id);
+                  return (
+                    <div key={store.id} className="ui-panel p-4">
+                      <p className="font-semibold">{store.name}</p>
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <a className="inline-flex h-11 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href={shift ? `/routine/morning?shiftId=${shift.id}` : "/routine"}>Утро</a>
+                        <a className="inline-flex h-11 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href={shift ? `/routine/evening?shiftId=${shift.id}` : "/routine"}>Вечер</a>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            <section className="mt-6">
-              <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
-              <div className="mt-3 ui-panel p-4">
-                <UpcomingScheduleList items={upcomingSchedulePreview} />
+                  );
+                })}
               </div>
             </section>
           </>

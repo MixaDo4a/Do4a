@@ -227,7 +227,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
           </div>
         </div>
 
-        {canSeeAllTasks ? (
+        {canSeeAllTasks && storeId ? (
           <details className="mt-4 ui-panel p-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
@@ -296,13 +296,17 @@ export default async function TasksPage({ searchParams }: PageProps) {
                     ))}
                   </div>
                 </fieldset>
-                <select className="h-11 rounded-md border border-line px-3" name="assignee_employee_id">
-                  {taskAssignees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.full_name}
-                    </option>
-                  ))}
-                </select>
+                <fieldset className="rounded-md border border-line p-3 sm:col-span-2">
+                  <legend className="px-1 text-sm font-medium">Ответственные продавцы</legend>
+                  <div className="mt-2 grid max-h-48 gap-2 overflow-auto">
+                    {taskAssignees.map((employee) => (
+                      <label key={employee.id} className="flex items-center gap-3 rounded-md border border-line px-3 py-2 text-sm">
+                        <input className="h-4 w-4 accent-brand" name="assignee_employee_ids" type="checkbox" value={employee.id} />
+                        <span>{employee.full_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 <input className="h-11 rounded-md border border-line px-3" name="due_at" type="datetime-local" />
                 <select className="h-11 rounded-md border border-line px-3" name="priority" defaultValue="normal">
                   <option value="low">Низкий</option>
@@ -336,7 +340,21 @@ export default async function TasksPage({ searchParams }: PageProps) {
           </details>
         ) : null}
 
-        <div className="mt-4 grid gap-3">
+        {canSeeAllTasks && !storeId ? (
+          <section className="mt-4 ui-panel p-4">
+            <h2 className="font-semibold">Магазины и подразделения</h2>
+            <div className="mt-3 grid gap-2">
+              {stores.map((store) => (
+                <Link key={store.id} className="flex items-center justify-between rounded-md border border-line p-3 font-semibold" href={`/tasks?storeId=${store.id}`}>
+                  <span>{store.name}</span>
+                  <span className="text-sm text-muted">Открыть задачи</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {(!canSeeAllTasks || storeId) ? <div className="mt-4 grid gap-3">
           {tasks.length === 0 ? (
             <section className="ui-panel p-4 text-sm text-muted shadow-soft">Для вас задач пока нет.</section>
           ) : null}
@@ -404,7 +422,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
               ) : null}
             </article>
           ))}
-        </div>
+        </div> : null}
       </div>
       <BottomNav />
     </main>

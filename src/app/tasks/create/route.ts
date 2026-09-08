@@ -42,14 +42,18 @@ export async function POST(request: NextRequest) {
   if (storeIds.length === 0 && fallbackStoreId) {
     storeIds.push(fallbackStoreId);
   }
-  const assigneeEmployeeId = value(formData, "assignee_employee_id");
+  const assigneeEmployeeIds = Array.from(new Set([
+    ...formData.getAll("assignee_employee_ids").map((entry) => String(entry).trim()),
+    value(formData, "assignee_employee_id"),
+  ].filter(Boolean)));
+  const assigneeEmployeeId = assigneeEmployeeIds[0] ?? "";
   const title = value(formData, "title");
   const description = value(formData, "description");
   const dueAt = value(formData, "due_at");
   const priority = value(formData, "priority") || "normal";
   const recurrenceFrequency = value(formData, "recurrence_frequency");
 
-  if (storeIds.length === 0 || !assigneeEmployeeId || !title) {
+  if (storeIds.length === 0 || assigneeEmployeeIds.length === 0 || !title) {
     return NextResponse.redirect(tasksUrl(request, "task-required"), 303);
   }
 
@@ -102,7 +106,7 @@ export async function POST(request: NextRequest) {
     .from("tasks")
     .select("id")
     .in("store_id", storeIds)
-    .eq("assignee_employee_id", assigneeEmployeeId)
+    .in("assignee_employee_id", assigneeEmployeeIds)
     .eq("title", title)
     .eq("priority", priority)
     .eq("status", "open")
@@ -119,14 +123,14 @@ export async function POST(request: NextRequest) {
 
   const { data: assigneeStoreAssignment, error: assigneeStoreError } = await supabase
     .from("employee_store_assignments")
-    .select("store_id")
-    .eq("employee_id", assigneeEmployeeId)
+    .select("employee_id, store_id")
+    .in("employee_id", assigneeEmployeeIds)
     .in("store_id", storeIds)
     .lte("valid_from", new Date().toISOString().slice(0, 10))
     .or(`valid_to.is.null,valid_to.gte.${new Date().toISOString().slice(0, 10)}`)
-    .returns<{ store_id: string }[]>();
+    .returns<{ employee_id: string; store_id: string }[]>();
 
-  if (assigneeStoreError || (assigneeStoreAssignment?.length ?? 0) !== storeIds.length) {
+  if (assigneeStoreError || assigneeEmployeeIds.some((id) => (assigneeStoreAssignment ?? []).filter((row) => row.employee_id === id).length !== storeIds.length)) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Можно ставить задачи только сотрудникам выбранного магазина."), 303);
   }
 
@@ -165,49 +169,49 @@ export async function POST(request: NextRequest) {
     : null;
 
   const recurrenceRuleRows = recurrenceEnabled
-    ? storeIds.map((storeId) => ({
+    ? storeIds.flatMap((storeId) => assigneeEmployeeIds.map((assigneeId) => ({
         store_id: storeId,
-        assignee_employee_id: assigneeEmployeeId,
+        assignee_employee_id: assigneeId,
         title,
         description: description || null,
         frequency: recurrenceFrequency,
         next_run_at: recurrenceDueAt,
         created_by: user.id,
-      }))
+      })))
     : [];
 
-  let recurrenceRuleIdsByStoreId = new Map<string, string>();
+  let recurrenceRuleIdsByKey = new Map<string, string>();
   if (recurrenceEnabled) {
     const { data: recurrenceRules, error: recurrenceError } = await supabase
       .from("task_recurrence_rules")
       .insert(recurrenceRuleRows)
-      .select("id, store_id")
-      .returns<{ id: string; store_id: string }[]>();
+      .select("id, store_id, assignee_employee_id")
+      .returns<{ id: string; store_id: string; assignee_employee_id: string }[]>();
 
     if (recurrenceError || !recurrenceRules) {
       return NextResponse.redirect(tasksUrl(request, "task-error", recurrenceError?.message ?? "Не удалось создать правило повторения задачи."), 303);
     }
 
-    recurrenceRuleIdsByStoreId = new Map(recurrenceRules.map((rule) => [rule.store_id, rule.id]));
+    recurrenceRuleIdsByKey = new Map(recurrenceRules.map((rule) => [`${rule.store_id}_${rule.assignee_employee_id}`, rule.id]));
   }
 
-  const taskRows = storeIds.map((storeId) => ({
+  const taskRows = storeIds.flatMap((storeId) => assigneeEmployeeIds.map((assigneeId) => ({
     store_id: storeId,
-    assignee_employee_id: assigneeEmployeeId,
+    assignee_employee_id: assigneeId,
     created_by: user.id,
     title,
     description: description || null,
     due_at: dueAtIso,
     priority,
     status: "open" as const,
-    recurrence_rule_id: recurrenceRuleIdsByStoreId.get(storeId) ?? null,
-  }));
+    recurrence_rule_id: recurrenceRuleIdsByKey.get(`${storeId}_${assigneeId}`) ?? null,
+  })));
 
   const { data, error } = await supabase
     .from("tasks")
     .insert(taskRows)
-    .select("id, store_id")
-    .returns<{ id: string; store_id: string }[]>();
+    .select("id, store_id, assignee_employee_id")
+    .returns<{ id: string; store_id: string; assignee_employee_id: string }[]>();
 
   if (error || !data) {
     if (recurrenceEnabled) {
@@ -216,24 +220,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(tasksUrl(request, "task-error", error?.message), 303);
   }
 
-  const [{ data: storeRows }, { data: employeeRow }, { data: assigneeRow }] = await Promise.all([
+  const [{ data: storeRows }, { data: employeeRow }, { data: assigneeRows }] = await Promise.all([
     supabase.from("stores").select("id, name, city").in("id", storeIds).returns<{ id: string; name: string; city: string }[]>(),
     employeeId
       ? supabase.from("employees").select("full_name").eq("id", employeeId).maybeSingle<{ full_name: string }>()
       : Promise.resolve({ data: null, error: null }),
-    supabase.from("employees").select("full_name").eq("id", assigneeEmployeeId).maybeSingle<{ full_name: string }>(),
+    supabase.from("employees").select("id, full_name").in("id", assigneeEmployeeIds).returns<{ id: string; full_name: string }[]>(),
   ]);
   const storeRowById = new Map((storeRows ?? []).map((storeRow) => [storeRow.id, storeRow]));
   const authorLabel = employeeRow?.full_name ?? "Сотрудник";
-  const assigneeLabel = assigneeRow?.full_name ?? "Сотрудник";
+  const assigneeNameById = new Map((assigneeRows ?? []).map((row) => [row.id, row.full_name]));
   await Promise.all(
     data.map(async (task) => {
       const storeRow = storeRowById.get(task.store_id);
       const storeLabel = storeRow ? `${storeRow.name}, ${storeRow.city}` : task.store_id;
+      const assigneeLabel = assigneeNameById.get(task.assignee_employee_id) ?? "Сотрудник";
       const taskBody = `${assigneeLabel} · ${storeLabel} · ${title}`;
 
       await supabase.rpc("send_employee_notification", {
-        p_employee_id: assigneeEmployeeId,
+        p_employee_id: task.assignee_employee_id,
         p_event_type: "new_task",
         p_title: "Новая задача",
         p_body: taskBody,
