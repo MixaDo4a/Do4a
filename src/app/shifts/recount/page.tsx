@@ -30,7 +30,7 @@ export default async function CashRecountPage({ searchParams }: PageProps) {
     .from("cash_denominations")
     .select("id, value")
     .eq("is_active", true)
-    .gt("value", 10)
+    .gte("value", 1)
     .order("value", { ascending: false })
     .returns<{ id: string; value: number }[]>();
   if (error) throw new Error(error.message);

@@ -42,7 +42,7 @@ export function CashRecountForm({ storeId, shiftId, denominations }: { storeId: 
         })}
       </div>
       <label className="grid grid-cols-[1fr_100px] items-center gap-2 text-sm">
-        <span>Мелочь</span>
+        <span>Мелочь в мешках</span>
         <input className="h-10 ui-panel px-3 outline-none focus:border-brand" inputMode="decimal" min="0" name="coins_amount" onChange={(event) => setCoins(event.target.value)} step="0.01" type="number" value={coins} />
       </label>
       <div className="flex items-center justify-between border-t border-line pt-3 font-semibold">

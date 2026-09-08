@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
   if (!shift) return NextResponse.redirect(new URL("/", request.url), 303);
 
-  const { data: denominations } = await supabase.from("cash_denominations").select("id, value").eq("is_active", true).gt("value", 10);
+  const { data: denominations } = await supabase.from("cash_denominations").select("id, value").eq("is_active", true).gte("value", 1);
   const denominationCounts = (denominations ?? []).map((denomination) => ({
     denomination_id: denomination.id,
     value: Number(denomination.value),
