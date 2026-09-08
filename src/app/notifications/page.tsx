@@ -25,26 +25,6 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
-const eventLabels: Record<string, string> = {
-  new_task: "Новая задача",
-  task_deadline_soon: "Дедлайн задачи",
-  task_overdue: "Просроченная задача",
-  schedule_changed: "График изменён",
-  shift_reminder: "Напоминание о смене",
-  shift_end_reminder: "Смена скоро закончится",
-  close_shift_reminder: "Закрыть смену",
-  shift_not_opened: "Смена не открыта вовремя",
-  shift_not_closed: "Смена не закрыта вовремя",
-  unclosed_shift: "Незакрытая смена",
-  auto_closed_shift: "Автозакрытие",
-  bad_checklist: "Плохой чек-лист",
-  morning_routine_started: "Утренний распорядок",
-  morning_routine_completed: "Утренний распорядок",
-  evening_routine_started: "Вечерний распорядок",
-  evening_routine_completed: "Вечерний распорядок",
-  evening_routine_reminder: "Вечерний распорядок",
-};
-
 function relatedHref(item: NotificationRow) {
   if (item.related_entity_type === "shift") {
     return item.related_entity_id ? `/shifts/${item.related_entity_id}` : "/shifts";
@@ -151,9 +131,6 @@ export default async function NotificationsPage() {
                         <p className="mt-1 text-sm text-muted">{item.body}</p>
                       </div>
                     )}
-                    <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs text-muted">
-                      {eventLabels[item.event_type] ?? item.event_type}
-                    </span>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs text-muted">{formatTime(item.created_at)}</p>
