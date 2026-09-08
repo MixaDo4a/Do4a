@@ -228,7 +228,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
           </div>
         </div>
 
-        {canSeeAllTasks && (storeId || taskId) ? (
+        {canSeeAllTasks && (storeId || taskId || selectedEmployeeId) ? (
           <details className="mt-4 ui-panel p-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
@@ -341,7 +341,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
           </details>
         ) : null}
 
-        {canSeeAllTasks && !storeId && !taskId ? (
+        {canSeeAllTasks && !storeId && !taskId && !selectedEmployeeId ? (
           <section className="mt-4 ui-panel p-4">
             <h2 className="font-semibold">Магазины и подразделения</h2>
             <div className="mt-3 grid gap-2">
@@ -353,14 +353,15 @@ export default async function TasksPage({ searchParams }: PageProps) {
               ))}
             </div>
             {employeeId ? (
-              <Link className="mt-3 inline-flex text-sm font-semibold text-brand" href={`/tasks?storeId=${storeId}&employeeId=${employeeId}`}>
-                Личные задачи в этом магазине
+              <Link className="mt-3 flex items-center justify-between rounded-md border border-brand/40 bg-brand/10 p-3 font-semibold text-brand" href={`/tasks?employeeId=${employeeId}`}>
+                <span>Личные задачи</span>
+                <span className="text-sm">Открыть</span>
               </Link>
             ) : null}
           </section>
         ) : null}
 
-        {(!canSeeAllTasks || storeId || taskId) ? <div className="mt-4 grid gap-3">
+        {(!canSeeAllTasks || storeId || taskId || selectedEmployeeId) ? <div className="mt-4 grid gap-3">
           {tasks.length === 0 ? (
             <section className="ui-panel p-4 text-sm text-muted shadow-soft">Для вас задач пока нет.</section>
           ) : null}

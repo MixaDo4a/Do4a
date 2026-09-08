@@ -196,6 +196,13 @@ function formatGraphDate(value: string) {
   };
 }
 
+function localIsoDate(value = new Date()) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function buildManagerSchedulePreview(schedulePreview: SchedulePreview[], employeeNameById: Map<string, string>) {
   const storeGroups = new Map<
     string,
@@ -531,8 +538,15 @@ export default async function HomePage() {
       stores: row.stores,
       employeeName: employeeNameById.get(row.employee_id) ?? "Сотрудник",
     }));
-  const upcomingSchedulePreview = managementView ? upcomingSchedules : upcomingSchedules.slice(0, 2);
-  const managerSchedulePreviewGroups = managementView ? buildManagerSchedulePreview(schedulePreview, employeeNameById) : [];
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowIso = localIsoDate(tomorrow);
+  const managerTomorrowSchedules = schedulePreview.filter(
+    (row) => row.shift_date === tomorrowIso && ["planned", "planned_secondary"].includes(row.status),
+  );
+  const upcomingSchedulePreview = managementView ? upcomingSchedules.filter((row) => row.shift_date === tomorrowIso) : upcomingSchedules.slice(0, 2);
+  const managerSchedulePreviewGroups = managementView ? buildManagerSchedulePreview(managerTomorrowSchedules, employeeNameById) : [];
+  const routineStores = accessibleStores.filter((store) => !/склад|warehouse/i.test(store.name));
   const scheduleGroups = new Map<
     string,
     {
@@ -765,7 +779,7 @@ export default async function HomePage() {
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="Распорядок дня" action="Архив" href="/routine" />
               <div className="mt-3 grid gap-3">
-                {accessibleStores.map((store) => {
+                {routineStores.map((store) => {
                   const shift = shifts.find((item) => item.store_id === store.id);
                   return (
                     <div key={store.id} className="ui-panel p-4">

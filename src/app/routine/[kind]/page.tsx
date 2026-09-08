@@ -2,7 +2,8 @@ import { CalendarClock } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
 import { RoutineChecklistClient } from "@/components/routine-checklist-client";
 import { SectionHeader } from "@/components/section-header";
-import { getCurrentEmployeeId } from "@/lib/auth/roles";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import {
   buildRoutineTree,
   routineKindLabel,
@@ -76,6 +77,10 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
   }
 
   const { employeeId } = await getCurrentEmployeeId();
+  const { roles } = await getCurrentRoleCodes();
+  const managementView = hasAnyRole(roles, MANAGE_ROLES);
+  const accessibleStores = managementView ? await getAccessibleStores() : [];
+  const accessibleStoreIds = accessibleStores.map((store) => store.id);
 
   let resolvedShiftId = shiftId;
   if (!resolvedShiftId && sessionId) {
@@ -91,13 +96,28 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
   let shiftQuery = supabase
     .from("shifts")
     .select("id, store_id, shift_date, opened_by_employee_id")
-    .eq("status", "opened")
     .order("shift_date", { ascending: false });
 
   if (resolvedShiftId) {
     shiftQuery = shiftQuery.eq("id", resolvedShiftId);
+    if (managementView) {
+      shiftQuery = accessibleStoreIds.length > 0
+        ? shiftQuery.in("store_id", accessibleStoreIds)
+        : shiftQuery.eq("store_id", "00000000-0000-0000-0000-000000000000");
+    } else {
+      shiftQuery = shiftQuery.eq("status", "opened");
+      if (employeeId) {
+        shiftQuery = shiftQuery.eq("opened_by_employee_id", employeeId);
+      }
+    }
+  } else if (managementView) {
+    if (accessibleStoreIds.length > 0) {
+      shiftQuery = shiftQuery.in("store_id", accessibleStoreIds);
+    } else {
+      shiftQuery = shiftQuery.eq("store_id", "00000000-0000-0000-0000-000000000000");
+    }
   } else if (employeeId) {
-    shiftQuery = shiftQuery.eq("opened_by_employee_id", employeeId);
+    shiftQuery = shiftQuery.eq("status", "opened").eq("opened_by_employee_id", employeeId);
   }
 
   const { data: shiftData, error: shiftError } = await shiftQuery.limit(1).maybeSingle<ShiftRow>();
