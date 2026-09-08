@@ -190,8 +190,8 @@ export async function POST(request: NextRequest) {
     await supabase.rpc("send_employee_notification", {
       p_employee_id: employeeId,
       p_event_type: "schedule_changed",
-      p_title: "Р“СЂР°С„РёРє РёР·РјРµРЅС‘РЅ",
-      p_body: `РР·РјРµРЅРµРЅРѕ СЃРјРµРЅ: ${changes}. РџСЂРѕРІРµСЂСЊС‚Рµ РіСЂР°С„РёРє.`,
+      p_title: "График изменён",
+      p_body: `Изменено смен: ${changes}. Проверьте график.`,
       p_related_entity_type: "schedule",
       p_related_entity_id: null,
     });
