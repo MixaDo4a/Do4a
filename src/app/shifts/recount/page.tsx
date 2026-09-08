@@ -1,4 +1,4 @@
-import { Banknote, Save } from "lucide-react";
+import { Banknote } from "lucide-react";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { CashRecountForm } from "@/components/cash-recount-form";
@@ -7,6 +7,11 @@ import { getCurrentEmployeeId, getCurrentRoleCodes } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = { searchParams: Promise<{ storeId?: string; shiftId?: string; message?: string }> };
+
+type PreviousCashCount = {
+  coins_amount?: unknown;
+  rows?: Array<{ denomination_id?: unknown; quantity?: unknown }>;
+};
 
 export default async function CashRecountPage({ searchParams }: PageProps) {
   const params = await searchParams;
@@ -35,6 +40,24 @@ export default async function CashRecountPage({ searchParams }: PageProps) {
     .returns<{ id: string; value: number }[]>();
   if (error) throw new Error(error.message);
 
+  const { data: previousCashCount } = await supabase
+    .from("store_cash_counts")
+    .select("denominations")
+    .eq("store_id", shift.store_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ denominations: PreviousCashCount | null }>();
+
+  const previousDenominations = previousCashCount?.denominations;
+  const initialCounts = Object.fromEntries(
+    (previousDenominations?.rows ?? [])
+      .filter((row) => row.denomination_id != null && Number.isFinite(Number(row.quantity)) && Number(row.quantity) >= 0)
+      .map((row) => [String(row.denomination_id), String(Math.floor(Number(row.quantity)))])
+  );
+  const initialCoins = Number.isFinite(Number(previousDenominations?.coins_amount)) && Number(previousDenominations?.coins_amount) >= 0
+    ? String(previousDenominations?.coins_amount)
+    : "";
+
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-2xl">
@@ -43,7 +66,13 @@ export default async function CashRecountPage({ searchParams }: PageProps) {
           <p className="font-semibold">{shift.stores?.name ?? "Магазин"}</p>
           <p className="mt-1 text-sm text-muted">{shift.stores?.city ?? ""}</p>
           {params.message === "saved" ? <p className="mt-3 text-sm text-brand">Наличка в кассе обновлена.</p> : null}
-          <CashRecountForm denominations={denominations ?? []} shiftId={shift.id} storeId={shift.store_id} />
+          <CashRecountForm
+            denominations={denominations ?? []}
+            initialCoins={initialCoins}
+            initialCounts={initialCounts}
+            shiftId={shift.id}
+            storeId={shift.store_id}
+          />
         </section>
       </div>
       <BottomNav />

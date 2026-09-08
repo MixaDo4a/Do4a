@@ -8,9 +8,21 @@ function money(value: number) {
   return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(value);
 }
 
-export function CashRecountForm({ storeId, shiftId, denominations }: { storeId: string; shiftId: string; denominations: Denomination[] }) {
-  const [counts, setCounts] = useState<Record<string, string>>({});
-  const [coins, setCoins] = useState("");
+export function CashRecountForm({
+  storeId,
+  shiftId,
+  denominations,
+  initialCounts = {},
+  initialCoins = "",
+}: {
+  storeId: string;
+  shiftId: string;
+  denominations: Denomination[];
+  initialCounts?: Record<string, string>;
+  initialCoins?: string;
+}) {
+  const [counts, setCounts] = useState<Record<string, string>>(initialCounts);
+  const [coins, setCoins] = useState(initialCoins);
   const total = useMemo(
     () => denominations.reduce((sum, denomination) => sum + denomination.value * Number(counts[denomination.id] || 0), 0) + Number(coins || 0),
     [coins, counts, denominations],
