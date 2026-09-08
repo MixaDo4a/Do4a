@@ -100,7 +100,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !roles.some((role) => managementRoles.includes(role));
   const buyerOnly = roles.includes("buyer") && !roles.some((role) => managementRoles.includes(role));
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
-  const managementView = roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  const managementView = roles.some((role) => ["store_manager", "super_admin"].includes(role));
 
   useEffect(() => {
     setIsMounted(true);
