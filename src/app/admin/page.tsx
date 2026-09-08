@@ -351,7 +351,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </form>
         ) : null}
 
-        {false && !warehouseManagerOnly ? (
+        {!warehouseManagerOnly ? (
         <section className="mt-4 grid gap-4">
           <div className="ui-panel p-4">
             <SectionHeader icon={Store} title="Магазины" action="Открыть" href="/admin/stores" />
