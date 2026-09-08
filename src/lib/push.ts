@@ -71,25 +71,45 @@ function getPushAdminClient(fallbackClient: SupabaseClient) {
   return pushAdminClient;
 }
 
-function pushUrlForNotification(notification: Pick<PushTargetRow, "related_entity_type" | "related_entity_id">) {
+function pushUrlForNotification(notification: Pick<PushTargetRow, "event_type" | "related_entity_type" | "related_entity_id">) {
   if (notification.related_entity_type === "shift" && notification.related_entity_id) {
     return `/shifts/${notification.related_entity_id}`;
   }
 
   if (notification.related_entity_type === "task") {
-    return "/tasks";
+    return notification.related_entity_id
+      ? `/tasks?taskId=${notification.related_entity_id}#${notification.related_entity_id}`
+      : "/tasks";
   }
 
   if (notification.related_entity_type === "checklist_submission") {
-    return "/checklists";
+    return notification.related_entity_id ? `/checklists/${notification.related_entity_id}` : "/checklists";
   }
 
   if (notification.related_entity_type === "schedule") {
-    return "/admin?tab=schedule";
+    return "/schedule";
   }
 
-  if (notification.related_entity_type === "routine") {
-    return "/routine";
+  if (notification.related_entity_type === "routine" || notification.related_entity_type === "day_routine") {
+    if (notification.event_type === "day_routine_photo_needs_attention") return "/routine";
+    const kind = notification.event_type?.startsWith("morning_") ? "morning" : "evening";
+    return notification.related_entity_id ? `/routine/${kind}?sessionId=${notification.related_entity_id}` : `/routine/${kind}`;
+  }
+
+  if (notification.event_type === "schedule_changed") {
+    return "/schedule";
+  }
+
+  if (["new_task", "task_completed", "task_overdue", "task_deadline_soon"].includes(notification.event_type ?? "")) {
+    return "/tasks";
+  }
+
+  if (["checklist_saved", "bad_checklist"].includes(notification.event_type ?? "")) {
+    return "/checklists";
+  }
+
+  if (["supplier_promotion_created", "purchase_order_created"].includes(notification.event_type ?? "")) {
+    return "/procurement";
   }
 
   return "/notifications";

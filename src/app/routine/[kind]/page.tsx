@@ -15,7 +15,7 @@ import { redirect } from "next/navigation";
 
 type PageProps = {
   params: Promise<{ kind: string }>;
-  searchParams: Promise<{ shiftId?: string; message?: string; detail?: string }>;
+  searchParams: Promise<{ shiftId?: string; sessionId?: string; message?: string; detail?: string }>;
 };
 
 type ShiftRow = {
@@ -65,7 +65,7 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
     redirect("/routine");
   }
 
-  const { shiftId, message, detail } = await searchParams;
+  const { shiftId, sessionId, message, detail } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -77,14 +77,25 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
 
   const { employeeId } = await getCurrentEmployeeId();
 
+  let resolvedShiftId = shiftId;
+  if (!resolvedShiftId && sessionId) {
+    const { data: sessionLink, error: sessionLinkError } = await supabase
+      .from("day_routine_sessions")
+      .select("shift_id")
+      .eq("id", sessionId)
+      .maybeSingle<{ shift_id: string }>();
+    if (sessionLinkError) throw new Error(sessionLinkError.message);
+    resolvedShiftId = sessionLink?.shift_id;
+  }
+
   let shiftQuery = supabase
     .from("shifts")
     .select("id, store_id, shift_date, opened_by_employee_id")
     .eq("status", "opened")
     .order("shift_date", { ascending: false });
 
-  if (shiftId) {
-    shiftQuery = shiftQuery.eq("id", shiftId);
+  if (resolvedShiftId) {
+    shiftQuery = shiftQuery.eq("id", resolvedShiftId);
   } else if (employeeId) {
     shiftQuery = shiftQuery.eq("opened_by_employee_id", employeeId);
   }

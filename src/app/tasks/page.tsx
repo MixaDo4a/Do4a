@@ -49,6 +49,7 @@ type PageProps = {
     detail?: string;
     storeId?: string;
     employeeId?: string;
+    taskId?: string;
     dateFrom?: string;
     dateTo?: string;
     status?: string;
@@ -106,7 +107,7 @@ function buildTasksQuery(supabase: Awaited<ReturnType<typeof createSupabaseServe
 }
 
 export default async function TasksPage({ searchParams }: PageProps) {
-  const { message, detail, storeId, employeeId: selectedEmployeeId, dateFrom, dateTo, status, deadline } = await searchParams;
+  const { message, detail, storeId, employeeId: selectedEmployeeId, taskId, dateFrom, dateTo, status, deadline } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -227,7 +228,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
           </div>
         </div>
 
-        {canSeeAllTasks && storeId ? (
+        {canSeeAllTasks && (storeId || taskId) ? (
           <details className="mt-4 ui-panel p-4">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
@@ -340,7 +341,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
           </details>
         ) : null}
 
-        {canSeeAllTasks && !storeId ? (
+        {canSeeAllTasks && !storeId && !taskId ? (
           <section className="mt-4 ui-panel p-4">
             <h2 className="font-semibold">Магазины и подразделения</h2>
             <div className="mt-3 grid gap-2">
@@ -359,7 +360,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
           </section>
         ) : null}
 
-        {(!canSeeAllTasks || storeId) ? <div className="mt-4 grid gap-3">
+        {(!canSeeAllTasks || storeId || taskId) ? <div className="mt-4 grid gap-3">
           {tasks.length === 0 ? (
             <section className="ui-panel p-4 text-sm text-muted shadow-soft">Для вас задач пока нет.</section>
           ) : null}

@@ -46,28 +46,50 @@ const eventLabels: Record<string, string> = {
 };
 
 function relatedHref(item: NotificationRow) {
-  if (!item.related_entity_id) {
-    return null;
-  }
-
   if (item.related_entity_type === "shift") {
-    return `/shifts/${item.related_entity_id}`;
+    return item.related_entity_id ? `/shifts/${item.related_entity_id}` : "/shifts";
   }
 
   if (item.related_entity_type === "task") {
-    return `/tasks?taskId=${item.related_entity_id}#${item.related_entity_id}`;
+    return item.related_entity_id ? `/tasks?taskId=${item.related_entity_id}#${item.related_entity_id}` : "/tasks";
   }
 
   if (item.related_entity_type === "checklist_submission") {
-    return `/checklists/${item.related_entity_id}`;
+    return item.related_entity_id ? `/checklists/${item.related_entity_id}` : "/checklists";
   }
 
   if (item.related_entity_type === "schedule") {
     return "/schedule";
   }
 
-  if (item.related_entity_type === "routine") {
-    return "/routine";
+  if (item.related_entity_type === "routine" || item.related_entity_type === "day_routine") {
+    if (item.event_type === "day_routine_photo_needs_attention") return "/routine";
+    const kind = item.event_type.startsWith("morning_") ? "morning" : "evening";
+    return item.related_entity_id ? `/routine/${kind}?sessionId=${item.related_entity_id}` : `/routine/${kind}`;
+  }
+
+  if (["schedule_changed"].includes(item.event_type)) {
+    return "/schedule";
+  }
+
+  if (["new_task", "task_completed", "task_overdue", "task_deadline_soon"].includes(item.event_type)) {
+    return "/tasks";
+  }
+
+  if (item.event_type.startsWith("morning_routine_")) {
+    return "/routine/morning";
+  }
+
+  if (item.event_type.startsWith("evening_routine_")) {
+    return "/routine/evening";
+  }
+
+  if (["checklist_saved", "bad_checklist"].includes(item.event_type)) {
+    return "/checklists";
+  }
+
+  if (["supplier_promotion_created", "purchase_order_created"].includes(item.event_type)) {
+    return "/procurement";
   }
 
   return null;
