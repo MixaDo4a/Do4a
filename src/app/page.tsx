@@ -769,7 +769,10 @@ export default async function HomePage() {
                   const shift = shifts.find((item) => item.store_id === store.id);
                   return (
                     <div key={store.id} className="ui-panel p-4">
-                      <p className="font-semibold">{store.name}</p>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold">{store.name}</p>
+                        <a className="text-sm font-semibold text-brand" href={`/admin/routine?storeId=${store.id}`}>Изменить</a>
+                      </div>
                       <div className="mt-3 grid grid-cols-2 gap-3">
                         <a className="inline-flex h-11 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href={shift ? `/routine/morning?shiftId=${shift.id}` : "/routine"}>Утро</a>
                         <a className="inline-flex h-11 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href={shift ? `/routine/evening?shiftId=${shift.id}` : "/routine"}>Вечер</a>

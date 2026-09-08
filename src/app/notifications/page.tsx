@@ -55,7 +55,7 @@ function relatedHref(item: NotificationRow) {
   }
 
   if (item.related_entity_type === "task") {
-    return `/tasks?taskId=${item.related_entity_id}`;
+    return `/tasks?taskId=${item.related_entity_id}#${item.related_entity_id}`;
   }
 
   if (item.related_entity_type === "checklist_submission") {
