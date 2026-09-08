@@ -25,6 +25,16 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
+function notificationTitle(item: NotificationRow) {
+  return item.event_type === "schedule_changed" ? "График изменён" : item.title;
+}
+
+function notificationBody(item: NotificationRow) {
+  if (item.event_type !== "schedule_changed") return item.body;
+  const changes = item.body.match(/(\d+)/)?.[1] ?? "0";
+  return `Изменено смен: ${changes}. Проверьте график.`;
+}
+
 function relatedHref(item: NotificationRow) {
   if (item.related_entity_type === "shift") {
     return item.related_entity_id ? `/shifts/${item.related_entity_id}` : "/shifts";
@@ -122,13 +132,13 @@ export default async function NotificationsPage() {
                   <div className="flex items-start justify-between gap-3">
                     {href ? (
                       <a className="min-w-0 transition hover:text-brand" href={href}>
-                        <p className="font-semibold">{item.title}</p>
-                        <p className="mt-1 text-sm text-muted">{item.body}</p>
+                        <p className="font-semibold">{notificationTitle(item)}</p>
+                        <p className="mt-1 text-sm text-muted">{notificationBody(item)}</p>
                       </a>
                     ) : (
                       <div className="min-w-0">
-                        <p className="font-semibold">{item.title}</p>
-                        <p className="mt-1 text-sm text-muted">{item.body}</p>
+                        <p className="font-semibold">{notificationTitle(item)}</p>
+                        <p className="mt-1 text-sm text-muted">{notificationBody(item)}</p>
                       </div>
                     )}
                   </div>
