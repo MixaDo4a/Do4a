@@ -351,99 +351,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </form>
         ) : null}
 
-        <section className="mt-4 grid gap-4">
-          {!warehouseManagerOnly ? (
-          <form action="/admin/store-plans/save" className="ui-panel p-4" method="post">
-            <h2 className="inline-flex items-center gap-2 font-semibold">
-              <Store className="text-brand" size={18} /> План магазина
-            </h2>
-            <div className="mt-4 grid gap-3">
-              <select className="h-11 rounded-md border border-line px-3" name="store_id" defaultValue={selectedStoreId}>
-                {activeStores.map((storeItem) => (
-                  <option key={storeItem.id} value={storeItem.id}>
-                    {storeItem.name}, {storeItem.city}
-                  </option>
-                ))}
-              </select>
-                <input className="h-11 rounded-md border border-line px-3" name="month" type="month" defaultValue={selectedMonth.slice(0, 7)} />
-                <input className="h-11 rounded-md border border-line px-3" min="0" name="sales_plan_amount" placeholder="Сумма плана" type="number" />
-              <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить план</button>
-            </div>
-          </form>
-          ) : null}
-
-          <form action="/admin/payroll-adjustments/create" className="ui-panel p-4" method="post">
-            <h2 className="inline-flex items-center gap-2 font-semibold">
-              <WalletCards className="text-brand" size={18} /> {warehouseManagerOnly ? "Вычеты" : "Премии и вычеты"}
-            </h2>
-            <div className="mt-4 grid gap-3">
-              <select className="h-11 rounded-md border border-line px-3" name="employee_id" defaultValue="">
-                <option value="">Сотрудник</option>
-                {activeEmployees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employeeName(employee)}
-                  </option>
-                ))}
-              </select>
-              <input className="h-11 rounded-md border border-line px-3" name="month" type="month" defaultValue={selectedMonth.slice(0, 7)} />
-              <div className="grid gap-2">
-                <select className="h-11 rounded-md border border-line px-3" name="adjustment_type" defaultValue={warehouseManagerOnly ? "fine" : "bonus"}>
-                  {Object.entries(adjustmentTypeLabels).filter(([value]) => !warehouseManagerOnly || value !== "bonus").map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <input className="h-11 rounded-md border border-line px-3" min="0" name="amount" placeholder="Сумма" type="number" />
-              </div>
-              <input className="h-11 rounded-md border border-line px-3" name="reason" placeholder="Комментарий" />
-              <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить корректировку</button>
-            </div>
-          </form>
-        </section>
-
-        <section className="mt-6 grid gap-4">
-          {!warehouseManagerOnly ? (
-          <div className="ui-panel p-4">
-            <h2 className="font-semibold">Последние планы магазинов</h2>
-            <div className="mt-3 max-h-[170px] grid gap-2 overflow-y-auto pr-1">
-              {storePlans.length === 0 ? <p className="text-sm text-muted">Планов пока нет.</p> : null}
-              {storePlans.map((plan) => (
-                <div key={plan.id} className="rounded-md bg-surface p-3 text-sm">
-                  <p className="font-semibold">
-                    {stores.find((store) => store.id === plan.store_id)?.name ?? "Магазин"}
-                  </p>
-                  <p className="text-muted">
-                    {plan.period_start.slice(0, 7)} · {Number(plan.sales_plan_amount).toLocaleString("ru-RU")} руб.
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-          ) : null}
-
-          <div className="ui-panel p-4">
-            <h2 className="font-semibold">Последние корректировки</h2>
-            <div className="mt-3 max-h-[170px] grid gap-2 overflow-y-auto pr-1">
-              {payrollAdjustments.length === 0 ? <p className="text-sm text-muted">Корректировок пока нет.</p> : null}
-              {payrollAdjustments.map((item) => (
-                <div key={item.id} className="rounded-md bg-surface p-3 text-sm">
-                  <p className="font-semibold">
-                    {employeeNameById.get(item.employee_id) ?? "Сотрудник"}
-                  </p>
-                  <p className="text-muted">
-                    {item.period_month.slice(0, 7)} В· {adjustmentTypeLabels[item.adjustment_type] ?? item.adjustment_type} В·{" "}
-                    {adjustmentTypeDirections[item.adjustment_type] === "plus" ? "+" : "-"}
-                    {Number(item.amount).toLocaleString("ru-RU")} руб.
-                  </p>
-                  <p className="mt-1 text-xs text-muted">{item.reason}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {!warehouseManagerOnly ? (
+        {false && !warehouseManagerOnly ? (
         <section className="mt-4 grid gap-4">
           <div className="ui-panel p-4">
             <SectionHeader icon={Store} title="Магазины" action="Открыть" href="/admin/stores" />
@@ -461,15 +369,6 @@ export default async function AdminPage({ searchParams }: PageProps) {
           <SectionHeader icon={CalendarPlus} title="График работы" action="Редактировать" href="/admin/schedule" />
           <p className="mt-3 text-sm text-muted">
             График вынесен в отдельный редактор с горизонтальной таблицей. В списке сотрудников будут только те, у кого есть доступ к выбранному магазину.
-          </p>
-        </section>
-        ) : null}
-
-        {!warehouseManagerOnly ? (
-        <section className="mt-4 ui-panel p-4">
-          <SectionHeader icon={Banknote} title="Наличка" action="Открыть" href="/cash" />
-          <p className="mt-3 text-sm text-muted">
-            РКО и ПКО по магазинам в подчинении, а также сводка по кассам.
           </p>
         </section>
         ) : null}
@@ -493,7 +392,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
               <p className="mt-3 text-sm text-muted">Создание акций, действующие акции и архив.</p>
             </div>
             <div className="ui-panel p-4">
-              <SectionHeader icon={ClipboardCheck} title="Чек-листы" action="Провести" href="/checklists/new" />
+              <SectionHeader icon={ClipboardCheck} title="Чек-листы" />
               <div className="mt-3 flex gap-2 text-sm">
                 <Link className="ui-panel px-3 py-2 font-semibold" href="/checklists/new">Провести чек-лист</Link>
                 <Link className="ui-panel px-3 py-2 font-semibold" href="/checklists">Архив чек-листов</Link>

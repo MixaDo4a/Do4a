@@ -55,7 +55,19 @@ function relatedHref(item: NotificationRow) {
   }
 
   if (item.related_entity_type === "task") {
-    return "/tasks";
+    return `/tasks?taskId=${item.related_entity_id}`;
+  }
+
+  if (item.related_entity_type === "checklist_submission") {
+    return `/checklists/${item.related_entity_id}`;
+  }
+
+  if (item.related_entity_type === "schedule") {
+    return "/schedule";
+  }
+
+  if (item.related_entity_type === "routine") {
+    return "/routine";
   }
 
   return null;
@@ -106,10 +118,17 @@ export default async function NotificationsPage() {
               return (
                 <article key={item.id} className={`p-4 ${item.is_read ? "" : "bg-surface"}`}>
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold">{item.title}</p>
-                      <p className="mt-1 text-sm text-muted">{item.body}</p>
-                    </div>
+                    {href ? (
+                      <a className="min-w-0 transition hover:text-brand" href={href}>
+                        <p className="font-semibold">{item.title}</p>
+                        <p className="mt-1 text-sm text-muted">{item.body}</p>
+                      </a>
+                    ) : (
+                      <div className="min-w-0">
+                        <p className="font-semibold">{item.title}</p>
+                        <p className="mt-1 text-sm text-muted">{item.body}</p>
+                      </div>
+                    )}
                     <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs text-muted">
                       {eventLabels[item.event_type] ?? item.event_type}
                     </span>

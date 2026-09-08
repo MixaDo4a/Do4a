@@ -578,7 +578,7 @@ export default async function HomePage() {
                         ? accountName
                         : "Смена и задачи"}
             </h1>
-            {managerOnlyView ? (
+            {managerOnlyView || managementView ? (
               <form action="/logout" className="mt-2" method="post">
                 <button className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-brand px-3 text-sm font-semibold text-white" type="submit">
                   <LogOut size={15} /> Выйти
@@ -728,7 +728,7 @@ export default async function HomePage() {
         ) : managementView ? (
           <>
             <section className="mt-6 ui-panel p-4">
-              <SectionHeader icon={ShieldCheck} title="Текущая смена" />
+              <SectionHeader icon={ShieldCheck} title="Текущая смена" action="Архив" href="/admin/closed-shifts" />
               <div className="mt-4 grid gap-3">
                 {shifts.length > 0 ? (
                   shifts.map((shift) => (
@@ -777,6 +777,13 @@ export default async function HomePage() {
                     </div>
                   );
                 })}
+              </div>
+            </section>
+
+            <section className="mt-6">
+              <SectionHeader icon={CalendarDays} title="График работ" action="Открыть" href="/schedule" />
+              <div className="mt-3 ui-panel p-4">
+                <UpcomingScheduleList items={upcomingSchedulePreview} />
               </div>
             </section>
           </>

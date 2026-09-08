@@ -351,6 +351,11 @@ export default async function TasksPage({ searchParams }: PageProps) {
                 </Link>
               ))}
             </div>
+            {employeeId ? (
+              <Link className="mt-3 inline-flex text-sm font-semibold text-brand" href={`/tasks?storeId=${storeId}&employeeId=${employeeId}`}>
+                Личные задачи в этом магазине
+              </Link>
+            ) : null}
           </section>
         ) : null}
 
@@ -360,7 +365,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
           ) : null}
 
           {tasks.map((task) => (
-            <article key={task.id} className="ui-panel p-4">
+            <article id={task.id} key={task.id} className="ui-panel p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold">{cleanText(task.title, "Задача")}</p>
