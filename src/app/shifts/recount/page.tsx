@@ -36,6 +36,7 @@ export default async function CashRecountPage({ searchParams }: PageProps) {
     .select("id, value")
     .eq("is_active", true)
     .gte("value", 1)
+    .neq("value", 3)
     .order("value", { ascending: false })
     .returns<{ id: string; value: number }[]>();
   if (error) throw new Error(error.message);
