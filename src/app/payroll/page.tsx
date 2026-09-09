@@ -240,7 +240,11 @@ export default async function PayrollPage({ searchParams }: PageProps) {
               const displayedPayout = Number(entry.total_payout_amount) - adjustmentTotals.advance;
 
               return (
-              <Link key={entry.id} className="ui-panel block p-4 transition hover:border-brand/60" href={`/payroll?period=${month}&employeeId=${entry.employee_id}`}>
+              <Link
+                key={entry.id}
+                className="ui-panel block p-4 transition hover:border-brand/60"
+                href={`/payroll?period=${month}&employeeId=${entry.employee_id}#payroll-statement`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="font-semibold">{entry.employees?.full_name ?? "Сотрудник"}</h2>
@@ -275,7 +279,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
         </section>
 
         {selectedEntry ? (
-          <section className="mt-6 ui-panel p-4 shadow-soft">
+          <section id="payroll-statement" className="mt-6 ui-panel p-4 shadow-soft scroll-mt-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-sm text-muted">Зарплатная ведомость · {month}</p>
