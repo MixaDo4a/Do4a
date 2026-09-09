@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-required"), 303);
   }
 
-  if (!["bonus", "fine", "inventory", "expiration", "product"].includes(adjustmentType)) {
+  if (!["bonus", "fine", "advance", "inventory", "expiration", "product"].includes(adjustmentType)) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Некорректный тип операции."), 303);
   }
 

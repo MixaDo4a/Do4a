@@ -101,6 +101,7 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
               <select className="h-11 rounded-md border border-line px-3" defaultValue="bonus" name="adjustment_type">
                 <option value="bonus">Премия</option>
                 <option value="fine">Штраф</option>
+                <option value="advance">Аванс</option>
                 <option value="inventory">Инвентарная корректировка</option>
                 <option value="expiration">Просрочка</option>
                 <option value="product">Корректировка под ЗП</option>

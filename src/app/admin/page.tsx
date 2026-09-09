@@ -135,6 +135,7 @@ const dayStatusLabels: Record<string, string> = {
 const adjustmentTypeLabels: Record<string, string> = {
   bonus: "Премия",
   fine: "Штраф",
+  advance: "Аванс",
   inventory: "Инвентаризация",
   expiration: "Просрочка",
   product: "Под З/П",
@@ -143,6 +144,7 @@ const adjustmentTypeLabels: Record<string, string> = {
 const adjustmentTypeDirections: Record<string, "plus" | "minus"> = {
   bonus: "plus",
   fine: "minus",
+  advance: "minus",
   inventory: "minus",
   expiration: "minus",
   product: "minus",

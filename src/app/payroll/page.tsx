@@ -38,6 +38,7 @@ type PayrollAdjustment = {
 type AdjustmentTotals = {
   bonus: number;
   fine: number;
+  advance: number;
   inventory: number;
   expiration: number;
   product: number;
@@ -67,6 +68,7 @@ function emptyAdjustmentTotals(): AdjustmentTotals {
   return {
     bonus: 0,
     fine: 0,
+    advance: 0,
     inventory: 0,
     expiration: 0,
     product: 0,
@@ -144,7 +146,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
   const total = visibleEntries.reduce((sum, row) => sum + Number(row.total_payout_amount), 0);
   const sales = visibleEntries.reduce((sum, row) => sum + Number(row.sales_pay_amount), 0);
   const manualDeductions = Array.from(adjustmentTotalsByEmployee.values()).reduce(
-    (sum, row) => sum + row.fine + row.inventory + row.expiration + row.product,
+    (sum, row) => sum + row.fine + row.advance + row.inventory + row.expiration + row.product,
     0,
   );
   const deductions = visibleEntries.reduce(
@@ -205,6 +207,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
                   <span>Оклад: {money(entry.base_salary_amount)}</span>
                   <span>Премии: +{money(adjustmentTotals.bonus)}</span>
                   <span>Штрафы: -{money(adjustmentTotals.fine)}</span>
+                  <span>Авансы: -{money(adjustmentTotals.advance)}</span>
                   <span>Корректировки инвенты: -{money(adjustmentTotals.inventory)}</span>
                   <span>Корректировки просрока: -{money(adjustmentTotals.expiration)}</span>
                   <span>Корректировки под ЗП: -{money(adjustmentTotals.product)}</span>
