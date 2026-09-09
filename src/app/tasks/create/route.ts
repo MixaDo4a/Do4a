@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
   }
 
   const taskPairs = storeWideTask
-    ? (storeAssignments ?? []).filter((assignment) => assigneeEmployeeIds.length === 0 || assigneeEmployeeIds.includes(assignment.employee_id))
+    ? (storeAssignments ?? [])
     : storeIds.flatMap((storeId) => assigneeEmployeeIds.map((employeeId) => ({ store_id: storeId, employee_id: employeeId })));
 
   if (storeWideTask) {
