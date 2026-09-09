@@ -42,10 +42,12 @@ export async function POST(request: NextRequest) {
   if (storeIds.length === 0 && fallbackStoreId) {
     storeIds.push(fallbackStoreId);
   }
-  const assigneeEmployeeIds = Array.from(new Set([
+  const rawAssigneeEmployeeIds = Array.from(new Set([
     ...formData.getAll("assignee_employee_ids").map((entry) => String(entry).trim()),
     value(formData, "assignee_employee_id"),
   ].filter(Boolean)));
+  const storeWideTask = rawAssigneeEmployeeIds.includes("__store_all__");
+  let assigneeEmployeeIds = rawAssigneeEmployeeIds.filter((id) => id !== "__store_all__");
   const assigneeEmployeeId = assigneeEmployeeIds[0] ?? "";
   const title = value(formData, "title");
   const description = value(formData, "description");
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
   const priority = value(formData, "priority") || "normal";
   const recurrenceFrequency = value(formData, "recurrence_frequency");
 
-  if (storeIds.length === 0 || assigneeEmployeeIds.length === 0 || !title) {
+  if (storeIds.length === 0 || (!storeWideTask && assigneeEmployeeIds.length === 0) || !title) {
     return NextResponse.redirect(tasksUrl(request, "task-required"), 303);
   }
 
@@ -101,6 +103,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Можно ставить задачи только по доступным магазинам."), 303);
   }
 
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: storeAssignments, error: storeAssignmentsError } = await supabase
+    .from("employee_store_assignments")
+    .select("employee_id, store_id")
+    .in("store_id", storeIds)
+    .lte("valid_from", today)
+    .or(`valid_to.is.null,valid_to.gte.${today}`)
+    .returns<{ employee_id: string; store_id: string }[]>();
+
+  if (storeAssignmentsError) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", storeAssignmentsError.message), 303);
+  }
+
+  const taskPairs = storeWideTask
+    ? (storeAssignments ?? []).filter((assignment) => assigneeEmployeeIds.length === 0 || assigneeEmployeeIds.includes(assignment.employee_id))
+    : storeIds.flatMap((storeId) => assigneeEmployeeIds.map((employeeId) => ({ store_id: storeId, employee_id: employeeId })));
+
+  if (storeWideTask) {
+    assigneeEmployeeIds = Array.from(new Set(taskPairs.map((pair) => pair.employee_id)));
+  }
+
+  if (taskPairs.length === 0) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "В выбранных магазинах нет привязанных сотрудников."), 303);
+  }
+
   const duplicateWindowStart = new Date(Date.now() - 15_000).toISOString();
   const { data: duplicateTasks, error: duplicateError } = await supabase
     .from("tasks")
@@ -130,7 +157,7 @@ export async function POST(request: NextRequest) {
     .or(`valid_to.is.null,valid_to.gte.${new Date().toISOString().slice(0, 10)}`)
     .returns<{ employee_id: string; store_id: string }[]>();
 
-  if (assigneeStoreError || assigneeEmployeeIds.some((id) => (assigneeStoreAssignment ?? []).filter((row) => row.employee_id === id).length !== storeIds.length)) {
+  if (!storeWideTask && (assigneeStoreError || assigneeEmployeeIds.some((id) => (assigneeStoreAssignment ?? []).filter((row) => row.employee_id === id).length !== storeIds.length))) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Можно ставить задачи только сотрудникам выбранного магазина."), 303);
   }
 
@@ -169,7 +196,7 @@ export async function POST(request: NextRequest) {
     : null;
 
   const recurrenceRuleRows = recurrenceEnabled
-    ? storeIds.flatMap((storeId) => assigneeEmployeeIds.map((assigneeId) => ({
+    ? taskPairs.map(({ store_id: storeId, employee_id: assigneeId }) => ({
         store_id: storeId,
         assignee_employee_id: assigneeId,
         title,
@@ -177,7 +204,7 @@ export async function POST(request: NextRequest) {
         frequency: recurrenceFrequency,
         next_run_at: recurrenceDueAt,
         created_by: user.id,
-      })))
+      }))
     : [];
 
   let recurrenceRuleIdsByKey = new Map<string, string>();
@@ -195,7 +222,7 @@ export async function POST(request: NextRequest) {
     recurrenceRuleIdsByKey = new Map(recurrenceRules.map((rule) => [`${rule.store_id}_${rule.assignee_employee_id}`, rule.id]));
   }
 
-  const taskRows = storeIds.flatMap((storeId) => assigneeEmployeeIds.map((assigneeId) => ({
+  const taskRows = taskPairs.map(({ store_id: storeId, employee_id: assigneeId }) => ({
     store_id: storeId,
     assignee_employee_id: assigneeId,
     created_by: user.id,
@@ -205,7 +232,7 @@ export async function POST(request: NextRequest) {
     priority,
     status: "open" as const,
     recurrence_rule_id: recurrenceRuleIdsByKey.get(`${storeId}_${assigneeId}`) ?? null,
-  })));
+  }));
 
   const { data, error } = await supabase
     .from("tasks")

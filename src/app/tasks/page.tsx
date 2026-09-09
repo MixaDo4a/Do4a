@@ -300,6 +300,10 @@ export default async function TasksPage({ searchParams }: PageProps) {
                 <fieldset className="rounded-md border border-line p-3 sm:col-span-2">
                   <legend className="px-1 text-sm font-medium">Ответственные продавцы</legend>
                   <div className="mt-2 grid max-h-48 gap-2 overflow-auto">
+                    <label className="flex items-center gap-3 rounded-md border border-line px-3 py-2 text-sm">
+                      <input className="h-4 w-4 accent-brand" name="assignee_employee_ids" type="checkbox" value="__store_all__" />
+                      <span>не выбрано</span>
+                    </label>
                     {taskAssignees.map((employee) => (
                       <label key={employee.id} className="flex items-center gap-3 rounded-md border border-line px-3 py-2 text-sm">
                         <input className="h-4 w-4 accent-brand" name="assignee_employee_ids" type="checkbox" value={employee.id} />
@@ -322,7 +326,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   <option value="monthly">Каждый месяц</option>
                 </select>
               </div>
-              <p className="text-xs text-muted">Сотрудник должен иметь доступ ко всем выбранным магазинам.</p>
+              <p className="text-xs text-muted">При выборе «не выбрано» задача назначается всем сотрудникам выбранного магазина.</p>
               <p className="text-xs text-muted">
                 Если дата не указана, задача считается бессрочной и остаётся в активных до закрытия.
               </p>
@@ -372,7 +376,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
                 <div>
                   <p className="font-semibold">{cleanText(task.title, "Задача")}</p>
                   <p className="mt-1 text-sm text-muted">
-                    {task.stores?.[0]?.name ?? "Магазин"} · {employeeName(task.employees?.[0] ?? null)}
+                    {employeeName(task.employees?.[0] ?? null)} · {task.stores?.[0]?.name ?? "Магазин"}
                   </p>
                   {task.description ? <p className="mt-2 text-sm text-muted">{cleanText(task.description, "Описание")}</p> : null}
                 </div>
