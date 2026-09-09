@@ -84,8 +84,10 @@ export default async function AdminClosedShiftsPage({ searchParams }: PageProps)
   const selectedStatus = status && ["closed", "auto_closed"].includes(status) ? status : "closed";
   const selectedStoreId = storeId && accessibleStoreIds.includes(storeId) ? storeId : "";
 
+  // The access RPC returns active stores without a status column. Keep those
+  // rows in the filter and exclude only stores explicitly marked archived.
   const stores = accessibleStores
-    .filter((store) => store.status === "active")
+    .filter((store) => store.status !== "archived")
     .sort((left, right) => `${left.city} ${left.name}`.localeCompare(`${right.city} ${right.name}`));
 
   const query = supabase
