@@ -67,7 +67,7 @@ export default async function CashPage({ searchParams }: PageProps) {
   }
 
   const canManageMovements = hasAnyRole(roles, manageRoles);
-  const stores = await getAccessibleStores();
+  const stores = (await getAccessibleStores()).filter((store) => !/склад|warehouse/i.test(store.name));
   const storeIds = stores.map((store) => store.id);
 
   const [shiftsResult, movementsResult, cashCountsResult] = await Promise.all([
