@@ -9,8 +9,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const links = [
   { href: "/payroll", title: "Зарплата", description: "Расчёт и выплаты сотрудникам", icon: WalletCards },
-  { href: "/admin", title: "Премии и штрафы", description: "Корректировки зарплаты", icon: Gift },
-  { href: "/admin", title: "План на магазин", description: "Планы продаж по магазинам", icon: LayoutList },
+  { href: "/finances#payroll-adjustments", title: "Премии и штрафы", description: "Корректировки зарплаты", icon: Gift },
+  { href: "/finances#store-plan", title: "План на магазин", description: "Планы продаж по магазинам", icon: LayoutList },
   { href: "/cash", title: "Наличные в кассе", description: "Остатки, РКО и ПКО", icon: Banknote },
 ];
 
