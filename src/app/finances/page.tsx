@@ -9,8 +9,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const links = [
   { href: "/payroll", title: "Зарплата", description: "Расчёт и выплаты сотрудникам", icon: WalletCards },
-  { href: "/finances#payroll-adjustments", title: "Премии и штрафы", description: "Корректировки зарплаты", icon: Gift },
-  { href: "/finances#store-plan", title: "План на магазин", description: "Планы продаж по магазинам", icon: LayoutList },
+  { href: "/finances?form=adjustments", title: "Премии и штрафы", description: "Корректировки зарплаты", icon: Gift },
+  { href: "/finances?form=plan", title: "План на магазин", description: "Планы продаж по магазинам", icon: LayoutList },
   { href: "/cash", title: "Наличные в кассе", description: "Остатки, РКО и ПКО", icon: Banknote },
 ];
 
@@ -18,7 +18,8 @@ function currentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
-export default async function FinancesPage() {
+export default async function FinancesPage({ searchParams }: { searchParams: Promise<{ form?: string }> }) {
+  const { form } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -65,8 +66,8 @@ export default async function FinancesPage() {
           ))}
         </div>
 
-        <section className="mt-6 grid gap-4 lg:grid-cols-2">
-          <div id="store-plan" className="ui-panel p-4">
+        {form === "plan" ? <section className="mt-6 ui-panel p-4">
+          <div id="store-plan">
             <h2 className="font-semibold">План на магазин</h2>
             <p className="mt-1 text-sm text-muted">Выставить или просмотреть план продаж по доступным магазинам.</p>
             <form action="/admin/store-plans/save" className="mt-4 grid gap-3" method="post">
@@ -85,8 +86,10 @@ export default async function FinancesPage() {
               })}
             </div>
           </div>
+        </section> : null}
 
-          <div id="payroll-adjustments" className="ui-panel p-4">
+        {form === "adjustments" ? <section className="mt-6 ui-panel p-4">
+          <div id="payroll-adjustments">
             <h2 className="font-semibold">Премии и штрафы</h2>
             <p className="mt-1 text-sm text-muted">Добавить премию, штраф или другую корректировку сотруднику.</p>
             <form action="/admin/payroll-adjustments/create" className="mt-4 grid gap-3" method="post">
@@ -107,7 +110,7 @@ export default async function FinancesPage() {
               <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить корректировку</button>
             </form>
           </div>
-        </section>
+        </section> : null}
       </div>
       <BottomNav />
     </main>
