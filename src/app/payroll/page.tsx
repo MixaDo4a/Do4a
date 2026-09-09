@@ -243,7 +243,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
               <Link
                 key={entry.id}
                 className="ui-panel block p-4 transition hover:border-brand/60"
-                href={`/payroll?period=${month}&employeeId=${entry.employee_id}#payroll-statement`}
+                href={`/payroll/statement?period=${month}&employeeId=${entry.employee_id}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
