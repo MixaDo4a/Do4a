@@ -14,15 +14,21 @@ export function CashRecountForm({
   denominations,
   initialCounts = {},
   initialCoins = "",
+  initialWithdrawal = "",
+  initialWithdrawalComment = "",
 }: {
   storeId: string;
   shiftId: string;
   denominations: Denomination[];
   initialCounts?: Record<string, string>;
   initialCoins?: string;
+  initialWithdrawal?: string;
+  initialWithdrawalComment?: string;
 }) {
   const [counts, setCounts] = useState<Record<string, string>>(initialCounts);
   const [coins, setCoins] = useState(initialCoins);
+  const [withdrawal, setWithdrawal] = useState(initialWithdrawal);
+  const [withdrawalComment, setWithdrawalComment] = useState(initialWithdrawalComment);
   const total = useMemo(
     () => denominations.reduce((sum, denomination) => sum + denomination.value * Number(counts[denomination.id] || 0), 0) + Number(coins || 0),
     [coins, counts, denominations],
@@ -57,10 +63,25 @@ export function CashRecountForm({
         <span>Мелочь в мешках</span>
         <input className="h-10 ui-panel px-3 outline-none focus:border-brand" inputMode="decimal" min="0" name="coins_amount" onChange={(event) => setCoins(event.target.value)} step="0.01" type="number" value={coins} />
       </label>
+      <label className="grid grid-cols-[1fr_100px] items-center gap-2 text-sm">
+        <span>Выемка</span>
+        <input className="h-10 ui-panel px-3 outline-none focus:border-brand" inputMode="decimal" min="0" name="withdrawal_amount" onChange={(event) => setWithdrawal(event.target.value)} step="0.01" type="number" value={withdrawal} />
+      </label>
+      <label className="grid gap-1 text-sm">
+        <span>Комментарий к выемке{Number(withdrawal || 0) > 0 ? " *" : ""}</span>
+        <textarea
+          className="min-h-20 ui-panel px-3 py-2 outline-none focus:border-brand"
+          name="withdrawal_comment"
+          onChange={(event) => setWithdrawalComment(event.target.value)}
+          required={Number(withdrawal || 0) > 0}
+          value={withdrawalComment}
+        />
+      </label>
       <div className="flex items-center justify-between border-t border-line pt-3 font-semibold">
         <span>Итого</span>
         <span>{money(total)} руб.</span>
       </div>
+      <p className="text-xs text-muted">После выемки в кассе останется: {money(Math.max(0, total - Number(withdrawal || 0)))} руб.</p>
       <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white" type="submit">Внести</button>
     </form>
   );

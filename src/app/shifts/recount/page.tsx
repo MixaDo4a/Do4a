@@ -10,6 +10,8 @@ type PageProps = { searchParams: Promise<{ storeId?: string; shiftId?: string; m
 
 type PreviousCashCount = {
   coins_amount?: unknown;
+  withdrawal_amount?: unknown;
+  withdrawal_comment?: unknown;
   rows?: Array<{ denomination_id?: unknown; quantity?: unknown }>;
 };
 
@@ -43,11 +45,11 @@ export default async function CashRecountPage({ searchParams }: PageProps) {
 
   const { data: previousCashCount } = await supabase
     .from("store_cash_counts")
-    .select("denominations")
-    .eq("store_id", shift.store_id)
+    .select("denominations, withdrawal_amount, withdrawal_comment")
+    .eq("shift_id", shift.id)
     .order("created_at", { ascending: false })
     .limit(1)
-    .maybeSingle<{ denominations: PreviousCashCount | null }>();
+    .maybeSingle<PreviousCashCount & { denominations: PreviousCashCount | null }>();
 
   const previousDenominations = previousCashCount?.denominations;
   const initialCounts = Object.fromEntries(
@@ -58,6 +60,10 @@ export default async function CashRecountPage({ searchParams }: PageProps) {
   const initialCoins = Number.isFinite(Number(previousDenominations?.coins_amount)) && Number(previousDenominations?.coins_amount) >= 0
     ? String(previousDenominations?.coins_amount)
     : "";
+  const initialWithdrawal = Number.isFinite(Number(previousCashCount?.withdrawal_amount)) && Number(previousCashCount?.withdrawal_amount) >= 0
+    ? String(previousCashCount?.withdrawal_amount)
+    : "";
+  const initialWithdrawalComment = typeof previousCashCount?.withdrawal_comment === "string" ? previousCashCount.withdrawal_comment : "";
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -73,6 +79,8 @@ export default async function CashRecountPage({ searchParams }: PageProps) {
             initialCounts={initialCounts}
             shiftId={shift.id}
             storeId={shift.store_id}
+            initialWithdrawal={initialWithdrawal}
+            initialWithdrawalComment={initialWithdrawalComment}
           />
         </section>
       </div>
