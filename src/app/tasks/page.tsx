@@ -13,7 +13,7 @@ import {
   TASK_CREATOR_ROLES,
 } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
-import { cleanText, employeeName } from "@/lib/display";
+import { cleanText } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type TaskRow = {

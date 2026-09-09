@@ -5,7 +5,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { getCurrentEmployeeId } from "@/lib/auth/roles";
-import { cleanText, employeeName } from "@/lib/display";
+import { cleanText } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type TaskRow = {
