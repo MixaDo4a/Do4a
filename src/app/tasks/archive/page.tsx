@@ -163,7 +163,7 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
                 <div>
                   <p className="font-semibold">{cleanText(task.title, "Задача")}</p>
                   <p className="mt-1 text-sm text-muted">
-                    {cleanText(task.employees?.full_name, "Сотрудник")} · {cleanText(task.stores?.name, "Магазин")}
+                    {cleanText(task.employees?.full_name, "не выбрано")} · {cleanText(task.stores?.name, "Магазин")}
                   </p>
                   {task.description ? <p className="mt-2 text-sm text-muted">{cleanText(task.description, "Описание")}</p> : null}
                 </div>

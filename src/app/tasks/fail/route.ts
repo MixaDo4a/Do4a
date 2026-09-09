@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     .from("tasks")
     .select("id, assignee_employee_id, store_id")
     .eq("id", taskId)
-    .maybeSingle<{ id: string; assignee_employee_id: string; store_id: string }>();
+    .maybeSingle<{ id: string; assignee_employee_id: string | null; store_id: string }>();
 
   if (readError || !task) {
     return NextResponse.redirect(tasksUrl(request, "task-error", readError?.message ?? "Задача не найдена."), 303);
@@ -81,14 +81,16 @@ export async function POST(request: NextRequest) {
   const employeeLabel = employeeRow?.full_name ?? "Сотрудник";
   const commentBody = `${employeeLabel} · ${storeLabel} · ${comment}`;
 
-  await supabase.rpc("send_employee_notification", {
-    p_employee_id: task.assignee_employee_id,
-    p_event_type: "task_overdue",
-    p_title: "Задача просрочена",
-    p_body: commentBody,
-    p_related_entity_type: "task",
-    p_related_entity_id: taskId,
-  });
+  if (task.assignee_employee_id) {
+    await supabase.rpc("send_employee_notification", {
+      p_employee_id: task.assignee_employee_id,
+      p_event_type: "task_overdue",
+      p_title: "Задача просрочена",
+      p_body: commentBody,
+      p_related_entity_type: "task",
+      p_related_entity_id: taskId,
+    });
+  }
 
   await supabase.rpc("send_store_managers_notification", {
     p_store_id: task.store_id,

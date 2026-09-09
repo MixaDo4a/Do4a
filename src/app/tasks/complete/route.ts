@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     .from("tasks")
     .select("id, assignee_employee_id, store_id, title, created_by")
     .eq("id", taskId)
-    .maybeSingle<{ id: string; assignee_employee_id: string; store_id: string; title: string; created_by: string | null }>();
+    .maybeSingle<{ id: string; assignee_employee_id: string | null; store_id: string; title: string; created_by: string | null }>();
 
   if (readError || !task) {
     return NextResponse.redirect(tasksUrl(request, "task-error", readError?.message ?? "Задача не найдена."), 303);
