@@ -24,8 +24,8 @@ type TaskRow = {
   due_at: string | null;
   priority: "low" | "normal" | "high" | "urgent";
   status: "open" | "in_progress" | "done" | "overdue" | "cancelled";
-  stores: { id: string; name: string }[] | null;
-  employees: { id: string; full_name: string }[] | null;
+  stores: { id: string; name: string } | null;
+  employees: { id: string; full_name: string } | null;
   task_comments: { id: string; body: string; created_at: string }[];
 };
 
@@ -376,7 +376,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
                 <div>
                   <p className="font-semibold">{cleanText(task.title, "Задача")}</p>
                   <p className="mt-1 text-sm text-muted">
-                    {employeeName(task.employees?.[0] ?? null)} · {task.stores?.[0]?.name ?? "Магазин"}
+                    {cleanText(task.employees?.full_name, "Сотрудник")} · {cleanText(task.stores?.name, "Магазин")}
                   </p>
                   {task.description ? <p className="mt-2 text-sm text-muted">{cleanText(task.description, "Описание")}</p> : null}
                 </div>
