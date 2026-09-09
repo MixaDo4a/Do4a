@@ -93,6 +93,7 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
             <h2 className="font-semibold">Премии и штрафы</h2>
             <p className="mt-1 text-sm text-muted">Добавить премию, штраф или другую корректировку сотруднику.</p>
             <form action="/admin/payroll-adjustments/create" className="mt-4 grid gap-3" method="post">
+              <input name="return_to" type="hidden" value="/finances" />
               <select className="h-11 rounded-md border border-line px-3" name="employee_id" required>
                 <option value="">Выберите сотрудника</option>
                 {accessibleEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}
