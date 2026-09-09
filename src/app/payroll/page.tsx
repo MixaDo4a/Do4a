@@ -1,5 +1,6 @@
 ﻿import { WalletCards } from "lucide-react";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
 import { Metric } from "@/components/metric";
 import { PayrollMonthForm } from "@/components/payroll-month-form";
@@ -8,7 +9,7 @@ import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } f
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
-  searchParams: Promise<{ message?: string; period?: string; detail?: string }>;
+  searchParams: Promise<{ message?: string; period?: string; detail?: string; employeeId?: string }>;
 };
 
 type PayrollEntry = {
@@ -30,9 +31,28 @@ type PayrollEntry = {
 };
 
 type PayrollAdjustment = {
+  id: string;
   employee_id: string;
   adjustment_type: string;
   amount: number | string;
+  reason: string;
+  created_at: string;
+};
+
+type SalesDetail = {
+  shift_id: string;
+  gross_revenue: number | string;
+  sales_percent: number | string;
+  sales_pay_amount: number | string;
+  shifts: { shift_date: string; stores: { name: string } | null } | null;
+};
+
+type ChecklistDetail = {
+  id: string;
+  submitted_at: string;
+  salary_per_shift_amount: number | string;
+  average_score: number | string;
+  stores: { name: string } | null;
 };
 
 type AdjustmentTotals = {
@@ -48,6 +68,15 @@ const messages: Record<string, string> = {
   "period-required": "Укажите месяц.",
   "calculate-error": "Не удалось пересчитать зарплату.",
   calculated: "Зарплата пересчитана.",
+};
+
+const adjustmentLabels: Record<string, string> = {
+  bonus: "Премия",
+  fine: "Штраф",
+  advance: "Аванс",
+  inventory: "Инвентаризация",
+  expiration: "Просрочка",
+  product: "Корректировка под ЗП",
 };
 
 function currentMonth() {
@@ -76,7 +105,7 @@ function emptyAdjustmentTotals(): AdjustmentTotals {
 }
 
 export default async function PayrollPage({ searchParams }: PageProps) {
-  const { message, period, detail } = await searchParams;
+  const { message, period, detail, employeeId: requestedEmployeeId } = await searchParams;
   const month = period?.slice(0, 7) ?? currentMonth();
   const supabase = await createSupabaseServerClient();
   const {
@@ -124,7 +153,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
   const { data: adjustments, error: adjustmentsError } = visibleEmployeeIds.length > 0
     ? await supabase
         .from("payroll_adjustments")
-        .select("employee_id, adjustment_type, amount")
+        .select("id, employee_id, adjustment_type, amount, reason, created_at")
         .eq("period_month", monthStart(month))
         .in("employee_id", visibleEmployeeIds)
         .returns<PayrollAdjustment[]>()
@@ -133,6 +162,27 @@ export default async function PayrollPage({ searchParams }: PageProps) {
   if (adjustmentsError) {
     throw new Error(adjustmentsError.message);
   }
+
+  const selectedEmployeeId = requestedEmployeeId && visibleEmployeeIds.includes(requestedEmployeeId) ? requestedEmployeeId : null;
+  const selectedEntry = selectedEmployeeId ? visibleEntries.find((entry) => entry.employee_id === selectedEmployeeId) ?? null : null;
+  const [{ data: salesDetails }, { data: checklistDetails }] = selectedEmployeeId
+    ? await Promise.all([
+        supabase
+          .from("sales_metrics")
+          .select("shift_id, gross_revenue, sales_percent, sales_pay_amount, shifts(shift_date, stores(name))")
+          .eq("employee_id", selectedEmployeeId)
+          .eq("period_month", monthStart(month))
+          .order("created_at", { ascending: true })
+          .returns<SalesDetail[]>(),
+        supabase
+          .from("checklist_submissions")
+          .select("id, submitted_at, salary_per_shift_amount, average_score, stores(name)")
+          .eq("employee_id", selectedEmployeeId)
+          .eq("period_month", monthStart(month))
+          .order("submitted_at", { ascending: true })
+          .returns<ChecklistDetail[]>(),
+      ])
+    : [{ data: [] as SalesDetail[] }, { data: [] as ChecklistDetail[] }];
 
   const adjustmentTotalsByEmployee = new Map<string, AdjustmentTotals>();
   adjustments.forEach((adjustment) => {
@@ -187,9 +237,10 @@ export default async function PayrollPage({ searchParams }: PageProps) {
           ) : (
             visibleEntries.map((entry) => {
               const adjustmentTotals = adjustmentTotalsByEmployee.get(entry.employee_id) ?? emptyAdjustmentTotals();
+              const displayedPayout = Number(entry.total_payout_amount) - adjustmentTotals.advance;
 
               return (
-              <article key={entry.id} className="ui-panel p-4">
+              <Link key={entry.id} className="ui-panel block p-4 transition hover:border-brand/60" href={`/payroll?period=${month}&employeeId=${entry.employee_id}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="font-semibold">{entry.employees?.full_name ?? "Сотрудник"}</h2>
@@ -197,7 +248,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
                       Смен: {entry.shift_count} · Оборот: {money(entry.gross_revenue)}
                     </p>
                   </div>
-                  <strong>{money(entry.total_payout_amount)}</strong>
+                  <strong>{money(displayedPayout)}</strong>
                 </div>
 
                 <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
@@ -217,11 +268,70 @@ export default async function PayrollPage({ searchParams }: PageProps) {
                   <span>Инвента: -{money(entry.inventory_loss_amount)}</span>
                   <span>Под ЗП: -{money(entry.product_writeoff_amount)}</span>
                 </div>
-              </article>
+              </Link>
               );
             })
           )}
         </section>
+
+        {selectedEntry ? (
+          <section className="mt-6 ui-panel p-4 shadow-soft">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm text-muted">Зарплатная ведомость · {month}</p>
+                <h2 className="mt-1 text-xl font-semibold">{selectedEntry.employees?.full_name ?? "Сотрудник"}</h2>
+              </div>
+              <Link className="rounded-md border border-line px-3 py-2 text-sm font-semibold" href={`/payroll?period=${month}`}>К списку</Link>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <Metric icon={WalletCards} label="К выплате" value={money(Number(selectedEntry.total_payout_amount) - (adjustmentTotalsByEmployee.get(selectedEntry.employee_id)?.advance ?? 0))} />
+              <Metric icon={WalletCards} label="Оборот" value={money(selectedEntry.gross_revenue)} />
+              <Metric icon={WalletCards} label="Смены" value={String(selectedEntry.shift_count)} />
+            </div>
+
+            <div className="mt-6 grid gap-4">
+              <div>
+                <h3 className="font-semibold">Начисления по сменам</h3>
+                <div className="mt-2 grid gap-2">
+                  {(salesDetails ?? []).length === 0 ? <p className="text-sm text-muted">Данных по продажам за период нет.</p> : (salesDetails ?? []).map((row) => (
+                    <div key={row.shift_id} className="rounded-md border border-line p-3 text-sm">
+                      <div className="flex flex-wrap justify-between gap-2 font-semibold">
+                        <span>{row.shifts?.shift_date ?? "Дата не указана"} · {row.shifts?.stores?.name ?? "Магазин"}</span>
+                        <span>+{money(row.sales_pay_amount)}</span>
+                      </div>
+                      <p className="mt-1 text-muted">Продажи: {money(row.gross_revenue)} · Процент: {Number(row.sales_percent).toLocaleString("ru-RU")} %</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold">Оклад и план</h3>
+                <div className="mt-2 grid gap-2 text-sm">
+                  <p className="flex justify-between border-b border-line pb-2"><span>Оклад за смены</span><span className="font-semibold">+{money(selectedEntry.base_salary_amount)}</span></p>
+                  <p className="flex justify-between border-b border-line pb-2"><span>Ставка за смену</span><span>{money(selectedEntry.checklist_salary_per_shift)}</span></p>
+                  <p className="flex justify-between border-b border-line pb-2"><span>Бонус за выполнение плана</span><span className="font-semibold">+{money(selectedEntry.plan_bonus_amount)}</span></p>
+                </div>
+                {(checklistDetails ?? []).length > 0 ? <div className="mt-2 grid gap-2 text-sm">{(checklistDetails ?? []).map((row) => <p key={row.id} className="flex justify-between border-b border-line pb-2"><span>{row.submitted_at.slice(0, 10)} · {row.stores?.name ?? "Магазин"} · чек-лист {Number(row.average_score).toFixed(2)}</span><span>Ставка {money(row.salary_per_shift_amount)}</span></p>)}</div> : null}
+              </div>
+
+              <div>
+                <h3 className="font-semibold">Премии и вычеты</h3>
+                <div className="mt-2 grid gap-2 text-sm">
+                  {adjustments.filter((row) => row.employee_id === selectedEmployeeId).map((row) => {
+                    const isBonus = row.adjustment_type === "bonus";
+                    return <div key={row.id} className="flex flex-wrap justify-between gap-2 rounded-md border border-line p-3"><span>{row.created_at.slice(0, 10)} · {adjustmentLabels[row.adjustment_type] ?? row.adjustment_type}<br /><span className="text-muted">{row.reason}</span></span><span className={isBonus ? "font-semibold text-emerald-600" : "font-semibold text-brand"}>{isBonus ? "+" : "-"}{money(row.amount)}</span></div>;
+                  })}
+                  <p className="flex justify-between border-b border-line pb-2"><span>Авансы по закрытию смен</span><span>-{money(selectedEntry.advance_amount)}</span></p>
+                  <p className="flex justify-between border-b border-line pb-2"><span>Просрочка</span><span>-{money(selectedEntry.expiration_writeoff_amount)}</span></p>
+                  <p className="flex justify-between border-b border-line pb-2"><span>Инвентарные потери</span><span>-{money(selectedEntry.inventory_loss_amount)}</span></p>
+                  <p className="flex justify-between border-b border-line pb-2"><span>Корректировки под ЗП</span><span>-{money(selectedEntry.product_writeoff_amount)}</span></p>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
       </div>
       <BottomNav />
     </main>
