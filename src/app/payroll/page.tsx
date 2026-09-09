@@ -4,7 +4,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { Metric } from "@/components/metric";
 import { PayrollMonthForm } from "@/components/payroll-month-form";
 import { SectionHeader } from "@/components/section-header";
-import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -86,6 +86,8 @@ export default async function PayrollPage({ searchParams }: PageProps) {
   }
 
   const { roles } = await getCurrentRoleCodes();
+  const { employeeId } = await getCurrentEmployeeId();
+  const managerOnly = roles.includes("manager") && !hasAnyRole(roles, ["store_manager", "super_admin", "developer"]);
   const canRecalculate = hasAnyRole(roles, MANAGE_ROLES);
 
   const { data: payrollPeriod } = await supabase
@@ -94,16 +96,22 @@ export default async function PayrollPage({ searchParams }: PageProps) {
     .eq("period_month", monthStart(month))
     .maybeSingle();
 
-  const { data: entries, error } = payrollPeriod?.id
-    ? await supabase
+  let entriesQuery = payrollPeriod?.id
+    ? supabase
         .from("payroll_entries")
         .select(
           "id, employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, total_payout_amount, employees(full_name, is_active)",
         )
         .eq("payroll_period_id", payrollPeriod.id)
-        .order("total_payout_amount", { ascending: false })
-        .returns<PayrollEntry[]>()
-    : { data: [], error: null };
+    : null;
+
+  if (entriesQuery && managerOnly) {
+    entriesQuery = employeeId ? entriesQuery.eq("employee_id", employeeId) : null;
+  }
+
+  const { data: entries, error } = entriesQuery
+    ? await entriesQuery.order("total_payout_amount", { ascending: false }).returns<PayrollEntry[]>()
+    : { data: [] as PayrollEntry[], error: null };
 
   if (error) {
     throw new Error(error.message);

@@ -18,7 +18,7 @@ export default async function FinancesPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { roles } = await getCurrentRoleCodes();
-  if (!hasAnyRole(roles, [...MANAGE_ROLES, "manager", "auditor"])) redirect("/");
+  if (!hasAnyRole(roles, [...MANAGE_ROLES, "auditor"])) redirect("/");
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">

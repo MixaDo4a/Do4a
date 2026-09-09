@@ -55,6 +55,7 @@ const items: BottomNavItem[] = [
     roles: ["auditor", "store_manager", "super_admin", "developer"],
     hideForAuditorOnly: false,
   },
+  { href: "/payroll", label: "ЗП", icon: WalletCards, roles: ["manager"], hideForAuditorOnly: false },
   { href: "/finances", label: "Финансы", icon: WalletCards, roles: null, hideForAuditorOnly: true },
   { href: "/notifications", label: "Увед.", icon: Bell, roles: null, hideForAuditorOnly: false },
   {
@@ -191,6 +192,9 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
           return false;
         }
         if (managerOnly && ["/shifts", "/routine"].includes(item.href)) {
+          return false;
+        }
+        if (managerOnly && item.href === "/finances") {
           return false;
         }
         if (managementView && ["/shifts", "/routine", "/procurement", "/checklists", "/checklists/new"].includes(item.href)) {
