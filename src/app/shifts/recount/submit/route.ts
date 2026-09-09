@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     shift_id: shiftId,
     counted_by_employee_id: employeeId,
     created_by: user.id,
-    cash_amount: totalAmount - withdrawalAmount,
+    cash_amount: totalAmount,
     counted_amount: totalAmount,
     withdrawal_amount: withdrawalAmount,
     withdrawal_comment: withdrawalComment || null,

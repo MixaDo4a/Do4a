@@ -81,7 +81,7 @@ export function CashRecountForm({
         <span>Итого</span>
         <span>{money(total)} руб.</span>
       </div>
-      <p className="text-xs text-muted">После выемки в кассе останется: {money(Math.max(0, total - Number(withdrawal || 0)))} руб.</p>
+      <p className="text-xs text-muted">Остаток в кассе: {money(total)} руб. Выемка фиксируется отдельно и не уменьшает сумму кассы.</p>
       <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white" type="submit">Внести</button>
     </form>
   );
