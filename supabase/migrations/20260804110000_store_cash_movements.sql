@@ -15,7 +15,7 @@ create index if not exists store_cash_movements_store_created_idx
 drop trigger if exists set_store_cash_movements_updated_at on public.store_cash_movements;
 create trigger set_store_cash_movements_updated_at
   before update on public.store_cash_movements
-  for each row execute function app_private.set_updated_at();
+  for each row execute function public.set_updated_at();
 
 alter table public.store_cash_movements enable row level security;
 

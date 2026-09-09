@@ -21,6 +21,12 @@ type MovementRow = {
   stores: { name: string; city: string } | null;
 };
 
+type CashCountRow = {
+  store_id: string;
+  cash_amount: number | string;
+  created_at: string;
+};
+
 const viewRoles = ["manager", "auditor", "store_manager", "super_admin", "developer", "warehouse_manager"];
 const manageRoles = ["super_admin", "developer"];
 
@@ -64,7 +70,7 @@ export default async function CashPage({ searchParams }: PageProps) {
   const stores = await getAccessibleStores();
   const storeIds = stores.map((store) => store.id);
 
-  const [shiftsResult, movementsResult] = await Promise.all([
+  const [shiftsResult, movementsResult, cashCountsResult] = await Promise.all([
     storeIds.length > 0
       ? supabase
           .from("shifts")
@@ -86,11 +92,26 @@ export default async function CashPage({ searchParams }: PageProps) {
           .limit(100)
           .returns<MovementRow[]>()
       : Promise.resolve({ data: [] as MovementRow[], error: null }),
+    storeIds.length > 0
+      ? supabase
+          .from("store_cash_counts")
+          .select("store_id, cash_amount, created_at")
+          .in("store_id", storeIds)
+          .order("created_at", { ascending: false })
+          .limit(150)
+          .returns<CashCountRow[]>()
+      : Promise.resolve({ data: [] as CashCountRow[], error: null }),
   ]);
 
   const pageWarnings: string[] = [];
   const shifts = shiftsResult.error ? [] : shiftsResult.data;
   const movements = movementsResult.error ? [] : movementsResult.data;
+  const latestCashCountByStore = new Map<string, CashCountRow>();
+  for (const cashCount of cashCountsResult.error ? [] : cashCountsResult.data) {
+    if (!latestCashCountByStore.has(cashCount.store_id)) {
+      latestCashCountByStore.set(cashCount.store_id, cashCount);
+    }
+  }
 
   if (shiftsResult.error) {
     pageWarnings.push(`Не удалось загрузить данные по сменам: ${shiftsResult.error.message}`);
@@ -100,7 +121,34 @@ export default async function CashPage({ searchParams }: PageProps) {
     pageWarnings.push(`Не удалось загрузить движения: ${movementsResult.error.message}`);
   }
 
-  const balances = buildStoreCashBalances(shifts);
+  const balancesByStore = new Map(buildStoreCashBalances(shifts).map((balance) => [balance.storeId, balance]));
+  for (const store of stores) {
+    if (!balancesByStore.has(store.id)) {
+      balancesByStore.set(store.id, {
+        storeId: store.id,
+        storeName: store.name,
+        city: store.city,
+        lastClosedAt: null,
+        lastShiftDate: "",
+        latestReportTotal: 0,
+        totalCollectionAmount: 0,
+        balance: 0,
+      });
+    }
+  }
+  for (const [storeId, balance] of balancesByStore) {
+    const cashCount = latestCashCountByStore.get(storeId);
+    if (!cashCount || (balance.lastClosedAt && cashCount.created_at < balance.lastClosedAt)) {
+      continue;
+    }
+    const cashAmount = Number(cashCount.cash_amount);
+    balancesByStore.set(storeId, {
+      ...balance,
+      latestReportTotal: cashAmount,
+      balance: cashAmount,
+    });
+  }
+  const balances = stores.map((store) => balancesByStore.get(store.id)).filter((balance): balance is NonNullable<typeof balance> => Boolean(balance));
   const totalBalance = balances.reduce((sum, item) => sum + item.balance, 0);
 
   return (
