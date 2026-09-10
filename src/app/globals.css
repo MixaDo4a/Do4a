@@ -114,9 +114,9 @@ select:focus-visible {
 .login-field input:-webkit-autofill:focus,
 .login-field input:-webkit-autofill:active {
   -webkit-text-fill-color: #f2ece7 !important;
-  box-shadow: 0 0 0 1000px #0d0d0d inset !important;
-  -webkit-box-shadow: 0 0 0 1000px #0d0d0d inset !important;
-  background-color: #0d0d0d !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  background-color: transparent !important;
   transition: background-color 9999s ease-out 0s;
 }
 
