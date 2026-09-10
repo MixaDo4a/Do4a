@@ -49,7 +49,7 @@ select {
   -webkit-backface-visibility: hidden;
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   overflow: visible;
-  background: transparent;
+  background: rgba(9, 6, 7, 0.96);
 }
 
 .bottom-nav-grid {
