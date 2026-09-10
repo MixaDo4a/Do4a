@@ -244,7 +244,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
       resizeObserver?.disconnect();
       window.removeEventListener("resize", updateIndicator);
     };
-  }, [activeIndex, visibleItems.length]);
+  }, [activeIndex, isMounted, visibleItems.length]);
 
   useEffect(() => {
     const handleTouchStart = (event: TouchEvent) => {
