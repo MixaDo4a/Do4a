@@ -1,4 +1,5 @@
 ﻿import { Bell, CheckCheck, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { PushNotificationsPanel } from "@/components/push-notifications-panel";
@@ -85,7 +86,13 @@ function relatedHref(item: NotificationRow) {
   return null;
 }
 
-export default async function NotificationsPage() {
+const PAGE_SIZE = 20;
+
+export default async function NotificationsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ page?: string | string[] }>;
+}) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -95,17 +102,25 @@ export default async function NotificationsPage() {
     redirect("/login");
   }
 
-  const { data, error } = await supabase
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const rawPage = Array.isArray(resolvedSearchParams.page) ? resolvedSearchParams.page[0] : resolvedSearchParams.page;
+  const page = Math.max(1, Number.parseInt(rawPage ?? "1", 10) || 1);
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
+  const { data, count, error } = await supabase
     .from("notifications")
-    .select("id, event_type, title, body, related_entity_type, related_entity_id, is_read, created_at")
+    .select("id, event_type, title, body, related_entity_type, related_entity_id, is_read, created_at", { count: "exact" })
     .eq("recipient_profile_id", user.id)
     .order("created_at", { ascending: false })
-    .limit(50)
+    .range(from, to)
     .returns<NotificationRow[]>();
 
   if (error) {
     throw new Error(error.message);
   }
+
+  const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -168,6 +183,21 @@ export default async function NotificationsPage() {
             })
           )}
         </div>
+        {totalPages > 1 ? (
+          <nav aria-label="Навигация по уведомлениям" className="mt-4 flex items-center justify-between gap-3">
+            {page > 1 ? (
+              <Link className="ui-panel px-3 py-2 text-sm font-semibold" href={`/notifications?page=${page - 1}`}>
+                Назад
+              </Link>
+            ) : <span />}
+            <span className="text-xs text-muted">{page} / {totalPages}</span>
+            {page < totalPages ? (
+              <Link className="ui-panel px-3 py-2 text-sm font-semibold" href={`/notifications?page=${page + 1}`}>
+                Далее
+              </Link>
+            ) : <span />}
+          </nav>
+        ) : null}
       </div>
       <BottomNav />
     </main>
