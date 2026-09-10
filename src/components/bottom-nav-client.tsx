@@ -4,7 +4,7 @@ import { BadgePercent, Bell, CalendarClock, ClipboardCheck, Home, ListTodo, Pack
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PROCUREMENT_ROLES } from "@/lib/auth/role-constants";
 import { registerPushServiceWorker } from "@/lib/push-client";
 
@@ -91,9 +91,6 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const pathname = usePathname();
   const router = useRouter();
   const touchStartRef = useRef<TouchPoint | null>(null);
-  const navGridRef = useRef<HTMLDivElement | null>(null);
-  const navItemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
-  const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const hasUnreadNotifications = unreadCount > 0;
   const auditorOnly = roles.includes("auditor") && !roles.some((role) => managementRoles.includes(role));
@@ -208,44 +205,6 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
 
   const activeIndex = useMemo(() => resolveActiveIndex(pathname, visibleItems), [pathname, visibleItems]);
 
-  useLayoutEffect(() => {
-    const updateIndicator = () => {
-      const container = navGridRef.current;
-      const activeElement = navItemRefs.current[activeIndex];
-
-      if (!container || !activeElement) {
-        setIndicatorStyle(null);
-        return;
-      }
-
-      const containerRect = container.getBoundingClientRect();
-      const activeRect = activeElement.getBoundingClientRect();
-
-      setIndicatorStyle({
-        left: activeRect.left - containerRect.left + activeRect.width / 2,
-        width: activeRect.width,
-      });
-    };
-
-    updateIndicator();
-
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const resizeObserver = "ResizeObserver" in window ? new ResizeObserver(updateIndicator) : null;
-    if (resizeObserver && navGridRef.current) {
-      resizeObserver.observe(navGridRef.current);
-    }
-
-    window.addEventListener("resize", updateIndicator);
-
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", updateIndicator);
-    };
-  }, [activeIndex, isMounted, visibleItems.length]);
-
   useEffect(() => {
     const handleTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) {
@@ -305,21 +264,16 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   return createPortal(
     <nav className="bottom-nav-shell px-2 pt-2" style={{ touchAction: "pan-y" }}>
       <div
-        ref={navGridRef}
-        className="bottom-nav-grid relative mx-auto grid max-w-[390px] gap-1"
+        className="bottom-nav-grid relative mx-auto grid max-w-[390px] gap-0"
         style={{ gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))` }}
       >
-        {indicatorStyle ? (
-          <div
-            aria-hidden="true"
-            className="bottom-nav-indicator pointer-events-none absolute z-0 transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-            style={{
-              left: indicatorStyle.left,
-            }}
-          >
-            <span className="bottom-nav-indicator-circle" />
-          </div>
-        ) : null}
+        <div
+          aria-hidden="true"
+          className="bottom-nav-indicator pointer-events-none absolute z-0 transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{ left: `calc((100% / ${visibleItems.length}) * ${activeIndex + 0.5})` }}
+        >
+          <span className="bottom-nav-indicator-circle" />
+        </div>
         {visibleItems.map((item, index) => {
           const active = pathname === item.href || (item.href !== "/" && item.href !== "/checklists" && pathname.startsWith(item.href));
           const Icon = item.href === "/procurement" && managerOnly ? BadgePercent : item.icon;
@@ -329,9 +283,6 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
           return (
             <Link
               key={item.href}
-              ref={(element) => {
-                navItemRefs.current[index] = element;
-              }}
               className={`bottom-nav-item relative z-10 flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] text-[11px] font-medium transition ${
                 active ? "bottom-nav-item-active text-white" : "text-muted"
               }`}
