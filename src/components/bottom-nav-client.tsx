@@ -222,7 +222,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
       const activeRect = activeElement.getBoundingClientRect();
 
       setIndicatorStyle({
-        left: activeRect.left - containerRect.left,
+        left: activeRect.left - containerRect.left + activeRect.width / 2,
         width: activeRect.width,
       });
     };
@@ -303,21 +303,22 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   }
 
   return createPortal(
-    <nav className="bottom-nav-shell border-t border-line bg-[#090607]/95 px-2 pt-2" style={{ touchAction: "pan-y" }}>
+    <nav className="bottom-nav-shell px-2 pt-2" style={{ touchAction: "pan-y" }}>
       <div
         ref={navGridRef}
-        className="relative mx-auto grid max-w-[390px] gap-1"
+        className="bottom-nav-grid relative mx-auto grid max-w-[390px] gap-1"
         style={{ gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))` }}
       >
         {indicatorStyle ? (
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 z-0 rounded-[18px] bg-brand shadow-[0_10px_28px_rgba(193,18,31,0.45),0_0_22px_rgba(255,57,72,0.24)] transition-[left,width,transform] duration-300 ease-out"
+            className="bottom-nav-indicator pointer-events-none absolute z-0 transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{
               left: indicatorStyle.left,
-              width: indicatorStyle.width,
             }}
-          />
+          >
+            <span className="bottom-nav-indicator-circle" />
+          </div>
         ) : null}
         {visibleItems.map((item, index) => {
           const active = pathname === item.href || (item.href !== "/" && item.href !== "/checklists" && pathname.startsWith(item.href));
