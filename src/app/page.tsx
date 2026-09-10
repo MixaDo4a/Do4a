@@ -268,23 +268,28 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  const { data: profile, error: profileError } = await supabase
+  const profileQuery = supabase
     .from("profiles")
     .select("employee_id, full_name, email, employees(full_name, employee_status)")
     .eq("id", user.id)
     .maybeSingle<ProfileRow>();
 
-  if (profileError) {
-    redirectInvalidSession(profileError);
-    throw new Error(profileError.message);
-  }
-
-  const { data: roleRows, error: rolesError } = await supabase
+  const rolesQuery = supabase
     .from("user_roles")
     .select("roles(code, name)")
     .eq("profile_id", user.id)
     .is("revoked_at", null)
     .returns<UserRoleRow[]>();
+
+  const accessibleStoresPromise = getAccessibleStores();
+  const [profileResult, rolesResult] = await Promise.all([profileQuery, rolesQuery]);
+  const { data: profile, error: profileError } = profileResult;
+  const { data: roleRows, error: rolesError } = rolesResult;
+
+  if (profileError) {
+    redirectInvalidSession(profileError);
+    throw new Error(profileError.message);
+  }
 
   if (rolesError) {
     throw new Error(rolesError.message);
@@ -304,7 +309,7 @@ export default async function HomePage() {
   const buyerOnlyView = roleCodes.includes("buyer") && !managementView && !roleCodes.includes("developer");
   const supportOnlyView = warehouseManagerOnlyView || warehouseAssistantOnlyView || buyerOnlyView;
   const canSeeAccessibleStoreSchedules = managementView || auditorOnly || warehouseManagerOnlyView || buyerOnlyView;
-  const accessibleStores = await getAccessibleStores();
+  const accessibleStores = await accessibleStoresPromise;
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
   const hasAccessibleStores = accessibleStoreIds.length > 0;
   const cashCountsQuery =
