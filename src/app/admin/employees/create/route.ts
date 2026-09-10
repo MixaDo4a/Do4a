@@ -111,13 +111,10 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: storeRow } = await supabase.from("stores").select("city").eq("id", primaryStoreId).maybeSingle();
-  const initialPassword = "Do4aTest345";
 
-  const { data: createdAuthUser, error: authError } = await serviceSupabase.auth.admin.createUser({
-    email,
-    password: initialPassword,
-    email_confirm: true,
-    user_metadata: {
+  const { data: createdAuthUser, error: authError } = await serviceSupabase.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${new URL("/auth/callback", request.url).origin}/auth/callback`,
+    data: {
       full_name: fullName,
       employee_role: employeeRole,
       telegram_username: telegramUsername,

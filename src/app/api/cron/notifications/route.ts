@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
 import { getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function POST(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   const providedSecret = request.headers.get("x-cron-secret");
 
   if (cronSecret && providedSecret === cronSecret) {
-    const supabase = await createSupabaseServerClient();
+    let supabase: ReturnType<typeof createSupabaseServiceRoleClient>;
+    try {
+      supabase = createSupabaseServiceRoleClient();
+    } catch {
+      return NextResponse.json({ error: "Service role is not configured" }, { status: 500 });
+    }
     const [{ data: cronData, error: cronError }, { data: routineData, error: routineError }] = await Promise.all([
       supabase.rpc("run_notification_cron"),
       supabase.rpc("run_day_routine_evening_reminders"),
@@ -38,9 +44,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  let serviceSupabase: ReturnType<typeof createSupabaseServiceRoleClient>;
+  try {
+    serviceSupabase = createSupabaseServiceRoleClient();
+  } catch {
+    return NextResponse.json({ error: "Service role is not configured" }, { status: 500 });
+  }
+
   const [{ data: cronData, error: cronError }, { data: routineData, error: routineError }] = await Promise.all([
-    supabase.rpc("run_notification_cron"),
-    supabase.rpc("run_day_routine_evening_reminders"),
+    serviceSupabase.rpc("run_notification_cron"),
+    serviceSupabase.rpc("run_day_routine_evening_reminders"),
   ]);
 
   if (cronError) {

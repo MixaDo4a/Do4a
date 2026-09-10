@@ -1,6 +1,5 @@
 ﻿"use client";
 
-import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 type BackgroundMapItem = {
@@ -26,8 +25,6 @@ const ROUTE_BACKGROUNDS: BackgroundMapItem[] = [
   { match: ["/schedule"], src: "/page-bgs/routine.png" },
 ];
 
-const PRELOADED_BACKGROUNDS = new Set<string>();
-
 function resolveBackground(pathname: string) {
   for (const item of ROUTE_BACKGROUNDS) {
     if (item.match.some((pattern) => (pattern === "/" ? pathname === "/" : pathname.startsWith(pattern)))) {
@@ -40,23 +37,6 @@ function resolveBackground(pathname: string) {
 
 export function RouteBackground() {
   const pathname = usePathname();
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    for (const item of ROUTE_BACKGROUNDS) {
-      if (PRELOADED_BACKGROUNDS.has(item.src)) {
-        continue;
-      }
-
-      const image = new window.Image();
-      image.decoding = "async";
-      image.src = item.src;
-      PRELOADED_BACKGROUNDS.add(item.src);
-    }
-  }, []);
 
   if (pathname === "/login" || pathname.startsWith("/auth")) {
     return null;

@@ -125,7 +125,7 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
             <input className="h-10 rounded-md border border-line px-3" name="telegram_username" placeholder="Telegram username" required />
             <input className="h-10 rounded-md border border-line px-3" name="city" placeholder="Город" required />
             <EmployeeRoleStatusFields assignableRoleCodes={assignableRoleCodes} defaultStatus="padawan" roleLabels={roleLabels} />
-            <p className="text-xs text-muted">Пароль для всех тестовых учёток: Do4aTest345</p>
+            <p className="text-xs text-muted">Ссылка для установки пароля будет отправлена на email сотрудника.</p>
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-muted">Магазины доступа</span>
