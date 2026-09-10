@@ -382,6 +382,37 @@ export default async function HomePage() {
   const selectedMonth = monthStartDate();
   const selectedMonthEnd = monthEndDate(selectedMonth);
   const employeesLookupQuery = supabase.from("employees").select("id, full_name").eq("is_active", true).returns<EmployeeLookupRow[]>();
+  const schedulePreviewQuery =
+    managerOnlyView && profile?.employee_id
+      ? supabase
+          .from("schedules")
+          .select("id, store_id, shift_date, status, stores(id, name, city), employee_id")
+          .eq("employee_id", profile.employee_id)
+          .gte("shift_date", selectedMonth)
+          .lte("shift_date", selectedMonthEnd)
+          .order("shift_date", { ascending: true })
+          .returns<SchedulePreview[]>()
+      : canSeeAccessibleStoreSchedules
+      ? accessibleStoreIds.length > 0
+        ? supabase
+            .from("schedules")
+            .select("id, store_id, shift_date, status, stores(id, name, city), employee_id")
+            .in("store_id", accessibleStoreIds)
+            .gte("shift_date", selectedMonth)
+            .lte("shift_date", selectedMonthEnd)
+            .order("shift_date", { ascending: true })
+            .returns<SchedulePreview[]>()
+        : Promise.resolve({ data: [] as SchedulePreview[], error: null })
+      : profile?.employee_id
+      ? supabase
+          .from("schedules")
+          .select("id, store_id, shift_date, status, stores(id, name, city), employee_id")
+          .eq("employee_id", profile.employee_id)
+          .gte("shift_date", selectedMonth)
+          .lte("shift_date", selectedMonthEnd)
+          .order("shift_date", { ascending: true })
+          .returns<SchedulePreview[]>()
+      : Promise.resolve({ data: [] as SchedulePreview[], error: null });
 
   const [
     shiftsResult,
@@ -393,6 +424,7 @@ export default async function HomePage() {
     checklistArchiveResult,
     employeesLookupResult,
     cashCountsResult,
+    schedulePreviewResult,
   ] = (await Promise.all([
     auditorOnly || supportOnlyView
       ? Promise.resolve({
@@ -434,7 +466,12 @@ export default async function HomePage() {
     checklistArchiveQuery,
     employeesLookupQuery,
     cashCountsQuery,
+    schedulePreviewQuery,
   ])) as any;
+  const typedSchedulePreviewResult = schedulePreviewResult as {
+    data: SchedulePreview[] | null;
+    error: { message: string } | null;
+  };
 
   if (shiftsResult.error) {
     redirectInvalidSession(shiftsResult.error);
@@ -492,44 +529,11 @@ export default async function HomePage() {
   const employeeNameById = new Map<string, string>(
     (employeesLookupResult.data ?? []).map((employee: EmployeeLookupRow) => [employee.id, employee.full_name] as const),
   );
-  const schedulePreviewQuery =
-    managerOnlyView && profile?.employee_id
-      ? supabase
-          .from("schedules")
-          .select("id, store_id, shift_date, status, stores(id, name, city), employee_id")
-          .eq("employee_id", profile.employee_id)
-          .gte("shift_date", selectedMonth)
-          .lte("shift_date", selectedMonthEnd)
-          .order("shift_date", { ascending: true })
-          .returns<SchedulePreview[]>()
-      : canSeeAccessibleStoreSchedules
-      ? accessibleStoreIds.length > 0
-        ? supabase
-            .from("schedules")
-            .select("id, store_id, shift_date, status, stores(id, name, city), employee_id")
-            .in("store_id", accessibleStoreIds)
-            .gte("shift_date", selectedMonth)
-            .lte("shift_date", selectedMonthEnd)
-            .order("shift_date", { ascending: true })
-            .returns<SchedulePreview[]>()
-        : Promise.resolve({ data: [] as SchedulePreview[], error: null })
-      : profile?.employee_id
-      ? supabase
-          .from("schedules")
-          .select("id, store_id, shift_date, status, stores(id, name, city), employee_id")
-          .eq("employee_id", profile.employee_id)
-          .gte("shift_date", selectedMonth)
-          .lte("shift_date", selectedMonthEnd)
-          .order("shift_date", { ascending: true })
-          .returns<SchedulePreview[]>()
-      : Promise.resolve({ data: [] as SchedulePreview[], error: null });
-  const schedulePreviewResult = await schedulePreviewQuery;
-
-  if (schedulePreviewResult.error) {
-    throw new Error(schedulePreviewResult.error.message);
+  if (typedSchedulePreviewResult.error) {
+    throw new Error(typedSchedulePreviewResult.error.message);
   }
 
-  const schedulePreview = schedulePreviewResult.data;
+  const schedulePreview = typedSchedulePreviewResult.data ?? [];
   const todayIso = new Date().toISOString().slice(0, 10);
   const upcomingSchedules = schedulePreview
     .filter((row) => row.shift_date >= todayIso && ["planned", "planned_secondary"].includes(row.status))
