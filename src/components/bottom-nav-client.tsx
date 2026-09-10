@@ -282,7 +282,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
         >
           <span className="bottom-nav-indicator-circle" />
         </div>
-        {visibleItems.map((item, index) => {
+        {visibleItems.map((item) => {
           const active = pathname === item.href || (item.href !== "/" && item.href !== "/checklists" && pathname.startsWith(item.href));
           const Icon = item.href === "/procurement" && managerOnly ? BadgePercent : item.icon;
           const label = warehouseManagerOnly && item.href === "/admin" ? "Вычеты" : item.href === "/procurement" && managerOnly ? "Акции" : item.label;

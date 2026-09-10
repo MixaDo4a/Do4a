@@ -57,23 +57,10 @@ type SchedulePreview = {
   employee_id: string;
 };
 
-type UpcomingScheduleItem = {
-  id: string;
-  shift_date: string;
-  status: string;
-  stores: { id: string; name: string; city: string } | null;
-  employeeName: string;
-};
-
 type CashCountPreview = {
   store_id: string;
   cash_amount: number | string;
   created_at: string;
-};
-
-type UpcomingScheduleCityGroup = {
-  city: string;
-  items: UpcomingScheduleItem[];
 };
 
 type ManagerSchedulePreviewGroup = {
@@ -118,32 +105,6 @@ const statusLabels: Record<string, string> = {
   correction_required: "Корр.",
 };
 
-const statusClasses: Record<string, string> = {
-  planned: "bg-orange-500 text-white border-orange-600",
-  planned_secondary: "bg-yellow-400 text-slate-900 border-yellow-500",
-  day_off: "bg-green-500 text-white border-green-600",
-  sick_leave: "bg-violet-500 text-white border-violet-600",
-  vacation: "bg-blue-500 text-white border-blue-600",
-  opened: "bg-slate-500 text-white border-slate-600",
-  closed: "bg-slate-700 text-white border-slate-800",
-  auto_closed: "bg-slate-700 text-white border-slate-800",
-  cancelled: "bg-slate-300 text-slate-900 border-slate-400",
-  correction_required: "bg-rose-500 text-white border-rose-600",
-};
-
-const scheduleGraphLabels: Record<string, string> = {
-  planned: "Р1",
-  planned_secondary: "Р2",
-  day_off: "В",
-  sick_leave: "Б",
-  vacation: "О",
-};
-
-function scheduleCellLabel(status: string | null | undefined) {
-  if (!status) return "—";
-  return scheduleGraphLabels[status] ?? status;
-}
-
 function money(value: number | string | null | undefined) {
   return `${new Intl.NumberFormat("ru-RU", {
     maximumFractionDigits: 0,
@@ -183,10 +144,6 @@ function monthStartDate(value?: string) {
 function monthEndDate(monthStartValue: string) {
   const start = new Date(`${monthStartValue}T00:00:00Z`);
   return new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
-}
-
-function monthTitle(value: string) {
-  return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(new Date(`${value}-01T00:00:00Z`));
 }
 
 function formatGraphDate(value: string) {
@@ -524,14 +481,6 @@ export default async function HomePage() {
     if (!latestCashCountByStore.has(cashCount.store_id)) latestCashCountByStore.set(cashCount.store_id, cashCount);
   }
   const notificationsCount = notificationsResult.count ?? 0;
-  const scheduleDates = Array.from({ length: new Date(`${selectedMonthEnd}T00:00:00Z`).getUTCDate() }, (_, index) => {
-    const current = new Date(`${selectedMonth.slice(0, 7)}-${String(index + 1).padStart(2, "0")}T00:00:00Z`);
-    return {
-      date: current.toISOString().slice(0, 10),
-      day: String(index + 1).padStart(2, "0"),
-      weekday: new Intl.DateTimeFormat("ru-RU", { weekday: "short" }).format(current),
-    };
-  });
   const employeeNameById = new Map<string, string>(
     (employeesLookupResult.data ?? []).map((employee: EmployeeLookupRow) => [employee.id, employee.full_name] as const),
   );
