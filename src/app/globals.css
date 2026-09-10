@@ -95,7 +95,7 @@ select:focus-visible {
     inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
-.login-field input {
+.login-field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
   appearance: none;
   background: transparent;
   border: 0;
@@ -103,8 +103,8 @@ select:focus-visible {
   box-shadow: none;
 }
 
-.login-field input:focus,
-.login-field input:focus-visible {
+.login-field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+.login-field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible {
   border-color: transparent;
   box-shadow: none;
 }
