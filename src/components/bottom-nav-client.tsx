@@ -4,7 +4,7 @@ import { BadgePercent, Bell, CalendarClock, ClipboardCheck, Home, ListTodo, Pack
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { PROCUREMENT_ROLES } from "@/lib/auth/role-constants";
 import { registerPushServiceWorker } from "@/lib/push-client";
 
@@ -17,6 +17,7 @@ type BottomNavItem = {
 };
 
 const managementRoles = ["manager", "store_manager", "super_admin", "developer"];
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 type TouchPoint = {
   x: number;
@@ -100,9 +101,11 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
   const managementView = roles.some((role) => ["store_manager", "super_admin"].includes(role));
 
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     setIsMounted(true);
+  }, []);
 
+  useEffect(() => {
     let cancelled = false;
 
     void registerPushServiceWorker();
@@ -261,11 +264,16 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
     return null;
   }
 
+  const navGridStyle = {
+    gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))`,
+    "--bottom-nav-active-x": `calc((100% / ${visibleItems.length}) * ${activeIndex + 0.5})`,
+  } as CSSProperties;
+
   return createPortal(
     <nav className="bottom-nav-shell px-2 pt-2" style={{ touchAction: "pan-y" }}>
       <div
         className="bottom-nav-grid relative mx-auto grid max-w-[390px] gap-0"
-        style={{ gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))` }}
+        style={navGridStyle}
       >
         <div
           aria-hidden="true"
