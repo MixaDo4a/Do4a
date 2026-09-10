@@ -16,7 +16,6 @@ type PageProps = {
   }>;
 };
 
-type StoreRow = { id: string; name: string; city: string };
 type EmployeeRow = { id: string; full_name: string };
 
 type ChecklistRow = {

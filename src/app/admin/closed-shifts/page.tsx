@@ -1,4 +1,4 @@
-import { Archive, CalendarDays } from "lucide-react";
+import { Archive } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
@@ -9,13 +9,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
   searchParams: Promise<{ month?: string; storeId?: string; status?: string }>;
-};
-
-type StoreRow = {
-  id: string;
-  name: string;
-  city: string;
-  status: string;
 };
 
 type ShiftRow = {

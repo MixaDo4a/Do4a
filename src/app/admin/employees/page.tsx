@@ -9,7 +9,6 @@ import { employeeName } from "@/lib/display";
 import { canDeleteTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, RoleRelation, roleCodeFromRelation, roleRank } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-type StoreRow = { id: string; name: string; city: string };
 type EmployeeRow = {
   id: string;
   full_name: string;

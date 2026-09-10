@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     value(formData, "assignee_employee_id"),
   ].filter(Boolean)));
   const storeWideTask = rawAssigneeEmployeeIds.includes("__store_all__");
-  let assigneeEmployeeIds = rawAssigneeEmployeeIds.filter((id) => id !== "__store_all__");
+  const assigneeEmployeeIds = rawAssigneeEmployeeIds.filter((id) => id !== "__store_all__");
   const assigneeEmployeeId = assigneeEmployeeIds[0] ?? "";
   const title = value(formData, "title");
   const description = value(formData, "description");
@@ -177,7 +177,6 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  let recurrenceRuleId: string | null = null;
   const recurrenceDueAt = recurrenceEnabled
     ? advanceTaskRecurrenceRun(new Date(dueAtIso as string), recurrenceFrequency as TaskRecurrenceFrequency).toISOString()
     : null;

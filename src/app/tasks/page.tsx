@@ -29,18 +29,12 @@ type TaskRow = {
   task_comments: { id: string; body: string; created_at: string }[];
 };
 
-type StoreRow = {
-  id: string;
-  name: string;
-};
-
 type EmployeeRow = {
   id: string;
   full_name: string;
   employee_store_assignments: { store_id: string }[];
 };
 
-type ProfileEmployeeRow = { id: string; employee_id: string | null };
 type ProfileRoleRow = { profile_id: string; roles: RoleRelation };
 
 type PageProps = {

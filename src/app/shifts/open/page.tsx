@@ -11,12 +11,6 @@ type PageProps = {
   searchParams: Promise<{ message?: string; detail?: string }>;
 };
 
-type StoreRow = {
-  id: string;
-  city: string;
-  name: string;
-};
-
 type EmployeeRow = {
   id: string;
   full_name: string;

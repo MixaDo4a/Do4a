@@ -9,12 +9,6 @@ type PageProps = {
   params: Promise<{ storeId: string }>;
 };
 
-type StoreRow = {
-  id: string;
-  name: string;
-  city: string;
-};
-
 type SessionRow = {
   id: string;
   routine_kind: "morning" | "evening";
@@ -159,4 +153,3 @@ export default async function RoutineArchivePage({ params }: PageProps) {
     </main>
   );
 }
-
