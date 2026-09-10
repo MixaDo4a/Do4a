@@ -11,6 +11,7 @@ import {
   flattenRoutineTree,
   formatRoutineOutline,
   type RoutineKind,
+  type RoutineTemplateItemNode,
   type RoutineTemplateItemFlatRow,
   type RoutineTemplateItemSettingsRow,
 } from "@/lib/routine";
@@ -123,7 +124,7 @@ function RoutineSettingsTree({
   settingsMap,
   depth = 0,
 }: {
-  nodes: Array<{ title: string; itemKey?: string; children: Array<{ title: string; itemKey?: string; children: any[] }> }>;
+  nodes: RoutineTemplateItemNode[];
   settingsMap: TemplateSettingsMap;
   depth?: number;
 }) {
@@ -203,7 +204,7 @@ function RoutineSettingsForm({
             <input name="template_id" type="hidden" value={template.id} />
             <input name="routine_kind" type="hidden" value={kind} />
             <input name="item_keys" type="hidden" value={JSON.stringify(itemKeys)} />
-            <RoutineSettingsTree nodes={tree as any} settingsMap={settingsMap} />
+            <RoutineSettingsTree nodes={tree} settingsMap={settingsMap} />
             <button className="h-12 rounded-2xl bg-brand px-6 font-semibold text-white">Сохранить фото-настройки</button>
           </form>
         ) : (

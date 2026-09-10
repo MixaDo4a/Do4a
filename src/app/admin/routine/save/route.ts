@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
-import { parseRoutineOutline } from "@/lib/routine";
+import { parseRoutineOutline, type RoutineOutlineNode } from "@/lib/routine";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -25,7 +25,7 @@ async function saveRoutineWithServiceRole(
   storeId: string,
   routineKind: string,
   title: string,
-  items: Array<{ title: string; children: Array<{ title: string; children: any[] }> }>,
+  items: RoutineOutlineNode[],
   userId: string,
 ) {
   const serviceSupabase = createSupabaseServiceRoleClient();
@@ -56,7 +56,7 @@ async function saveRoutineWithServiceRole(
   }
 
   async function insertItems(
-    nodes: Array<{ title: string; children: Array<{ title: string; children: any[] }> }>,
+    nodes: RoutineOutlineNode[],
     parentItemId: string | null,
     level: number,
     prefix: string,
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     try {
-      await saveRoutineWithServiceRole(storeId, routineKind, title, items as Array<{ title: string; children: Array<{ title: string; children: any[] }> }>, user.id);
+      await saveRoutineWithServiceRole(storeId, routineKind, title, items as RoutineOutlineNode[], user.id);
     } catch (fallbackError) {
       const detail = fallbackError instanceof Error ? fallbackError.message : error.message;
       return NextResponse.redirect(adminUrl(request, "routine-error", detail, storeId), 303);
