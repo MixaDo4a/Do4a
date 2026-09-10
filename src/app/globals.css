@@ -98,7 +98,15 @@ select:focus-visible {
 .login-field input {
   appearance: none;
   background: transparent;
+  border: 0;
   caret-color: #f2ece7;
+  box-shadow: none;
+}
+
+.login-field input:focus,
+.login-field input:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .login-field input:-webkit-autofill,

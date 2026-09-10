@@ -78,7 +78,7 @@ export function LoginCard({ initialMessage }: LoginCardProps) {
           <label className={fieldClass}>
             <Mail className="shrink-0 text-[#df2431]" size={25} />
             <input
-              className="h-full w-full bg-[#0d0d0d] text-[18px] text-[#f2ece7] outline-none placeholder:text-[#8c8582]"
+              className="h-full w-full border-0 bg-transparent text-[18px] text-[#f2ece7] outline-none shadow-none placeholder:text-[#8c8582] focus:border-transparent focus:shadow-none"
               name="email"
               placeholder="Email"
               type="email"
@@ -89,7 +89,7 @@ export function LoginCard({ initialMessage }: LoginCardProps) {
           <label className={fieldClass}>
             <Lock className="shrink-0 text-[#df2431]" size={25} />
             <input
-              className="h-full w-full bg-[#0d0d0d] text-[18px] text-[#f2ece7] outline-none placeholder:text-[#8c8582]"
+              className="h-full w-full border-0 bg-transparent text-[18px] text-[#f2ece7] outline-none shadow-none placeholder:text-[#8c8582] focus:border-transparent focus:shadow-none"
               name="password"
               placeholder="Пароль"
               type={showPassword ? "text" : "password"}
@@ -106,13 +106,13 @@ export function LoginCard({ initialMessage }: LoginCardProps) {
           </label>
 
           <button
-            className="login-submit relative mt-1 flex h-[70px] items-center justify-center overflow-hidden rounded-[22px] border border-[#353030] bg-transparent transition duration-200 active:scale-[0.98]"
+            className="login-submit relative mt-1 flex h-[70px] w-full items-center justify-center overflow-hidden rounded-[22px] border-0 bg-transparent transition duration-200 active:scale-[0.98]"
             type="submit"
           >
             <Image
               alt=""
               aria-hidden="true"
-              className="absolute inset-0 h-full w-full object-cover object-center"
+              className="absolute inset-0 h-full w-full scale-[1.07] object-cover object-center"
               fill
               sizes="(max-width: 640px) 100vw, 430px"
               src="/login-button-bg.png"
