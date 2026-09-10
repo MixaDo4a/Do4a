@@ -551,7 +551,7 @@ option {
 }
 
 .bottom-nav-item-active {
-  transform: translateY(0);
+  transform: translateY(-0.7rem);
 }
 
 .bottom-nav-item-active::before {
