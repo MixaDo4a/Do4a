@@ -11,6 +11,7 @@
   UserRound,
   WalletCards,
 } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { Metric } from "@/components/metric";
@@ -612,7 +613,7 @@ export default async function HomePage() {
               </form>
             ) : null}
           </div>
-          <a
+          <Link
             className="relative grid h-11 w-11 place-items-center ui-panel shadow-soft"
             style={{ overflow: "visible" }}
             aria-label="Уведомления"
@@ -627,7 +628,7 @@ export default async function HomePage() {
                 {notificationsCount}
               </span>
             ) : null}
-          </a>
+          </Link>
         </header>
 
         {!managerOnlyView && !managementView ? <section className="mt-4 ui-panel p-4">
@@ -797,11 +798,11 @@ export default async function HomePage() {
                     <div key={store.id} className="ui-panel p-4">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-semibold">{store.name}</p>
-                        <a className="text-sm font-semibold text-brand" href={`/admin/routine?storeId=${store.id}`}>Изменить</a>
+                        <Link className="text-sm font-semibold text-brand" href={`/admin/routine?storeId=${store.id}`}>Изменить</Link>
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-3">
-                        <a className="inline-flex h-11 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href={shift ? `/routine/morning?shiftId=${shift.id}` : "/routine"}>Утро</a>
-                        <a className="inline-flex h-11 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href={shift ? `/routine/evening?shiftId=${shift.id}` : "/routine"}>Вечер</a>
+                        <Link className="inline-flex h-11 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href={shift ? `/routine/morning?shiftId=${shift.id}` : "/routine"}>Утро</Link>
+                        <Link className="inline-flex h-11 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href={shift ? `/routine/evening?shiftId=${shift.id}` : "/routine"}>Вечер</Link>
                       </div>
                     </div>
                   );
@@ -828,20 +829,20 @@ export default async function HomePage() {
                     {money(latestCashCountByStore.get(activeShift.store_id)?.cash_amount ?? 0)}
                   </p>
                   <div className="mt-4 grid grid-cols-2 gap-3">
-                    <a className="inline-flex h-11 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white" href={`/shifts/close?shiftId=${activeShift.id}&hideCash=1`}>Закрыть смену</a>
-                    <a className="inline-flex h-11 items-center justify-center rounded-md ui-panel px-3 text-sm font-semibold" href={`/shifts/recount?storeId=${activeShift.store_id}&shiftId=${activeShift.id}`}>Пересчёт</a>
+                    <Link className="inline-flex h-11 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white" href={`/shifts/close?shiftId=${activeShift.id}&hideCash=1`}>Закрыть смену</Link>
+                    <Link className="inline-flex h-11 items-center justify-center rounded-md ui-panel px-3 text-sm font-semibold" href={`/shifts/recount?storeId=${activeShift.store_id}&shiftId=${activeShift.id}`}>Пересчёт</Link>
                   </div>
                 </>
               ) : (
-                <a className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white" href="/shifts/open">Открыть</a>
+                <Link className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white" href="/shifts/open">Открыть</Link>
               )}
             </section>
 
             <section className="mt-6 ui-panel p-4">
               <SectionHeader icon={CalendarDays} title="Распорядок" />
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <a className="inline-flex h-14 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href="/routine/morning">Утро</a>
-                <a className="inline-flex h-14 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href="/routine/evening">Вечер</a>
+                <Link className="inline-flex h-14 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href="/routine/morning">Утро</Link>
+                <Link className="inline-flex h-14 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href="/routine/evening">Вечер</Link>
               </div>
             </section>
 
@@ -924,12 +925,12 @@ export default async function HomePage() {
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <a className="rounded-md bg-brand px-4 py-3 text-center text-sm font-semibold text-white" href="/shifts">
+            <Link className="rounded-md bg-brand px-4 py-3 text-center text-sm font-semibold text-white" href="/shifts">
               Смены
-            </a>
-            <a className="ui-panel px-4 py-3 text-center text-sm font-semibold" href="/shifts/close">
+            </Link>
+            <Link className="ui-panel px-4 py-3 text-center text-sm font-semibold" href="/shifts/close">
               Закрытие
-            </a>
+            </Link>
           </div>
             </section>
 
