@@ -1,5 +1,6 @@
 import { Banknote, Camera, CalendarDays, ReceiptText, Store, UserRound } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
+import Image from "next/image";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -322,7 +323,7 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
                   rel="noreferrer"
                 >
                   {photo.signedUrl ? (
-                    <img alt="Фото отчета ККМ" className="h-auto w-full" src={photo.signedUrl} />
+                    <Image alt="Фото отчета ККМ" className="h-auto w-full" height={900} src={photo.signedUrl} unoptimized width={1200} />
                   ) : (
                     <span className="block p-4 text-sm text-muted">Не удалось открыть фото.</span>
                   )}

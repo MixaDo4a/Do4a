@@ -1,5 +1,6 @@
 ﻿import { ClipboardCheck, Store, UserRound } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
+import Image from "next/image";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
 import { CHECKLIST_ROLES, getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
@@ -153,7 +154,7 @@ export default async function ChecklistViewPage({ params }: PageProps) {
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {urls.map((url) => (
                       <a key={url} className="block overflow-hidden rounded-md border border-line bg-surface" href={url} target="_blank" rel="noreferrer">
-                        <img alt="Фото чек-листа" className="h-auto w-full" src={url} />
+                        <Image alt="Фото чек-листа" className="h-auto w-full" height={900} src={url} unoptimized width={1200} />
                       </a>
                     ))}
                   </div>
