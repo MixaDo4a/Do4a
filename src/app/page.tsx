@@ -82,6 +82,22 @@ type EmployeeLookupRow = {
   full_name: string;
 };
 
+type HomeQueryResult<T> = {
+  data: T | null;
+  error: { message: string } | null;
+  count?: number | null;
+};
+
+type ShiftPreview = {
+  id: string;
+  store_id: string;
+  shift_date: string;
+  status: string;
+  opened_at: string;
+  opened_by_employee_id: string;
+  stores: { name: string } | null;
+};
+
 const managementRoles = ["manager", "store_manager", "super_admin", "developer"];
 
 const roleLabels: Record<string, string> = {
@@ -430,11 +446,18 @@ export default async function HomePage() {
     employeesLookupQuery,
     cashCountsQuery,
     schedulePreviewQuery,
-  ])) as any;
-  const typedSchedulePreviewResult = schedulePreviewResult as {
-    data: SchedulePreview[] | null;
-    error: { message: string } | null;
-  };
+  ])) as [
+    HomeQueryResult<ShiftPreview[]>,
+    HomeQueryResult<TaskPreview[]>,
+    HomeQueryResult<TaskPreview[]>,
+    HomeQueryResult<{ id: string }[]>,
+    HomeQueryResult<{ average_score: number | string }[]>,
+    HomeQueryResult<{ total_payout_amount: number | string }[]>,
+    HomeQueryResult<ChecklistPreview[]>,
+    HomeQueryResult<EmployeeLookupRow[]>,
+    HomeQueryResult<CashCountPreview[]>,
+    HomeQueryResult<SchedulePreview[]>,
+  ];
 
   if (shiftsResult.error) {
     redirectInvalidSession(shiftsResult.error);
@@ -484,11 +507,11 @@ export default async function HomePage() {
   const employeeNameById = new Map<string, string>(
     (employeesLookupResult.data ?? []).map((employee: EmployeeLookupRow) => [employee.id, employee.full_name] as const),
   );
-  if (typedSchedulePreviewResult.error) {
-    throw new Error(typedSchedulePreviewResult.error.message);
+  if (schedulePreviewResult.error) {
+    throw new Error(schedulePreviewResult.error.message);
   }
 
-  const schedulePreview = typedSchedulePreviewResult.data ?? [];
+  const schedulePreview = schedulePreviewResult.data ?? [];
   const todayIso = new Date().toISOString().slice(0, 10);
   const upcomingSchedules = schedulePreview
     .filter((row) => row.shift_date >= todayIso && ["planned", "planned_secondary"].includes(row.status))
