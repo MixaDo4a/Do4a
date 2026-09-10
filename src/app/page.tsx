@@ -381,7 +381,12 @@ export default async function HomePage() {
 
   const selectedMonth = monthStartDate();
   const selectedMonthEnd = monthEndDate(selectedMonth);
-  const employeesLookupQuery = supabase.from("employees").select("id, full_name").eq("is_active", true).returns<EmployeeLookupRow[]>();
+  const employeesLookupQuery =
+    managementView || canSeeAccessibleStoreSchedules
+      ? supabase.from("employees").select("id, full_name").eq("is_active", true).returns<EmployeeLookupRow[]>()
+      : profile?.employee_id
+      ? supabase.from("employees").select("id, full_name").eq("id", profile.employee_id).returns<EmployeeLookupRow[]>()
+      : Promise.resolve({ data: [] as EmployeeLookupRow[], error: null });
   const schedulePreviewQuery =
     managerOnlyView && profile?.employee_id
       ? supabase
