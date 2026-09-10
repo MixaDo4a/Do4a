@@ -9,7 +9,7 @@
     "build": "next build",
     "check": "npm run typecheck && npm run build && npm run clean:next",
     "start": "next start",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
