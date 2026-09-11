@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
 import { getAccessibleStores } from "@/lib/auth/stores";
-import { getCurrentEmployeeId } from "@/lib/auth/roles";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { cleanText } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -73,18 +73,25 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
     redirect("/login");
   }
 
-  const { employeeId } = await getCurrentEmployeeId();
-  const accessibleStores = await getAccessibleStores();
+  const [{ employeeId }, { roles }] = await Promise.all([
+    getCurrentEmployeeId(supabase, user),
+    getCurrentRoleCodes(supabase, user),
+  ]);
+  const accessibleStores = await getAccessibleStores(supabase);
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
+  const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES);
 
   let query = supabase
     .from("tasks")
     .select("id, title, description, due_at, completed_at, priority, status, stores(id, name), employees(id, full_name), task_comments(id, body, created_at)")
-    .eq("assignee_employee_id", employeeId)
     .in("status", ["done", "overdue", "cancelled"])
     .in("store_id", accessibleStoreIds)
     .order("completed_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
+
+  if (!canSeeAllTasks && employeeId) {
+    query = query.eq("assignee_employee_id", employeeId);
+  }
 
   if (storeId) {
     query = query.eq("store_id", storeId);
