@@ -9,20 +9,20 @@ type BackgroundMapItem = {
 
 const ROUTE_BACKGROUNDS: BackgroundMapItem[] = [
 
-  { match: ["/"], src: "/page-bgs/home.png" },
-  { match: ["/shifts"], src: "/page-bgs/shifts.png" },
-  { match: ["/tasks/archive"], src: "/page-bgs/archive.png" },
-  { match: ["/tasks"], src: "/page-bgs/tasks.png" },
-  { match: ["/routine/archive"], src: "/page-bgs/archive.png" },
-  { match: ["/routine"], src: "/page-bgs/routine.png" },
-  { match: ["/checklists/new", "/checklists/"], src: "/page-bgs/checklist.png" },
-  { match: ["/checklists"], src: "/page-bgs/archive.png" },
-  { match: ["/payroll"], src: "/page-bgs/payroll.png" },
-  { match: ["/procurement"], src: "/page-bgs/procurement.png" },
-  { match: ["/notifications"], src: "/page-bgs/notifications-admin.png" },
-  { match: ["/admin"], src: "/page-bgs/notifications-admin.png" },
-  { match: ["/cash"], src: "/page-bgs/notifications-admin.png" },
-  { match: ["/schedule"], src: "/page-bgs/routine.png" },
+  { match: ["/"], src: "/page-bgs/home.webp" },
+  { match: ["/shifts"], src: "/page-bgs/shifts.webp" },
+  { match: ["/tasks/archive"], src: "/page-bgs/archive.webp" },
+  { match: ["/tasks"], src: "/page-bgs/tasks.webp" },
+  { match: ["/routine/archive"], src: "/page-bgs/archive.webp" },
+  { match: ["/routine"], src: "/page-bgs/routine.webp" },
+  { match: ["/checklists/new", "/checklists/"], src: "/page-bgs/checklist.webp" },
+  { match: ["/checklists"], src: "/page-bgs/archive.webp" },
+  { match: ["/payroll"], src: "/page-bgs/payroll.webp" },
+  { match: ["/procurement"], src: "/page-bgs/procurement.webp" },
+  { match: ["/notifications"], src: "/page-bgs/notifications-admin.webp" },
+  { match: ["/admin"], src: "/page-bgs/notifications-admin.webp" },
+  { match: ["/cash"], src: "/page-bgs/notifications-admin.webp" },
+  { match: ["/schedule"], src: "/page-bgs/routine.webp" },
 ];
 
 function resolveBackground(pathname: string) {
