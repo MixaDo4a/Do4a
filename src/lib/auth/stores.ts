@@ -43,7 +43,6 @@ export async function getAccessibleStores(
   existingSupabase?: Awaited<ReturnType<typeof createSupabaseServerClient>>,
 ) {
   const supabase = existingSupabase ?? (await createSupabaseServerClient());
-  const scope = await getCurrentEmployeeScope();
 
   const { data: rpcStores, error: rpcError } = await supabase.rpc("admin_list_accessible_stores");
   if (!rpcError && rpcStores) {
@@ -51,6 +50,8 @@ export async function getAccessibleStores(
       (store, index, list) => list.findIndex((item) => item.id === store.id) === index,
     );
   }
+
+  const scope = await getCurrentEmployeeScope();
 
   if (scope.isDeveloper) {
     const { data: storesData, error: storesError } = await supabase.from("stores").select("id, name, city, status").order("city").order("name");
