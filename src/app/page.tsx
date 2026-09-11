@@ -329,7 +329,7 @@ export default async function HomePage() {
         .returns<TaskPreview[]>()
     : Promise.resolve({ data: [] as TaskPreview[], error: null });
 
-  const personalTasksQuery = profile?.employee_id
+  const personalTasksQuery = !managerOnlyView && profile?.employee_id
     ? supabase
         .from("tasks")
         .select("id, title, due_at")
@@ -491,7 +491,8 @@ export default async function HomePage() {
     stores: { name: string } | null;
   }[];
   const tasks = (tasksResult.data ?? []) as TaskPreview[];
-  const personalTasks = (personalTasksResult.data ?? []) as TaskPreview[];
+  // Manager view already uses the personal task query for the main task block.
+  const personalTasks = (managerOnlyView ? tasksResult.data ?? [] : personalTasksResult.data ?? []) as TaskPreview[];
   const checklistArchive = (checklistArchiveResult.data ?? []) as ChecklistPreview[];
   const checklistScores = (checklistResult.data ?? []) as { average_score: number | string }[];
   const averageChecklist = checklistScores.length
