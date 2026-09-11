@@ -1,10 +1,9 @@
 ﻿"use client";
 
 import { BadgePercent, Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { PROCUREMENT_ROLES } from "@/lib/auth/role-constants";
 import { registerPushServiceWorker } from "@/lib/push-client";
 
@@ -17,7 +16,6 @@ type BottomNavItem = {
 };
 
 const managementRoles = ["manager", "store_manager", "super_admin", "developer"];
-const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 type TouchPoint = {
   x: number;
@@ -92,7 +90,6 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const pathname = usePathname();
   const router = useRouter();
   const touchStartRef = useRef<TouchPoint | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
   const hasUnreadNotifications = unreadCount > 0;
   const auditorOnly = roles.includes("auditor") && !roles.some((role) => managementRoles.includes(role));
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !roles.some((role) => managementRoles.includes(role));
@@ -100,10 +97,6 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const buyerOnly = roles.includes("buyer") && !roles.some((role) => managementRoles.includes(role));
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
   const managementView = roles.some((role) => ["store_manager", "super_admin"].includes(role));
-
-  useIsomorphicLayoutEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -260,16 +253,12 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
     };
   }, [pathname, router, visibleItems]);
 
-  if (!isMounted) {
-    return null;
-  }
-
   const navGridStyle = {
     gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))`,
     "--bottom-nav-active-x": `calc((100% / ${visibleItems.length}) * ${activeIndex + 0.5})`,
   } as CSSProperties;
 
-  return createPortal(
+  return (
     <nav className="bottom-nav-shell px-2 pt-2" style={{ touchAction: "pan-y" }}>
       <div
         className="bottom-nav-grid relative mx-auto grid max-w-[390px] gap-0"
@@ -322,8 +311,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
           );
         })}
       </div>
-    </nav>,
-    document.body,
+    </nav>
   );
 }
 
