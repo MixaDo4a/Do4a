@@ -67,13 +67,16 @@ export default async function ShiftsPage({ searchParams }: ShiftsPageProps) {
     redirect("/login");
   }
 
-  const { employeeId } = await getCurrentEmployeeId();
-  const { roles } = await getCurrentRoleCodes();
+  const [{ employeeId }, { roles }] = await Promise.all([
+    getCurrentEmployeeId(supabase, user),
+    getCurrentRoleCodes(supabase, user),
+  ]);
   const canOpenShift = hasAnyRole(roles, OPEN_SHIFT_ROLES);
   const canSeeClosedShiftArchive = hasAnyRole(roles, ["manager", "store_manager", "super_admin", "developer"]);
   const defaultDate = todayIso();
   const dateFrom = params.dateFrom || defaultDate;
   const dateTo = params.dateTo || defaultDate;
+  const usesDefaultDateRange = !params.dateFrom && !params.dateTo;
 
   const storesResult = employeeId
     ? await supabase
@@ -126,7 +129,9 @@ export default async function ShiftsPage({ searchParams }: ShiftsPageProps) {
 
   const [openShiftsResult, datedShiftsResult] = await Promise.all([
     openShiftsQuery.returns<ShiftRow[]>(),
-    datedShiftsQuery.returns<ShiftRow[]>(),
+    usesDefaultDateRange
+      ? Promise.resolve({ data: [] as ShiftRow[], error: null })
+      : datedShiftsQuery.returns<ShiftRow[]>(),
   ]);
 
   if (openShiftsResult.error) {

@@ -111,14 +111,16 @@ export default async function TasksPage({ searchParams }: PageProps) {
     redirect("/login");
   }
 
-  const { roles } = await getCurrentRoleCodes();
-  const { employeeId } = await getCurrentEmployeeId();
+  const [{ roles }, { employeeId }] = await Promise.all([
+    getCurrentRoleCodes(supabase, user),
+    getCurrentEmployeeId(supabase, user),
+  ]);
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
   const canCreateTask = hasAnyRole(roles, TASK_CREATOR_ROLES);
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !hasAnyRole(roles, MANAGE_ROLES);
   const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || warehouseManagerOnly;
-  const accessibleStores = await getAccessibleStores();
+  const accessibleStores = await getAccessibleStores(supabase);
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
   const { data: managerShift } = managerOnly && employeeId
     ? await supabase

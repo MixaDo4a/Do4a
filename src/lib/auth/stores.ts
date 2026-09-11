@@ -39,8 +39,10 @@ export async function getCurrentEmployeeScope(): Promise<CurrentEmployeeScope> {
   };
 }
 
-export async function getAccessibleStores() {
-  const supabase = await createSupabaseServerClient();
+export async function getAccessibleStores(
+  existingSupabase?: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+) {
+  const supabase = existingSupabase ?? (await createSupabaseServerClient());
   const scope = await getCurrentEmployeeScope();
 
   const { data: rpcStores, error: rpcError } = await supabase.rpc("admin_list_accessible_stores");

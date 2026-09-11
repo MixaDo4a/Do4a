@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { User } from "@supabase/supabase-js";
 import {
   CHECKLIST_ROLES,
   DEDUCTION_ROLES,
@@ -16,11 +17,12 @@ export function roleCodeFromRelation<T extends string = string>(relation: RoleRe
   return Array.isArray(relation) ? relation[0]?.code ?? null : relation?.code ?? null;
 }
 
-export async function getCurrentRoleCodes() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export async function getCurrentRoleCodes(
+  existingSupabase?: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  existingUser?: User | null,
+) {
+  const supabase = existingSupabase ?? (await createSupabaseServerClient());
+  const user = existingUser === undefined ? (await supabase.auth.getUser()).data.user : existingUser;
 
   if (!user) {
     return { user: null, roles: [] as string[] };
@@ -43,11 +45,12 @@ export async function getCurrentRoleCodes() {
   };
 }
 
-export async function getCurrentEmployeeId() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export async function getCurrentEmployeeId(
+  existingSupabase?: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  existingUser?: User | null,
+) {
+  const supabase = existingSupabase ?? (await createSupabaseServerClient());
+  const user = existingUser === undefined ? (await supabase.auth.getUser()).data.user : existingUser;
 
   if (!user) {
     return { user: null, employeeId: null as string | null };

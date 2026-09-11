@@ -255,7 +255,7 @@ export default async function HomePage() {
     .is("revoked_at", null)
     .returns<UserRoleRow[]>();
 
-  const accessibleStoresPromise = getAccessibleStores();
+  const accessibleStoresPromise = getAccessibleStores(supabase);
   const [profileResult, rolesResult] = await Promise.all([profileQuery, rolesQuery]);
   const { data: profile, error: profileError } = profileResult;
   const { data: roleRows, error: rolesError } = rolesResult;
