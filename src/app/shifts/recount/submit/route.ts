@@ -2,12 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentEmployeeId, getCurrentRoleCodes } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+const MONEY_MAX = 999_999_999_999.99;
+
+function money(formData: FormData, key: string) {
+  const raw = String(formData.get(key) ?? "").replace(",", ".").trim();
+  if (!raw) return 0;
+
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > MONEY_MAX) {
+    throw new Error(`Invalid number: ${key}`);
+  }
+
+  return Number(value.toFixed(2));
+}
+
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const storeId = String(formData.get("store_id") ?? "").trim();
   const shiftId = String(formData.get("shift_id") ?? "").trim();
-  const coinsAmount = Number(String(formData.get("coins_amount") ?? "0").replace(",", "."));
-  const withdrawalAmount = Number(String(formData.get("withdrawal_amount") ?? "0").replace(",", "."));
+  let coinsAmount: number;
+  let withdrawalAmount: number;
+  try {
+    coinsAmount = money(formData, "coins_amount");
+    withdrawalAmount = money(formData, "withdrawal_amount");
+  } catch {
+    return NextResponse.redirect(new URL(`/shifts/recount?storeId=${storeId}&shiftId=${shiftId}&message=error`, request.url), 303);
+  }
   const withdrawalComment = String(formData.get("withdrawal_comment") ?? "").trim();
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -31,7 +51,7 @@ export async function POST(request: NextRequest) {
   const denominationCounts = (denominations ?? []).map((denomination) => ({
     denomination_id: denomination.id,
     value: Number(denomination.value),
-    quantity: Math.max(0, Math.floor(Number(String(formData.get(`denomination_${denomination.id}`) ?? "0")))),
+    quantity: Math.max(0, Math.floor(Number(String(formData.get(`denomination_${denomination.id}`) ?? "0").trim()) || 0)),
   }));
   const totalAmount = denominationCounts.reduce((sum, row) => sum + row.value * row.quantity, 0) + coinsAmount;
   if (withdrawalAmount > totalAmount) {
