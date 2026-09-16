@@ -6,12 +6,14 @@ import { getAccessibleStores } from "@/lib/auth/stores";
 import { cleanText } from "@/lib/display";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { STORE_TIME_ZONES } from "@/lib/timezone";
 
 type StoreRow = {
   id: string;
   city: string;
   name: string;
   address: string | null;
+  timezone: string;
   workday_start_time: string | null;
   workday_end_time: string | null;
   status: string;
@@ -82,7 +84,7 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
     accessibleStoreIds.length > 0
       ? supabase
           .from("stores")
-          .select("id, city, name, address, workday_start_time, workday_end_time, status, sales_share_percent")
+          .select("id, city, name, address, timezone, workday_start_time, workday_end_time, status, sales_share_percent")
           .in("id", accessibleStoreIds)
           .order("city")
           .order("name")
@@ -145,6 +147,9 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
               <input className="h-11 rounded-md border border-line px-3" name="city" placeholder="Город" required />
               <input className="h-11 rounded-md border border-line px-3" name="name" placeholder="Название" required />
               <input className="h-11 rounded-md border border-line px-3" name="address" placeholder="Адрес" />
+              <select className="h-11 rounded-md border border-line px-3" defaultValue="Asia/Vladivostok" name="timezone">
+                {STORE_TIME_ZONES.map((zone) => <option key={zone.value} value={zone.value}>{zone.label}</option>)}
+              </select>
               <div className="grid gap-2">
                 <input className="h-11 rounded-md border border-line px-3" defaultValue="10:00" name="start_time" type="time" />
                 <input className="h-11 rounded-md border border-line px-3" defaultValue="21:00" name="end_time" type="time" />
@@ -177,6 +182,10 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
                     </div>
 
                     <input className="h-10 rounded-md border border-line px-3" name="address" defaultValue={storeItem.address ?? ""} placeholder="Адрес" />
+
+                    <select className="h-10 rounded-md border border-line px-3" defaultValue={storeItem.timezone} name="timezone">
+                      {STORE_TIME_ZONES.map((zone) => <option key={zone.value} value={zone.value}>{zone.label}</option>)}
+                    </select>
 
                     <div className="grid gap-2">
                       <input className="h-10 rounded-md border border-line px-3" defaultValue={storeItem.workday_start_time ?? ""} name="start_time" type="time" />

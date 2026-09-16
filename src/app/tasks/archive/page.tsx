@@ -7,6 +7,7 @@ import { getAccessibleStores } from "@/lib/auth/stores";
 import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { cleanText } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatStoreDateTime } from "@/lib/timezone";
 
 type TaskRow = {
   id: string;
@@ -16,7 +17,7 @@ type TaskRow = {
   completed_at: string | null;
   priority: "low" | "normal" | "high" | "urgent";
   status: "done" | "overdue" | "cancelled";
-  stores: { id: string; name: string } | null;
+  stores: { id: string; name: string; timezone: string | null } | null;
   employees: { id: string; full_name: string } | null;
   task_comments: { id: string; body: string; created_at: string }[];
 };
@@ -49,19 +50,6 @@ const statusLabels: Record<TaskRow["status"], string> = {
   cancelled: "Отменена",
 };
 
-function formatDate(value: string | null) {
-  if (!value) {
-    return "—";
-  }
-
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
 export default async function TasksArchivePage({ searchParams }: PageProps) {
   const { message, detail, storeId, status, dateFrom, dateTo } = await searchParams;
   const supabase = await createSupabaseServerClient();
@@ -83,7 +71,7 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
 
   let query = supabase
     .from("tasks")
-    .select("id, title, description, due_at, completed_at, priority, status, stores(id, name), employees(id, full_name), task_comments(id, body, created_at)")
+    .select("id, title, description, due_at, completed_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)")
     .in("status", ["done", "overdue", "cancelled"])
     .in("store_id", accessibleStoreIds)
     .order("completed_at", { ascending: false, nullsFirst: false })
@@ -182,10 +170,10 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
 
               <div className="mt-4 flex flex-wrap gap-3 text-sm text-muted">
                 <span className="inline-flex items-center gap-1">
-                  <Clock size={15} /> Срок: {formatDate(task.due_at)}
+                  <Clock size={15} /> Срок: {formatStoreDateTime(task.due_at, task.stores?.timezone)}
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  <Clock size={15} /> Завершено: {formatDate(task.completed_at)}
+                  <Clock size={15} /> Завершено: {formatStoreDateTime(task.completed_at, task.stores?.timezone)}
                 </span>
               </div>
 

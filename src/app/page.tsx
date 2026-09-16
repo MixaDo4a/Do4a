@@ -22,6 +22,7 @@ import { getAccessibleStores } from "@/lib/auth/stores";
 import { redirectInvalidSession } from "@/lib/supabase/errors";
 import { scheduleStatusBadgeClass, scheduleStatusLabel } from "@/lib/schedule-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatStoreDateTime } from "@/lib/timezone";
 
 type ProfileRow = {
   employee_id: string | null;
@@ -38,6 +39,7 @@ type TaskPreview = {
   id: string;
   title: string;
   due_at: string | null;
+  stores: { timezone: string | null } | null;
 };
 
 type ChecklistPreview = {
@@ -311,7 +313,7 @@ export default async function HomePage() {
     ? hasAccessibleStores
       ? supabase
           .from("tasks")
-          .select("id, title, due_at")
+          .select("id, title, due_at, stores(timezone)")
           .in("store_id", accessibleStoreIds)
           .in("status", ["open", "in_progress", "overdue"])
           .order("due_at", { ascending: true, nullsFirst: false })
@@ -321,7 +323,7 @@ export default async function HomePage() {
     : profile?.employee_id
     ? supabase
         .from("tasks")
-        .select("id, title, due_at")
+        .select("id, title, due_at, stores(timezone)")
         .eq("assignee_employee_id", profile.employee_id)
         .in("status", ["open", "in_progress", "overdue"])
         .order("due_at", { ascending: true, nullsFirst: false })
@@ -332,7 +334,7 @@ export default async function HomePage() {
   const personalTasksQuery = !managerOnlyView && profile?.employee_id
     ? supabase
         .from("tasks")
-        .select("id, title, due_at")
+        .select("id, title, due_at, stores(timezone)")
         .eq("assignee_employee_id", profile.employee_id)
         .in("status", ["open", "in_progress", "overdue"])
         .order("due_at", { ascending: true, nullsFirst: false })
@@ -659,7 +661,7 @@ export default async function HomePage() {
                       <CheckCircle2 className="mt-0.5 text-brand" size={18} />
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p>
-                        <p className="mt-1 text-sm text-muted">{formatDate(task.due_at)}</p>
+                        <p className="mt-1 text-sm text-muted">{formatStoreDateTime(task.due_at, task.stores?.timezone)}</p>
                       </div>
                     </div>
                   ))
@@ -754,7 +756,7 @@ export default async function HomePage() {
                       <CheckCircle2 className="mt-0.5 text-brand" size={18} />
                       <div className="min-w-0 flex-1">
                     <p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p>
-                        <p className="mt-1 text-sm text-muted">{formatDate(task.due_at)}</p>
+                        <p className="mt-1 text-sm text-muted">{formatStoreDateTime(task.due_at, task.stores?.timezone)}</p>
                       </div>
                     </div>
                   ))
@@ -823,7 +825,7 @@ export default async function HomePage() {
               <SectionHeader icon={ListTodo} title="Ближайшие задачи" action="Все" href="/tasks" />
               <div className="mt-3 divide-y divide-line ui-panel shadow-soft">
                 {tasks.length === 0 ? <p className="p-4 text-sm text-muted">Открытых задач нет.</p> : tasks.map((task) => (
-                  <div key={task.id} className="flex items-start gap-3 p-4"><CheckCircle2 className="mt-0.5 text-brand" size={18} /><div className="min-w-0 flex-1"><p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p><p className="mt-1 text-sm text-muted">{formatDate(task.due_at)}</p></div></div>
+                  <div key={task.id} className="flex items-start gap-3 p-4"><CheckCircle2 className="mt-0.5 text-brand" size={18} /><div className="min-w-0 flex-1"><p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p><p className="mt-1 text-sm text-muted">{formatStoreDateTime(task.due_at, task.stores?.timezone)}</p></div></div>
                 ))}
               </div>
             </section>
@@ -846,7 +848,7 @@ export default async function HomePage() {
                       <CheckCircle2 className="mt-0.5 text-brand" size={18} />
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p>
-                        <p className="mt-1 text-sm text-muted">{formatDate(task.due_at)}</p>
+                        <p className="mt-1 text-sm text-muted">{formatStoreDateTime(task.due_at, task.stores?.timezone)}</p>
                       </div>
                     </div>
                   ))
@@ -918,7 +920,7 @@ export default async function HomePage() {
                   <CheckCircle2 className="mt-0.5 text-brand" size={18} />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{cleanText(task.title, "Задача с повреждённым текстом")}</p>
-                    <p className="mt-1 text-sm text-muted">{formatDate(task.due_at)}</p>
+                        <p className="mt-1 text-sm text-muted">{formatStoreDateTime(task.due_at, task.stores?.timezone)}</p>
                   </div>
                 </div>
               ))

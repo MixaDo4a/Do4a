@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { PushNotificationsPanel } from "@/components/push-notifications-panel";
 import { SectionHeader } from "@/components/section-header";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatStoreDateTime } from "@/lib/timezone";
 
 type NotificationRow = {
   id: string;
@@ -16,15 +17,6 @@ type NotificationRow = {
   is_read: boolean;
   created_at: string;
 };
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
 
 function notificationTitle(item: NotificationRow) {
   return item.event_type === "schedule_changed" ? "График изменён" : item.title;
@@ -120,6 +112,42 @@ export default async function NotificationsPage({
     throw new Error(error.message);
   }
 
+  const notifications = data ?? [];
+  const relatedIdsByType = new Map<string, string[]>();
+  for (const item of notifications) {
+    if (!item.related_entity_type || !item.related_entity_id) continue;
+    relatedIdsByType.set(item.related_entity_type, [
+      ...(relatedIdsByType.get(item.related_entity_type) ?? []),
+      item.related_entity_id,
+    ]);
+  }
+
+  const relationQueries = await Promise.all([
+    (relatedIdsByType.get("task") ?? []).length > 0
+      ? supabase.from("tasks").select("id, stores(timezone)").in("id", relatedIdsByType.get("task")!).returns<{ id: string; stores: { timezone: string | null } | null }[]>()
+      : Promise.resolve({ data: [], error: null }),
+    (relatedIdsByType.get("shift") ?? []).length > 0
+      ? supabase.from("shifts").select("id, stores(timezone)").in("id", relatedIdsByType.get("shift")!).returns<{ id: string; stores: { timezone: string | null } | null }[]>()
+      : Promise.resolve({ data: [], error: null }),
+    (relatedIdsByType.get("routine") ?? []).length > 0 || (relatedIdsByType.get("day_routine") ?? []).length > 0
+      ? supabase.from("day_routine_sessions").select("id, stores(timezone)").in("id", [...(relatedIdsByType.get("routine") ?? []), ...(relatedIdsByType.get("day_routine") ?? [])]).returns<{ id: string; stores: { timezone: string | null } | null }[]>()
+      : Promise.resolve({ data: [], error: null }),
+    (relatedIdsByType.get("checklist_submission") ?? []).length > 0
+      ? supabase.from("checklist_submissions").select("id, stores(timezone)").in("id", relatedIdsByType.get("checklist_submission")!).returns<{ id: string; stores: { timezone: string | null } | null }[]>()
+      : Promise.resolve({ data: [], error: null }),
+    (relatedIdsByType.get("schedule") ?? []).length > 0
+      ? supabase.from("schedules").select("id, stores(timezone)").in("id", relatedIdsByType.get("schedule")!).returns<{ id: string; stores: { timezone: string | null } | null }[]>()
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const timeZoneByRelatedKey = new Map<string, string | null>();
+  for (const relation of relationQueries) {
+    if (relation.error) throw new Error(relation.error.message);
+    for (const row of relation.data ?? []) {
+      timeZoneByRelatedKey.set(row.id, row.stores?.timezone ?? null);
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
 
   return (
@@ -136,10 +164,10 @@ export default async function NotificationsPage({
         ) : null}
 
         <div className="mt-4 divide-y divide-line ui-panel shadow-soft">
-          {data.length === 0 ? (
+          {notifications.length === 0 ? (
             <p className="p-4 text-sm text-muted">Уведомлений пока нет.</p>
           ) : (
-            data.map((item) => {
+            notifications.map((item) => {
               const href = relatedHref(item);
 
               return (
@@ -158,7 +186,7 @@ export default async function NotificationsPage({
                     )}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs text-muted">{formatTime(item.created_at)}</p>
+                    <p className="text-xs text-muted">{formatStoreDateTime(item.created_at, item.related_entity_id ? timeZoneByRelatedKey.get(item.related_entity_id) : null)}</p>
                     <div className="flex flex-wrap gap-2">
                       {href ? (
                         <a

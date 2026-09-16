@@ -3,6 +3,7 @@ import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles"
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { DEFAULT_TIME_ZONE, STORE_TIME_ZONES } from "@/lib/timezone";
 
 const ADVANCED_ROLES = ["super_admin", "developer"];
 
@@ -51,11 +52,12 @@ export async function POST(request: NextRequest) {
   const address = value(formData, "address");
   const startTime = value(formData, "start_time") || null;
   const endTime = value(formData, "end_time") || null;
+  const timezone = value(formData, "timezone") || DEFAULT_TIME_ZONE;
   const status = value(formData, "status");
   const salesSharePercentRaw = value(formData, "sales_share_percent");
   const includeAdvanced = hasAdvancedFields(formData);
 
-  if (!storeId || !city || !name || !status) {
+  if (!storeId || !city || !name || !status || !STORE_TIME_ZONES.some((zone) => zone.value === timezone)) {
     return NextResponse.redirect(adminUrl(request, "admin-required"), 303);
   }
 
@@ -109,6 +111,7 @@ export async function POST(request: NextRequest) {
       address: address || null,
       workday_start_time: startTime,
       workday_end_time: endTime,
+      timezone,
       status,
       archived_at: status === "archived" ? new Date().toISOString() : null,
       ...(salesSharePercent !== null ? { sales_share_percent: salesSharePercent } : {}),

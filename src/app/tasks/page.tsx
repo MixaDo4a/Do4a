@@ -15,6 +15,7 @@ import {
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { cleanText } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatStoreDateTime } from "@/lib/timezone";
 
 type TaskRow = {
   id: string;
@@ -24,7 +25,7 @@ type TaskRow = {
   due_at: string | null;
   priority: "low" | "normal" | "high" | "urgent";
   status: "open" | "in_progress" | "done" | "overdue" | "cancelled";
-  stores: { id: string; name: string } | null;
+  stores: { id: string; name: string; timezone: string | null } | null;
   employees: { id: string; full_name: string } | null;
   task_comments: { id: string; body: string; created_at: string }[];
 };
@@ -76,24 +77,19 @@ const statusLabels: Record<TaskRow["status"], string> = {
 
 const activeTaskStatuses: TaskRow["status"][] = ["open", "in_progress", "overdue"];
 
-function formatDue(value: string | null) {
+function formatDue(value: string | null, timeZone?: string | null) {
   if (!value) {
     return "Бессрочная";
   }
 
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+  return formatStoreDateTime(value, timeZone);
 }
 
 function buildTasksQuery(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>) {
   return supabase
     .from("tasks")
     .select(
-      "id, recurrence_rule_id, title, description, due_at, priority, status, stores(id, name), employees(id, full_name), task_comments(id, body, created_at)",
+      "id, recurrence_rule_id, title, description, due_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)",
     )
     .in("status", activeTaskStatuses)
     .order("due_at", { ascending: true, nullsFirst: false })
@@ -388,7 +384,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
 
               <div className="mt-4 flex flex-wrap gap-3 text-sm text-muted">
                 <span className="inline-flex items-center gap-1">
-                  <Clock size={15} /> {formatDue(task.due_at)}
+                  <Clock size={15} /> {formatDue(task.due_at, task.stores?.timezone)}
                 </span>
                 <span>{statusLabels[task.status]}</span>
               </div>
