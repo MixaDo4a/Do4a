@@ -67,8 +67,8 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
   ]);
   const accessibleStores = await getAccessibleStores(supabase);
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
-  const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES);
   const managerOnly = roles.includes("manager") && !hasAnyRole(roles, MANAGE_ROLES);
+  const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || managerOnly;
 
   let query = supabase
     .from("tasks")

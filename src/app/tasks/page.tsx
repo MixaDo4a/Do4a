@@ -115,7 +115,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const canCreateTask = hasAnyRole(roles, TASK_CREATOR_ROLES);
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !hasAnyRole(roles, MANAGE_ROLES);
-  const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || warehouseManagerOnly;
+  const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || warehouseManagerOnly || managerOnly;
   const accessibleStores = await getAccessibleStores(supabase);
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
   const { data: managerShift } = managerOnly && employeeId
