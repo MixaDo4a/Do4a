@@ -159,7 +159,11 @@ export default async function TasksPage({ searchParams }: PageProps) {
           return query;
         })()
       : employeeId
-        ? buildTasksQuery(supabase).eq("assignee_employee_id", employeeId)
+        ? managerOnly
+          ? buildTasksQuery(supabase)
+              .in("store_id", accessibleStoreIds)
+              .or(`assignee_employee_id.eq.${employeeId},assignee_employee_id.is.null`)
+          : buildTasksQuery(supabase).eq("assignee_employee_id", employeeId)
         : Promise.resolve({ data: [] as TaskRow[], error: null }),
     supabase
       .from("employees")
