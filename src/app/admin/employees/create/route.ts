@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
   const telegramUsername = value(formData, "telegram_username").replace(/^@/, "");
   const city = value(formData, "city");
   const employeeStatus = value(formData, "employee_status") || "padawan";
-  const employeeRole = value(formData, "employee_role") as RoleCode | "";
+  const employeeRoles = values(formData, "employee_roles") as RoleCode[];
+  const employeeRole = employeeRoles[0] ?? "";
   const storeIds = values(formData, "store_ids");
   const primaryStoreId = storeIds[0] ?? "";
 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
     !city ||
     storeIds.length === 0 ||
     !["padawan", "experienced"].includes(employeeStatus) ||
-    !employeeRole
+    employeeRoles.length === 0
   ) {
     return NextResponse.redirect(adminUrl(request, "admin-required"), 303);
   }
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
   }
 
   const currentRoleCode = ROLE_HIERARCHY.find((code): code is RoleCode => roles.includes(code));
-  if (!currentRoleCode || !canManageTargetRole(currentRoleCode, employeeRole)) {
+  if (!currentRoleCode || employeeRoles.some((role) => !canManageTargetRole(currentRoleCode, role))) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя назначить должность выше своей."), 303);
   }
 
@@ -116,7 +117,7 @@ export async function POST(request: NextRequest) {
     redirectTo: `${new URL("/auth/callback", request.url).origin}/auth/callback`,
     data: {
       full_name: fullName,
-      employee_role: employeeRole,
+      employee_role: employeeRoles.join(","),
       telegram_username: telegramUsername,
     },
   });
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", authError?.message ?? "Не удалось создать учётку."), 303);
   }
 
-  const { error: createError } = await supabase.rpc("admin_create_employee_account", {
+  const { data: createdEmployee, error: createError } = await supabase.rpc("admin_create_employee_account", {
     p_auth_user_id: createdAuthUser.user.id,
     p_full_name: fullName,
     p_phone: phone,
@@ -141,6 +142,15 @@ export async function POST(request: NextRequest) {
   if (createError) {
     await serviceSupabase.auth.admin.deleteUser(createdAuthUser.user.id).catch(() => null);
     return NextResponse.redirect(adminUrl(request, "admin-error", createError.message), 303);
+  }
+
+  const { error: roleError } = await supabase.rpc("admin_replace_employee_roles", {
+    p_employee_id: createdEmployee.id,
+    p_role_codes: employeeRoles,
+  });
+
+  if (roleError) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", roleError.message), 303);
   }
 
   return NextResponse.redirect(adminUrl(request, "employee-created"), 303);

@@ -6,7 +6,7 @@ import { EmployeeRoleStatusFields } from "@/components/employee-role-status-fiel
 import { SectionHeader } from "@/components/section-header";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
-import { canDeleteTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, RoleRelation, roleCodeFromRelation, roleRank } from "@/lib/auth/roles";
+import { canDeleteTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, RoleRelation, roleRank } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type EmployeeRow = {
@@ -47,6 +47,10 @@ const employeeStatusLabels: Record<EmployeeRow["employee_status"], string> = {
   padawan: "Падаван",
   experienced: "Бывалый",
 };
+
+function roleCodesFromRelation(relation: RoleRelation<RoleRow["code"]>) {
+  return Array.isArray(relation) ? relation.map((role) => role.code) : relation ? [relation.code] : [];
+}
 const pageMessages: Record<string, string> = {
   "admin-required": "Заполните все обязательные поля.",
   "admin-error": "Не удалось сохранить данные.",
@@ -95,10 +99,9 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
         const hasAccessibleStore = employee.employee_store_assignments.some((assignment) => accessibleStoreIds.has(assignment.store_id));
         return sameCity && hasAccessibleStore;
       });
-  const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
-  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, roleCodeFromRelation(row.roles)]));
+  const roleByProfileId = new Map(userRolesResult.data.map((row) => [row.profile_id, roleCodesFromRelation(row.roles)]));
   const roleByEmployeeId = new Map(
-    profilesResult.data.map((profile) => [profile.employee_id ?? "", roleByProfileId.get(profile.id) ?? null]),
+    profilesResult.data.map((profile) => [profile.employee_id ?? "", roleByProfileId.get(profile.id) ?? []]),
   );
   const currentRoleCode = [...ROLE_HIERARCHY].find((code) => roles.includes(code)) ?? null;
   const canEditAuthAccount = roles.some((role) => ["super_admin", "developer"].includes(role));
@@ -158,16 +161,11 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
               <details key={employee.id} className="rounded-md border border-line bg-surface p-3 text-sm">
                 <summary className="cursor-pointer list-none font-semibold">
                   {employeeName(employee)}
-                  {roleByEmployeeId.get(employee.id) === "manager" ? ` · ${employeeStatusLabels[employee.employee_status]}` : ""}
+                  {roleByEmployeeId.get(employee.id)?.includes("manager") ? ` · ${employeeStatusLabels[employee.employee_status]}` : ""}
                   {!employee.is_active ? <span className="ml-2 text-xs text-brand">Удалён</span> : null}
                 </summary>
                 <form action="/admin/employees/update" className="mt-3 grid gap-2" method="post">
                   <input name="employee_id" type="hidden" value={employee.id} />
-                  <input
-                    name="current_employee_role"
-                    type="hidden"
-                    value={profileIdByEmployeeId.get(employee.id) ? roleByProfileId.get(profileIdByEmployeeId.get(employee.id) ?? "") ?? "" : ""}
-                  />
                   <input className="h-10 rounded-md border border-line px-3" name="full_name" defaultValue={employee.full_name} />
                   <input className="h-10 rounded-md border border-line px-3" name="phone" defaultValue={employee.phone ?? ""} placeholder="Телефон" required />
                   <input
@@ -183,9 +181,9 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
                   {currentRoleCode ? (
                     <EmployeeRoleStatusFields
                       assignableRoleCodes={assignableRoleCodes}
-                      currentRoleCode={roleByEmployeeId.get(employee.id)}
+                      currentRoleCodes={roleByEmployeeId.get(employee.id) ?? []}
+                      defaultRoleCodes={roleByEmployeeId.get(employee.id) ?? []}
                       defaultStatus={employee.employee_status}
-                      keepCurrentOption
                       roleLabels={roleLabels}
                     />
                   ) : (
@@ -220,7 +218,7 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
                 </form>
                 {employee.is_active &&
                 currentRoleCode &&
-                (currentRoleCode === "developer" || canDeleteTargetRole(currentRoleCode, roleByEmployeeId.get(employee.id) ?? "")) ? (
+                (currentRoleCode === "developer" || roleByEmployeeId.get(employee.id)?.every((role) => canDeleteTargetRole(currentRoleCode, role)) !== false) ? (
                   <form action="/admin/employees/delete" className="mt-2" method="post">
                     <input name="employee_id" type="hidden" value={employee.id} />
                     <button className="h-10 w-full rounded-md border border-rose-500 bg-white px-4 font-semibold text-rose-600" type="submit">

@@ -7,7 +7,6 @@ import {
   MANAGE_ROLES,
   ROLE_HIERARCHY,
   RoleRelation,
-  roleCodeFromRelation,
 } from "@/lib/auth/roles";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
@@ -64,7 +63,7 @@ export async function POST(request: NextRequest) {
   const employeeStatus = value(formData, "employee_status");
   const storeIds = values(formData, "store_ids");
   const primaryStoreId = storeIds[0] ?? "";
-  const employeeRole = value(formData, "employee_role") as RoleCode | "";
+  const employeeRoles = values(formData, "employee_roles") as RoleCode[];
   const newPassword = value(formData, "new_password");
   const isActive = value(formData, "is_active") === "true";
 
@@ -77,6 +76,7 @@ export async function POST(request: NextRequest) {
     !city ||
     storeIds.length === 0 ||
     !["padawan", "experienced"].includes(employeeStatus)
+    || employeeRoles.length === 0
   ) {
     return NextResponse.redirect(adminUrl(request, "admin-required"), 303);
   }
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", profileError.message), 303);
   }
 
-  let targetRoleCode: RoleCode | null = null;
+  let targetRoleCodes: RoleCode[] = [];
 
   if (targetProfile?.id) {
     const { data: targetRoles, error: roleLookupError } = await supabase
@@ -129,13 +129,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(adminUrl(request, "admin-error", roleLookupError.message), 303);
     }
 
-    targetRoleCode = targetRoles.map((row) => roleCodeFromRelation(row.roles)).find(Boolean) ?? null;
-    if (targetRoleCode && !canManageTargetRole(currentRoleCode, targetRoleCode)) {
+    targetRoleCodes = targetRoles.flatMap((row) => Array.isArray(row.roles) ? row.roles.map((role) => role.code) : row.roles ? [row.roles.code] : []);
+    if (targetRoleCodes.some((role) => !canManageTargetRole(currentRoleCode, role))) {
       return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя менять учётку с более высоким приоритетом."), 303);
     }
   }
 
-  if (employeeRole && !canManageTargetRole(currentRoleCode, employeeRole)) {
+  if (employeeRoles.some((role) => !canManageTargetRole(currentRoleCode, role))) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Нельзя назначить должность выше своей."), 303);
   }
 
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Удалённые учётки видит и восстанавливает только разработчик."), 303);
   }
 
-  const targetRoleForDelete = targetProfile?.id ? targetRoleCode : null;
+  const targetRoleForDelete = targetProfile?.id ? targetRoleCodes[0] ?? null : null;
   if (
     targetEmployee.is_active &&
     !isActive &&
@@ -227,15 +227,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", error.message), 303);
   }
 
-  if (employeeRole) {
-    const { error: roleError } = await supabase.rpc("admin_set_employee_role", {
-      p_employee_id: employeeId,
-      p_role_code: employeeRole,
-    });
+  const { error: roleError } = await supabase.rpc("admin_replace_employee_roles", {
+    p_employee_id: employeeId,
+    p_role_codes: employeeRoles,
+  });
 
-    if (roleError) {
-      return NextResponse.redirect(adminUrl(request, "admin-error", roleError.message), 303);
-    }
+  if (roleError) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", roleError.message), 303);
   }
 
   const { error: assignmentError } = await supabase.rpc("admin_replace_employee_store_assignments", {

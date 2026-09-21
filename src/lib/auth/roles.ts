@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { User } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 import {
   CHECKLIST_ROLES,
   DEDUCTION_ROLES,
@@ -25,7 +26,7 @@ export async function getCurrentRoleCodes(
   const user = existingUser === undefined ? (await supabase.auth.getUser()).data.user : existingUser;
 
   if (!user) {
-    return { user: null, roles: [] as string[] };
+    return { user: null, roles: [] as string[], allRoles: [] as string[], activeRole: null as string | null };
   }
 
   const { data, error } = await supabase
@@ -39,9 +40,19 @@ export async function getCurrentRoleCodes(
     throw new Error(error.message);
   }
 
+  const allRoles = data.map((row) => roleCodeFromRelation(row.roles)).filter((role): role is string => Boolean(role));
+  const cookieStore = await cookies();
+  const requestedRole = cookieStore.get("do4a_active_role")?.value;
+  const activeRole = (requestedRole && allRoles.includes(requestedRole) ? requestedRole : null)
+    ?? ROLE_HIERARCHY.find((role) => allRoles.includes(role))
+    ?? allRoles[0]
+    ?? null;
+
   return {
     user,
-    roles: data.map((row) => roleCodeFromRelation(row.roles)).filter((role): role is string => Boolean(role)),
+    roles: activeRole ? [activeRole] : [],
+    allRoles,
+    activeRole,
   };
 }
 

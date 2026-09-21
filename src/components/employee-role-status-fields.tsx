@@ -14,46 +14,42 @@ export type EmployeeRoleCode =
 
 type Props = {
   assignableRoleCodes: EmployeeRoleCode[];
-  currentRoleCode?: EmployeeRoleCode | null;
-  defaultRoleCode?: EmployeeRoleCode | "";
+  currentRoleCodes?: EmployeeRoleCode[];
+  defaultRoleCodes?: EmployeeRoleCode[];
   defaultStatus?: "padawan" | "experienced";
-  keepCurrentOption?: boolean;
   roleLabels: Record<EmployeeRoleCode, string>;
 };
 
 export function EmployeeRoleStatusFields({
   assignableRoleCodes,
-  currentRoleCode = null,
-  defaultRoleCode = "",
+  currentRoleCodes = [],
+  defaultRoleCodes = [],
   defaultStatus = "padawan",
-  keepCurrentOption = false,
   roleLabels,
 }: Props) {
-  const initialRole = useMemo(() => {
-    if (defaultRoleCode) return defaultRoleCode;
-    if (keepCurrentOption) return "";
-    return assignableRoleCodes.includes("manager") ? "manager" : assignableRoleCodes[0] ?? "";
-  }, [assignableRoleCodes, defaultRoleCode, keepCurrentOption]);
-  const [selectedRole, setSelectedRole] = useState<EmployeeRoleCode | "">(initialRole);
-  const effectiveRole = selectedRole || currentRoleCode;
-  const showManagerStatus = effectiveRole === "manager";
+  const initialRoles = useMemo<EmployeeRoleCode[]>(() => defaultRoleCodes.length > 0 ? defaultRoleCodes : assignableRoleCodes.includes("manager") ? ["manager"] : assignableRoleCodes.slice(0, 1), [assignableRoleCodes, defaultRoleCodes]);
+  const [selectedRoles, setSelectedRoles] = useState<EmployeeRoleCode[]>(initialRoles);
+  const effectiveRoles = selectedRoles.length > 0 ? selectedRoles : currentRoleCodes;
+  const showManagerStatus = effectiveRoles.includes("manager");
 
   return (
     <>
-      <select
-        className="h-10 rounded-md border border-line px-3"
-        name="employee_role"
-        value={selectedRole}
-        onChange={(event) => setSelectedRole(event.target.value as EmployeeRoleCode | "")}
-        required={!keepCurrentOption}
-      >
-        {keepCurrentOption ? <option value="">Должность не менять</option> : <option value="">Должность</option>}
+      <fieldset className="grid gap-2 rounded-md border border-line p-3">
+        <legend className="px-1 text-sm font-medium">Роли сотрудника</legend>
         {assignableRoleCodes.map((code) => (
-          <option key={code} value={code}>
-            {roleLabels[code]}
-          </option>
+          <label key={code} className="flex items-center gap-2 text-sm">
+            <input
+              checked={selectedRoles.includes(code)}
+              className="h-4 w-4 accent-brand"
+              name="employee_roles"
+              onChange={(event) => setSelectedRoles((current) => event.target.checked ? [...current, code] : current.filter((role) => role !== code))}
+              type="checkbox"
+              value={code}
+            />
+            <span>{roleLabels[code]}</span>
+          </label>
         ))}
-      </select>
+      </fieldset>
 
       {showManagerStatus ? (
         <select className="h-10 rounded-md border border-line px-3" name="employee_status" defaultValue={defaultStatus}>

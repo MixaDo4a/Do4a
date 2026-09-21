@@ -16,8 +16,10 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { Metric } from "@/components/metric";
 import { SectionHeader } from "@/components/section-header";
+import { RoleSwitcher } from "@/components/role-switcher";
 import { UpcomingScheduleList } from "@/components/upcoming-schedule-list";
 import { cleanText, employeeName } from "@/lib/display";
+import { getCurrentRoleCodes } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { redirectInvalidSession } from "@/lib/supabase/errors";
 import { scheduleStatusBadgeClass, scheduleStatusLabel } from "@/lib/schedule-status";
@@ -29,10 +31,6 @@ type ProfileRow = {
   full_name: string;
   email: string | null;
   employees: { full_name: string; employee_status: "padawan" | "experienced" } | null;
-};
-
-type UserRoleRow = {
-  roles: { code: string; name: string } | null;
 };
 
 type TaskPreview = {
@@ -250,30 +248,17 @@ export default async function HomePage() {
     .eq("id", user.id)
     .maybeSingle<ProfileRow>();
 
-  const rolesQuery = supabase
-    .from("user_roles")
-    .select("roles(code, name)")
-    .eq("profile_id", user.id)
-    .is("revoked_at", null)
-    .returns<UserRoleRow[]>();
-
   const accessibleStoresPromise = getAccessibleStores(supabase);
-  const [profileResult, rolesResult] = await Promise.all([profileQuery, rolesQuery]);
+  const [profileResult, roleState] = await Promise.all([profileQuery, getCurrentRoleCodes(supabase, user)]);
   const { data: profile, error: profileError } = profileResult;
-  const { data: roleRows, error: rolesError } = rolesResult;
 
   if (profileError) {
     redirectInvalidSession(profileError);
     throw new Error(profileError.message);
   }
 
-  if (rolesError) {
-    throw new Error(rolesError.message);
-  }
-
-  const roles = roleRows
-    .map((row) => row.roles)
-    .filter((role): role is { code: string; name: string } => Boolean(role));
+  const roles = roleState.roles.map((code) => ({ code, name: roleLabels[code] ?? code }));
+  const allRoleCodes = roleState.allRoles;
   const roleCodes = roles.map((role) => role.code);
   const auditorOnly = roleCodes.includes("auditor") && !roleCodes.some((role) => managementRoles.includes(role));
   const storeManagerView = roleCodes.includes("store_manager") && !auditorOnly;
@@ -556,9 +541,6 @@ export default async function HomePage() {
     storeGroup.rows.set(employeeId, employeeRow);
     scheduleGroups.set(storeKey, storeGroup);
   }
-  const roleText = roles?.length
-    ? roles.map((role) => roleLabels[role.code] ?? role.name).join(", ")
-    : "Роль не назначена";
   const accountName = employeeName(profile?.employees ?? (profile ? { full_name: profile.full_name } : null));
 
   return (
@@ -580,22 +562,23 @@ export default async function HomePage() {
                         ? accountName
                         : "Смена и задачи"}
             </h1>
+            {managementView || managerOnlyView ? <RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} /> : null}
             {managerOnlyView || managementView ? (
               <form action="/logout" className="mt-2" method="post">
-                <button className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-brand px-3 text-sm font-semibold text-white" type="submit">
+                <button className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-brand px-2 text-xs font-semibold text-white" type="submit">
                   <LogOut size={15} /> Выйти
                 </button>
               </form>
             ) : null}
           </div>
           <Link
-            className="relative grid h-11 w-11 place-items-center ui-panel shadow-soft"
+            className="relative grid h-10 w-10 place-items-center ui-panel shadow-soft"
             style={{ overflow: "visible" }}
             aria-label="Уведомления"
             href="/notifications"
           >
             <Bell
-              size={20}
+              size={18}
               className={notificationsCount ? "relative z-10 text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : "relative z-10"}
             />
             {notificationsCount ? (
@@ -615,13 +598,12 @@ export default async function HomePage() {
               <div className="min-w-0">
                 <p className="text-xs font-medium uppercase text-muted">Открыта учётка</p>
                 <p className="mt-1 truncate text-base font-semibold">{accountName}</p>
-                <p className="mt-1 text-sm text-muted">
-                  {profile?.email ?? user.email ?? "Email не указан"} · {roleText}
-                </p>
+                <p className="mt-1 text-sm text-muted">{profile?.email ?? user.email ?? "Email не указан"}</p>
+                <RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} />
               </div>
             </div>
             <form action="/logout" className="shrink-0" method="post">
-              <button className="inline-flex h-10 w-full items-center justify-center gap-2 ui-panel px-3 text-sm font-semibold text-ink shadow-soft sm:w-auto">
+              <button className="inline-flex h-9 items-center justify-center gap-1 ui-panel px-2 text-xs font-semibold text-ink shadow-soft">
                 <LogOut size={16} />
                 Выйти
               </button>
