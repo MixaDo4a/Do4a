@@ -63,10 +63,9 @@ select {
   position: absolute;
   inset: 0.75rem 0 calc(-1 * max(0.5rem, env(safe-area-inset-bottom))) 0;
   z-index: -1;
-  border: 1px solid rgba(214, 179, 106, 0.16);
-  border-top-color: transparent;
+  border: 0;
   border-radius: 22px 22px 0 0;
-  background: radial-gradient(circle 2.8rem at var(--bottom-nav-active-x) 0, transparent 0 2.7rem, #090607 2.85rem);
+  background: radial-gradient(circle 2.1rem at var(--bottom-nav-active-x) 0, transparent 0 2rem, #090607 2.1rem);
   box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.3);
 }
 
@@ -596,7 +595,7 @@ option {
 
 .bottom-nav-indicator-circle {
   position: absolute;
-  top: -0.7rem;
+  top: -1.825rem;
   left: 50%;
   width: 3.65rem;
   height: 3.65rem;
