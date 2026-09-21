@@ -17,7 +17,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { Metric } from "@/components/metric";
 import { SectionHeader } from "@/components/section-header";
 import { RoleSwitcher } from "@/components/role-switcher";
-import { UpcomingScheduleList } from "@/components/upcoming-schedule-list";
+import { StoreSchedulePreview } from "@/components/store-schedule-preview";
 import { cleanText, employeeName } from "@/lib/display";
 import { getCurrentRoleCodes } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
@@ -501,9 +501,14 @@ export default async function HomePage() {
 
   const schedulePreview = schedulePreviewResult.data ?? [];
   const todayIso = new Date().toISOString().slice(0, 10);
-  const upcomingSchedules = schedulePreview
-    .filter((row) => row.shift_date >= todayIso && ["planned", "planned_secondary"].includes(row.status))
-    .sort((left, right) => left.shift_date.localeCompare(right.shift_date))
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowIso = localIsoDate(tomorrow);
+  const managerTomorrowSchedules = schedulePreview.filter(
+    (row) => row.shift_date === tomorrowIso && ["planned", "planned_secondary"].includes(row.status),
+  );
+  const scheduleWindowPreview = schedulePreview
+    .filter((row) => [todayIso, tomorrowIso].includes(row.shift_date))
     .map((row) => ({
       id: row.id,
       shift_date: row.shift_date,
@@ -511,13 +516,6 @@ export default async function HomePage() {
       stores: row.stores,
       employeeName: employeeNameById.get(row.employee_id) ?? "Сотрудник",
     }));
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowIso = localIsoDate(tomorrow);
-  const managerTomorrowSchedules = schedulePreview.filter(
-    (row) => row.shift_date === tomorrowIso && ["planned", "planned_secondary"].includes(row.status),
-  );
-  const upcomingSchedulePreview = managementView ? upcomingSchedules.filter((row) => row.shift_date === tomorrowIso) : upcomingSchedules.slice(0, 2);
   const managerSchedulePreviewGroups = managementView ? buildManagerSchedulePreview(managerTomorrowSchedules, employeeNameById) : [];
   const routineStores = accessibleStores.filter((store) => !/склад|warehouse/i.test(store.name));
   const scheduleGroups = new Map<
@@ -785,7 +783,7 @@ export default async function HomePage() {
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="График работ" action="Открыть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
-                <UpcomingScheduleList items={upcomingSchedulePreview} />
+                <StoreSchedulePreview items={scheduleWindowPreview} today={todayIso} tomorrow={tomorrowIso} />
               </div>
             </section>
           </>
@@ -829,7 +827,7 @@ export default async function HomePage() {
 
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
-              <div className="mt-3 ui-panel p-4"><UpcomingScheduleList items={upcomingSchedulePreview} /></div>
+              <div className="mt-3 ui-panel p-4"><StoreSchedulePreview items={scheduleWindowPreview} today={todayIso} tomorrow={tomorrowIso} /></div>
             </section>
           </>
         ) : supportOnlyView ? (
@@ -865,7 +863,7 @@ export default async function HomePage() {
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
-                <UpcomingScheduleList items={upcomingSchedulePreview} />
+                <StoreSchedulePreview items={scheduleWindowPreview} today={todayIso} tomorrow={tomorrowIso} />
               </div>
             </section>
           </>
@@ -928,7 +926,7 @@ export default async function HomePage() {
             <section className="mt-6">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
-                <UpcomingScheduleList items={upcomingSchedulePreview} />
+                <StoreSchedulePreview items={scheduleWindowPreview} today={todayIso} tomorrow={tomorrowIso} />
               </div>
             </section>
           </>
