@@ -560,13 +560,15 @@ export default async function HomePage() {
                         ? accountName
                         : "Смена и задачи"}
             </h1>
-            {managementView || managerOnlyView ? <RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} /> : null}
-            {managerOnlyView || managementView ? (
-              <form action="/logout" className="mt-2" method="post">
-                <button className="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-brand px-2 text-xs font-semibold text-white" type="submit">
-                  <LogOut size={15} /> Выйти
-                </button>
-              </form>
+            {managementView || managerOnlyView ? (
+              <div className="mt-1 flex items-center gap-2">
+                <RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} />
+                <form action="/logout" method="post">
+                  <button className="inline-flex h-7 items-center justify-center gap-1 rounded-md bg-brand px-2 text-xs font-semibold text-white" type="submit">
+                    <LogOut size={14} /> Выйти
+                  </button>
+                </form>
+              </div>
             ) : null}
           </div>
           {(managementView || managerOnlyView) ? <Link
@@ -594,15 +596,15 @@ export default async function HomePage() {
                 <UserRound className="text-brand" size={20} />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-medium uppercase text-muted">Открыта учётка</p>
-                <p className="mt-1 truncate text-base font-semibold">{accountName}</p>
-                <p className="mt-1 text-sm text-muted">{profile?.email ?? user.email ?? "Email не указан"}</p>
-                <RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} />
-                <form action="/logout" className="mt-2" method="post">
-                  <button className="inline-flex h-8 items-center justify-center gap-1 ui-panel px-2 text-xs font-semibold text-ink shadow-soft" type="submit">
-                    <LogOut size={14} /> Выйти
-                  </button>
-                </form>
+                <p className="truncate text-base font-semibold">{accountName}</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} />
+                  <form action="/logout" method="post">
+                    <button className="inline-flex h-7 items-center justify-center gap-1 ui-panel px-2 text-xs font-semibold text-ink shadow-soft" type="submit">
+                      <LogOut size={13} /> Выйти
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
             <Link
