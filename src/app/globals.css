@@ -69,6 +69,23 @@ select {
   box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.3);
 }
 
+.bottom-nav-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0.75rem 0 calc(-1 * max(0.5rem, env(safe-area-inset-bottom))) 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 22px 22px 0 0;
+  background: radial-gradient(
+    circle 2.14rem at var(--bottom-nav-active-x) 0,
+    transparent 0 2rem,
+    rgba(255, 57, 72, 0.52) 2.01rem 2.07rem,
+    transparent 2.14rem
+  );
+  filter: blur(0.35px);
+  opacity: 0.8;
+}
+
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 textarea,
 select {
