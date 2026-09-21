@@ -546,7 +546,7 @@ export default async function HomePage() {
   return (
     <main className="app-shell min-h-dvh bg-surface text-ink">
       <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pb-24 pt-4 sm:px-6 lg:px-8">
-        <header className={`border-b border-line pb-4 ${managementView ? "grid grid-cols-[1fr_auto] items-start gap-3" : managerOnlyView ? "grid grid-cols-[1fr_auto] items-start gap-3" : "flex items-start justify-between gap-4"}`}>
+        <header className={`${managementView || managerOnlyView ? "ui-panel p-4" : "border-b border-line pb-4"} ${managementView || managerOnlyView ? "grid grid-cols-[1fr_auto] items-center gap-4" : "flex items-start justify-between gap-4"}`}>
           <div className={managementView || managerOnlyView ? "min-w-0" : undefined}>
             {!managementView && !managerOnlyView ? <p className="text-sm font-medium text-muted">{todayLabel()}</p> : null}
             <h1 className={managementView || managerOnlyView ? "text-xl font-semibold" : "mt-1 text-2xl font-semibold"}>
@@ -571,14 +571,14 @@ export default async function HomePage() {
               </form>
             ) : null}
           </div>
-          <Link
-            className="relative grid h-10 w-10 place-items-center ui-panel shadow-soft"
+          {(managementView || managerOnlyView) ? <Link
+            className="relative grid h-12 w-12 place-items-center self-center ui-panel shadow-soft"
             style={{ overflow: "visible" }}
             aria-label="Уведомления"
             href="/notifications"
           >
             <Bell
-              size={18}
+              size={25}
               className={notificationsCount ? "relative z-10 text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : "relative z-10"}
             />
             {notificationsCount ? (
@@ -586,7 +586,7 @@ export default async function HomePage() {
                 {notificationsCount}
               </span>
             ) : null}
-          </Link>
+          </Link> : null}
         </header>
 
         {!managerOnlyView && !managementView ? <section className="mt-4 ui-panel p-4">
@@ -600,14 +600,29 @@ export default async function HomePage() {
                 <p className="mt-1 truncate text-base font-semibold">{accountName}</p>
                 <p className="mt-1 text-sm text-muted">{profile?.email ?? user.email ?? "Email не указан"}</p>
                 <RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} />
+                <form action="/logout" className="mt-2" method="post">
+                  <button className="inline-flex h-8 items-center justify-center gap-1 ui-panel px-2 text-xs font-semibold text-ink shadow-soft" type="submit">
+                    <LogOut size={14} /> Выйти
+                  </button>
+                </form>
               </div>
             </div>
-            <form action="/logout" className="shrink-0" method="post">
-              <button className="inline-flex h-9 items-center justify-center gap-1 ui-panel px-2 text-xs font-semibold text-ink shadow-soft">
-                <LogOut size={16} />
-                Выйти
-              </button>
-            </form>
+            <Link
+              className="relative grid h-12 w-12 shrink-0 place-items-center self-center ui-panel shadow-soft"
+              style={{ overflow: "visible" }}
+              aria-label="Уведомления"
+              href="/notifications"
+            >
+              <Bell
+                size={25}
+                className={notificationsCount ? "relative z-10 text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : "relative z-10"}
+              />
+              {notificationsCount ? (
+                <span className="pointer-events-none absolute right-[-0.45rem] top-[-0.45rem] z-30 grid min-h-5 min-w-5 place-items-center rounded-full border border-white/20 bg-brand px-1 text-[10px] font-semibold leading-none text-white shadow-[0_0_12px_rgba(255,57,72,0.6)]">
+                  {notificationsCount}
+                </span>
+              ) : null}
+            </Link>
           </div>
         </section> : null}
 
