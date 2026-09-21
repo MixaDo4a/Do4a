@@ -191,6 +191,12 @@ option {
   overflow: hidden;
 }
 
+.role-switcher-panel {
+  position: relative;
+  z-index: 30;
+  overflow: visible;
+}
+
 .app-shell {
   min-height: 100dvh;
   padding: max(4.35rem, calc(env(safe-area-inset-top) + 2.15rem)) 0 6.5rem;

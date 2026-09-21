@@ -544,7 +544,7 @@ export default async function HomePage() {
   return (
     <main className="app-shell min-h-dvh bg-surface text-ink">
       <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pb-24 pt-4 sm:px-6 lg:px-8">
-        <header className={`${managementView || managerOnlyView ? "ui-panel p-4" : "border-b border-line pb-4"} ${managementView || managerOnlyView ? "grid grid-cols-[1fr_auto] items-center gap-4" : "flex items-start justify-between gap-4"}`}>
+        <header className={`${managementView || managerOnlyView ? "ui-panel role-switcher-panel p-4" : "border-b border-line pb-4"} ${managementView || managerOnlyView ? "grid grid-cols-[1fr_auto] items-center gap-4" : "flex items-start justify-between gap-4"}`}>
           <div className={managementView || managerOnlyView ? "min-w-0" : undefined}>
             {!managementView && !managerOnlyView ? <p className="text-sm font-medium text-muted">{todayLabel()}</p> : null}
             <h1 className={managementView || managerOnlyView ? "text-xl font-semibold" : "mt-1 text-2xl font-semibold"}>
@@ -589,7 +589,7 @@ export default async function HomePage() {
           </Link> : null}
         </header>
 
-        {!managerOnlyView && !managementView ? <section className="mt-4 ui-panel p-4">
+        {!managerOnlyView && !managementView ? <section className="role-switcher-panel mt-4 ui-panel p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-surface">
