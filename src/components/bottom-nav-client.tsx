@@ -2,8 +2,8 @@
 
 import { BadgePercent, Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useMemo, type CSSProperties } from "react";
 import { PROCUREMENT_ROLES } from "@/lib/auth/role-constants";
 import { registerPushServiceWorker } from "@/lib/push-client";
 
@@ -16,11 +16,6 @@ type BottomNavItem = {
 };
 
 const managementRoles = ["manager", "store_manager", "super_admin", "developer"];
-
-type TouchPoint = {
-  x: number;
-  y: number;
-};
 
 const items: BottomNavItem[] = [
   { href: "/", label: "Главная", icon: Home, roles: null, hideForAuditorOnly: false },
@@ -88,8 +83,6 @@ function resolveActiveIndex(pathname: string, navItems: BottomNavItem[]) {
 
 export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unreadCount: number }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const touchStartRef = useRef<TouchPoint | null>(null);
   const hasUnreadNotifications = unreadCount > 0;
   const auditorOnly = roles.includes("auditor") && !roles.some((role) => managementRoles.includes(role));
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !roles.some((role) => managementRoles.includes(role));
@@ -200,58 +193,6 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   );
 
   const activeIndex = useMemo(() => resolveActiveIndex(pathname, visibleItems), [pathname, visibleItems]);
-
-  useEffect(() => {
-    const handleTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) {
-        touchStartRef.current = null;
-        return;
-      }
-
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("input, textarea, select, button, a, label, [contenteditable='true']")) {
-        touchStartRef.current = null;
-        return;
-      }
-
-      const touch = event.touches[0];
-      touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-    };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      const start = touchStartRef.current;
-      touchStartRef.current = null;
-
-      if (!start || event.changedTouches.length !== 1) {
-        return;
-      }
-
-      const touch = event.changedTouches[0];
-      const deltaX = touch.clientX - start.x;
-      const deltaY = touch.clientY - start.y;
-
-      if (Math.abs(deltaX) < 64 || Math.abs(deltaX) < Math.abs(deltaY) * 1.3) {
-        return;
-      }
-
-      const currentIndex = resolveActiveIndex(pathname, visibleItems);
-      const nextIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
-
-      if (nextIndex < 0 || nextIndex >= visibleItems.length) {
-        return;
-      }
-
-      router.push(visibleItems[nextIndex].href);
-    };
-
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchend", handleTouchEnd, { passive: true });
-
-    return () => {
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [pathname, router, visibleItems]);
 
   const navGridStyle = {
     gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))`,
