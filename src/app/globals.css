@@ -146,7 +146,7 @@ option {
 }
 
 .bg-surface {
-  background-color: rgba(8, 6, 6, 0.12) !important;
+  background-color: rgba(8, 6, 6, 0.72) !important;
 }
 
 .border-line {
@@ -179,8 +179,8 @@ option {
 
 .ui-panel {
   background:
-    linear-gradient(180deg, rgba(13, 9, 10, 0.58), rgba(8, 6, 6, 0.42)),
-    radial-gradient(circle at top, rgba(255, 46, 61, 0.08), transparent 56%);
+    linear-gradient(180deg, rgba(13, 9, 10, 0.88), rgba(8, 6, 6, 0.78)),
+    radial-gradient(circle at top, rgba(255, 46, 61, 0.06), transparent 56%);
   border: 1px solid rgba(214, 179, 106, 0.12);
   border-radius: 22px;
   box-shadow:
