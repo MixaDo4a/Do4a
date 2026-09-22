@@ -1,4 +1,5 @@
 import { BottomNavClient } from "@/components/bottom-nav-client";
+import { TrainingOverlay } from "@/components/training-overlay";
 import { getCurrentRoleCodes } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -13,5 +14,10 @@ export async function BottomNav() {
         .eq("is_read", false)
     : { count: 0 };
 
-  return <BottomNavClient roles={roles} unreadCount={count ?? 0} />;
+  return (
+    <>
+      <BottomNavClient roles={roles} unreadCount={count ?? 0} />
+      <TrainingOverlay userId={user?.id ?? null} activeRole={roles[0] ?? null} />
+    </>
+  );
 }

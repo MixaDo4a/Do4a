@@ -200,7 +200,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   } as CSSProperties;
 
   return (
-    <nav className="bottom-nav-shell px-2 pt-2" style={{ touchAction: "pan-y" }}>
+    <nav className="bottom-nav-shell px-2 pt-2" data-tour="bottom-nav" style={{ touchAction: "pan-y" }}>
       <div
         className="bottom-nav-grid relative mx-auto grid max-w-[390px] gap-0"
         style={navGridStyle}
@@ -224,6 +224,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
               className={`bottom-nav-item relative z-10 flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] text-[11px] font-medium transition ${
                 active ? "bottom-nav-item-active text-white" : "text-muted"
               }`}
+              data-tour={`nav-${item.href === "/" ? "home" : item.href.slice(1).replaceAll("/", "-")}`}
               style={{ overflow: "visible" }}
               href={item.href}
               prefetch

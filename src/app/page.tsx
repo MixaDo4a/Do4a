@@ -544,7 +544,7 @@ export default async function HomePage() {
   return (
     <main className="app-shell min-h-dvh bg-surface text-ink">
       <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pb-24 pt-4 sm:px-6 lg:px-8">
-        <header className={`${managementView || managerOnlyView ? "ui-panel role-switcher-panel p-4" : "border-b border-line pb-4"} ${managementView || managerOnlyView ? "grid grid-cols-[1fr_auto] items-center gap-4" : "flex items-start justify-between gap-4"}`}>
+        <header className={`${managementView || managerOnlyView ? "ui-panel role-switcher-panel p-4" : "border-b border-line pb-4"} ${managementView || managerOnlyView ? "grid grid-cols-[1fr_auto] items-center gap-4" : "flex items-start justify-between gap-4"}`} data-tour="account">
           <div className={managementView || managerOnlyView ? "min-w-0" : undefined}>
             {!managementView && !managerOnlyView ? <p className="text-sm font-medium text-muted">{todayLabel()}</p> : null}
             <h1 className={managementView || managerOnlyView ? "text-xl font-semibold" : "mt-1 text-2xl font-semibold"}>
@@ -562,7 +562,7 @@ export default async function HomePage() {
             </h1>
             {managementView || managerOnlyView ? (
               <div className="mt-1 flex items-center gap-2">
-                <RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} />
+                <div data-tour="role-switcher"><RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} /></div>
                 <form action="/logout" method="post">
                   <button className="inline-flex h-7 items-center justify-center gap-1 rounded-md bg-brand px-2 text-xs font-semibold text-white" type="submit">
                     <LogOut size={14} /> Выйти
@@ -598,7 +598,7 @@ export default async function HomePage() {
               <div className="min-w-0">
                 <p className="truncate text-base font-semibold">{accountName}</p>
                 <div className="mt-1 flex items-center gap-2">
-                  <RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} />
+                  <div data-tour="role-switcher"><RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} /></div>
                   <form action="/logout" method="post">
                     <button className="inline-flex h-7 items-center justify-center gap-1 ui-panel px-2 text-xs font-semibold text-ink shadow-soft" type="submit">
                       <LogOut size={13} /> Выйти
@@ -647,7 +647,7 @@ export default async function HomePage() {
               </div>
             </section>
 
-            <section className="mt-6">
+            <section className="mt-6" data-tour="home-tasks">
               <SectionHeader icon={ListTodo} title="Ближайшие задачи" action="Все" href="/tasks" />
               <div className="mt-3 divide-y divide-line ui-panel shadow-soft">
                 {tasks.length === 0 ? (
@@ -666,7 +666,7 @@ export default async function HomePage() {
               </div>
             </section>
 
-            <section className="mt-6">
+            <section className="mt-6" data-tour="home-schedule">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
                 <div className="grid gap-3">
@@ -726,7 +726,7 @@ export default async function HomePage() {
           </>
         ) : managementView ? (
           <>
-            <section className="mt-6 ui-panel p-4">
+            <section className="mt-6 ui-panel p-4" data-tour="home-shift">
               <SectionHeader icon={ShieldCheck} title="Текущая смена" action="Архив" href="/admin/closed-shifts" />
               <div className="mt-4 grid gap-3">
                 {shifts.length > 0 ? (
@@ -742,7 +742,7 @@ export default async function HomePage() {
               </div>
             </section>
 
-            <section className="mt-6">
+            <section className="mt-6" data-tour="home-tasks">
               <SectionHeader icon={ListTodo} title="Ближайшие задачи" action="Все" href="/tasks" />
               <div className="mt-3 divide-y divide-line ui-panel shadow-soft">
                 {personalTasks.length === 0 ? (
@@ -761,7 +761,7 @@ export default async function HomePage() {
               </div>
             </section>
 
-            <section className="mt-6">
+            <section className="mt-6" data-tour="home-routine">
               <SectionHeader icon={CalendarDays} title="Распорядок дня" action="Архив" href="/routine" />
               <div className="mt-3 grid gap-3">
                 {routineStores.map((store) => {
@@ -782,7 +782,7 @@ export default async function HomePage() {
               </div>
             </section>
 
-            <section className="mt-6">
+            <section className="mt-6" data-tour="home-schedule">
               <SectionHeader icon={CalendarDays} title="График работ" action="Открыть" href="/schedule" />
               <div className="mt-3 ui-panel p-4">
                 <StoreSchedulePreview items={scheduleWindowPreview} today={todayIso} tomorrow={tomorrowIso} />
@@ -791,7 +791,7 @@ export default async function HomePage() {
           </>
         ) : managerOnlyView ? (
           <>
-            <section className="mt-6 ui-panel p-4">
+            <section className="mt-6 ui-panel p-4" data-tour="home-shift">
               <SectionHeader icon={ShieldCheck} title="Текущая смена" />
               {activeShift ? (
                 <>
@@ -810,7 +810,7 @@ export default async function HomePage() {
               )}
             </section>
 
-            <section className="mt-6 ui-panel p-4">
+            <section className="mt-6 ui-panel p-4" data-tour="home-routine">
               <SectionHeader icon={CalendarDays} title="Распорядок" />
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <Link className="inline-flex h-14 items-center justify-center rounded-md border border-brand/40 bg-brand/10 text-sm font-semibold text-brand" href="/routine/morning">Утро</Link>
@@ -818,7 +818,7 @@ export default async function HomePage() {
               </div>
             </section>
 
-            <section className="mt-6">
+            <section className="mt-6" data-tour="home-tasks">
               <SectionHeader icon={ListTodo} title="Ближайшие задачи" action="Все" href="/tasks" />
               <div className="mt-3 divide-y divide-line ui-panel shadow-soft">
                 {tasks.length === 0 ? <p className="p-4 text-sm text-muted">Открытых задач нет.</p> : tasks.map((task) => (
@@ -827,14 +827,14 @@ export default async function HomePage() {
               </div>
             </section>
 
-            <section className="mt-6">
+            <section className="mt-6" data-tour="home-schedule">
               <SectionHeader icon={CalendarDays} title="График" action="Посмотреть" href="/schedule" />
               <div className="mt-3 ui-panel p-4"><StoreSchedulePreview items={scheduleWindowPreview} today={todayIso} tomorrow={tomorrowIso} /></div>
             </section>
           </>
         ) : supportOnlyView ? (
           <>
-            <section className="mt-6">
+            <section className="mt-6" data-tour="home-tasks">
               <SectionHeader icon={ListTodo} title="Ближайшие задачи" action="Все" href="/tasks" />
               <div className="mt-3 divide-y divide-line ui-panel shadow-soft">
                 {tasks.length === 0 ? (
