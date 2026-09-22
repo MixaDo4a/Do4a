@@ -97,6 +97,12 @@ select {
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, background 180ms ease;
 }
 
+input::placeholder,
+textarea::placeholder {
+  color: #d8cec7;
+  opacity: 1;
+}
+
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
 textarea:focus,
 select:focus,
@@ -146,7 +152,7 @@ option {
 }
 
 .bg-surface {
-  background-color: rgba(8, 6, 6, 0.72) !important;
+  background-color: rgba(8, 6, 6, 0.86) !important;
 }
 
 .border-line {
@@ -154,7 +160,7 @@ option {
 }
 
 .text-muted {
-  color: #b4a293 !important;
+  color: #e2dad3 !important;
 }
 
 .text-brand {
@@ -179,8 +185,8 @@ option {
 
 .ui-panel {
   background:
-    linear-gradient(180deg, rgba(13, 9, 10, 0.88), rgba(8, 6, 6, 0.78)),
-    radial-gradient(circle at top, rgba(255, 46, 61, 0.06), transparent 56%);
+    linear-gradient(180deg, rgba(13, 9, 10, 0.96), rgba(8, 6, 6, 0.9)),
+    radial-gradient(circle at top, rgba(255, 46, 61, 0.04), transparent 56%);
   border: 1px solid rgba(214, 179, 106, 0.12);
   border-radius: 22px;
   box-shadow:
