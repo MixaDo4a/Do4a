@@ -143,7 +143,7 @@ export function TrainingOverlay({ userId, activeRole }: { userId: string | null;
     <>
       <button
         aria-label="Запустить обучение"
-        className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 z-[90] grid h-10 w-10 place-items-center rounded-full border border-brand/50 bg-[#120b0c]/95 text-brand shadow-[0_0_18px_rgba(255,57,72,0.3)]"
+        className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 z-[90] grid h-10 w-10 place-items-center rounded-full border border-brand/50 bg-[#050505] text-brand shadow-[0_0_18px_rgba(255,57,72,0.3)]"
         data-tour="help-button"
         onClick={start}
         title="Обучение"
@@ -155,7 +155,7 @@ export function TrainingOverlay({ userId, activeRole }: { userId: string | null;
       {open ? (
         <div className="fixed inset-0 z-[100]" role="dialog" aria-label="Режим обучения">
           {rect ? <div className="pointer-events-none fixed rounded-xl border-2 border-brand shadow-[0_0_0_9999px_rgba(0,0,0,0.62),0_0_24px_rgba(255,57,72,0.65)]" style={{ left: rect.left - 6, top: rect.top - 6, width: rect.width + 12, height: rect.height + 12 }} /> : null}
-          <div className="fixed w-[min(350px,calc(100vw-24px))] rounded-2xl border border-brand/50 bg-[#120b0c]/98 p-4 text-ink shadow-[0_18px_60px_rgba(0,0,0,0.7),0_0_28px_rgba(193,18,31,0.24)]" style={tooltipStyle}>
+          <div className="fixed w-[min(350px,calc(100vw-24px))] rounded-2xl border border-brand/50 bg-[#050505] p-4 text-ink shadow-[0_18px_60px_rgba(0,0,0,0.8),0_0_28px_rgba(193,18,31,0.24)]" style={tooltipStyle}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand">Режим обучения · {helpRoleLabels[role]}</p>
