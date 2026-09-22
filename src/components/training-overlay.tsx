@@ -61,6 +61,22 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function trainingWasSeen(key: string) {
+  try {
+    return window.localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markTrainingSeen(key: string) {
+  try {
+    window.localStorage.setItem(key, "1");
+  } catch {
+    // Some embedded browsers can temporarily block localStorage.
+  }
+}
+
 export function TrainingOverlay({ userId, activeRole }: { userId: string | null; activeRole: string | null }) {
   const pathname = usePathname();
   const role = normalizeHelpRole(activeRole);
@@ -71,7 +87,7 @@ export function TrainingOverlay({ userId, activeRole }: { userId: string | null;
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
-    if (!userId || window.localStorage.getItem(storageKey) === "1") {
+    if (!userId || trainingWasSeen(storageKey)) {
       return;
     }
 
@@ -105,7 +121,7 @@ export function TrainingOverlay({ userId, activeRole }: { userId: string | null;
 
   const step = steps[stepIndex] ?? steps[0];
   const finish = () => {
-    window.localStorage.setItem(storageKey, "1");
+    markTrainingSeen(storageKey);
     setOpen(false);
   };
   const start = () => {
