@@ -328,6 +328,14 @@ export async function POST(request: NextRequest) {
     relatedEntityId: submission.id,
   }).catch(() => null);
 
+  await supabase
+    .from("checklist_drafts")
+    .delete()
+    .eq("profile_id", user.id)
+    .eq("template_id", templateId)
+    .eq("store_id", storeId)
+    .eq("employee_id", employeeId);
+
   return NextResponse.redirect(
     new URL(`/checklists/new?message=saved&salary=${salaryPerShiftAmount}&score=${averageScore}`, request.url),
     303,

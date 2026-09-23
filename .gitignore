@@ -8,4 +8,5 @@ coverage
 *.log
 *.tsbuildinfo
 .tmp-home/
+tmp/
 supabase/.temp/
