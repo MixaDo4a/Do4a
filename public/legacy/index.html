@@ -1,0 +1,317 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>bubble up</title><style>*{box-sizing:border-box}body{margin:0;background:#14171d;color:#fff;font:16px Arial}.app{max-width:620px;margin:auto;background:#14171d;min-height:100vh;padding-bottom:40px}.hero{height:620px;padding:30px 34px;position:relative;background:linear-gradient(180deg,#f49a00,#da7217 45%,#17191e)}.top{display:flex;justify-content:space-between}.loc{display:flex;gap:12px;align-items:center;font-size:20px}.moon,.round{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#4a3417;color:#fff;border:0}.acts{display:flex;gap:8px}.heroText{position:absolute;bottom:60px;left:0;right:0;text-align:center}.heroText b{display:block;font-size:30px;margin-bottom:8px}.nav,.sub{display:flex;gap:30px;overflow:auto;white-space:nowrap;padding:0 34px;background:#262a31}.nav b{padding:18px 0;font-size:20px}.nav b:not(:first-child),.sub span{color:#858992}.sub span{padding:14px 0}.section{padding:22px 34px 0}.section h2{font-weight:400;font-size:25px;margin:0 0 16px}.kit{height:116px;border-radius:28px;background:#080a0e;padding:20px 26px;display:flex;justify-content:space-between;align-items:center;font-size:20px}.gift{font-size:52px}.row{display:flex;gap:8px;overflow:auto}.tile{flex:0 0 142px;height:202px;border-radius:26px;background:#07090d;padding:12px;display:flex;flex-direction:column;justify-content:flex-end}.pic{height:120px;display:grid;place-items:center;font-size:70px}.tile h3{font-weight:400;font-size:16px;line-height:1.05;margin:4px 0 12px}.tile p{margin:0}.combo .tile{height:258px}.combo .pic{height:170px}.pass{height:360px;border-radius:34px;background:linear-gradient(135deg,#24405b,#dcae92 60%,#673e45);display:grid;place-items:center;text-align:center;font-size:28px}.pass small{display:block;font-size:16px}.large{flex:0 0 440px;height:330px;border-radius:34px;padding:22px;display:flex;align-items:flex-end;font-size:21px;background:linear-gradient(145deg,#b64f36,#2e355c 50%,#d9b0a3)}.more{margin:36px 34px;padding:18px;border:1px solid #ffffff22;border-radius:18px;text-align:center;color:#d7f36b}</style></head><body><main class="app"><section class="hero"><div class="top"><div class="loc"><span class="moon">☾</span><div><b>Дзержинского, 1</b><small style="display:block;color:#fffc">откроемся завтра в 8:00</small></div></div><div class="acts"><button class="round">✦</button><button class="round">●</button></div></div><div class="heroText"><b>Медовые месяцы</b>подробнее</div></section><nav class="nav"><b>для тебя</b><b>осень 🧡</b><b>японский фест</b><b>кофе</b></nav><nav class="sub"><span>Bubble Box</span><span>популярные напитки</span><span>комбо</span><span>кофепасс</span><span>новое для тебя</span></nav><section class="section"><h2>Bubble Box</h2><div class="kit"><span>Закажи на 300 ₽ и<br>получи подарок</span><span class="gift">🎁</span></div></section><section class="section"><h2>популярные напитки</h2><div class="row"><article class="tile"><div class="pic">☕</div><h3>Капучино</h3><p>225 ₽　›</p></article><article class="tile"><div class="pic">🥛</div><h3>Латте медовик с...</h3><p>475 ₽　›</p></article><article class="tile"><div class="pic">🧋</div><h3>Латте медовик с...</h3><p>495 ₽　›</p></article><article class="tile"><div class="pic">☕</div><h3>Раф медовый</h3><p>435 ₽　›</p></article></div></section><section class="section combo"><h2>комбо</h2><div class="row"><article class="tile"><div class="pic">☕🥯</div><h3>Двойной мэтч</h3><p>от 465 ₽　›</p></article><article class="tile"><div class="pic">☕🥯</div><h3>Тройной мэтч</h3><p>от 535 ₽　›</p></article><article class="tile"><div class="pic">☕🧋🥯</div><h3>Парный мэтч</h3><p>от 930 ₽　›</p></article></div></section><section class="section"><h2>кофепасс</h2><div class="pass">Кофепасс<small>Экономь до 560 ₽</small></div></section><section class="section"><h2>новое для тебя</h2><div class="row"><div class="large">Чизкейк Эрл Грей<br>335 ₽</div><div class="large" style="background:linear-gradient(135deg,#eef0e8,#adb889);color:#222">Панини тыквой<br>395 ₽</div></div></section><div class="more">Показать всё меню</div></main><script></script></body></html>
+<style>
+.tile{cursor:pointer;transition:transform .18s ease,background .18s ease}.tile:active{transform:scale(.97);background:#151a24}.kit{cursor:pointer}
+</style>
+
+<style>
+html,body{background:#f7f8fa!important;color:#151820!important}
+body{overflow-x:hidden}
+.app{background:linear-gradient(180deg,#f7f8fa 0%,#f7f8fa 100%)!important}
+.hero{height:620px;color:#fff;background:linear-gradient(180deg,rgba(244,154,0,.98) 0%,rgba(223,132,45,.84) 42%,rgba(247,248,250,.96) 100%)!important}
+.hero:after{content:'';position:absolute;inset:48% 0 0;background:linear-gradient(180deg,transparent,rgba(247,248,250,.98));pointer-events:none}
+.hero>*{position:relative;z-index:1}
+.nav,.sub{background:transparent!important;color:#151820!important}
+.nav b:not(:first-child),.sub span{color:#8b8f98}
+.section{background:transparent!important}
+.section h2{color:#151820}
+.row,.nav,.sub{scrollbar-width:none;-ms-overflow-style:none}
+.row::-webkit-scrollbar,.nav::-webkit-scrollbar,.sub::-webkit-scrollbar{display:none;width:0;height:0}
+.tile{background:#fff!important;color:#151820;box-shadow:0 3px 16px rgba(30,40,60,.08);overflow:hidden}
+.tile .pic{font-size:62px;transform:scale(.78);transform-origin:center center}
+.combo .tile .pic{height:154px;font-size:58px;transform:scale(.62)}
+.kit{background:#fff!important;color:#151820;box-shadow:0 3px 16px rgba(30,40,60,.08)}
+.pass{box-shadow:0 3px 16px rgba(30,40,60,.08)}
+.large{box-shadow:0 3px 16px rgba(30,40,60,.08)}
+.more{color:#3b4bca;border-color:#3b4bca44}
+</style>
+<style>
+.nav{position:sticky;top:0;z-index:20;min-height:62px;padding-top:10px;padding-bottom:4px;background:rgba(247,248,250,.96)!important;backdrop-filter:blur(16px)}
+.sub{position:sticky;top:62px;z-index:19;min-height:48px;background:rgba(247,248,250,.96)!important;backdrop-filter:blur(16px);box-shadow:none!important}
+.nav b,.sub span{cursor:pointer;transition:color .2s ease,opacity .2s ease}.nav b.active,.sub span.active{color:#151820!important;font-weight:600}
+.sub span{scroll-margin-top:108px}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+ const sub=[...document.querySelectorAll('.sub span')];
+ const sections=[...document.querySelectorAll('.section')];
+ const names=['Bubble Box','популярные напитки','комбо','кофепасс','новое для тебя'];
+ sections.forEach((s,i)=>{s.id='section-'+i;s.style.scrollMarginTop='112px'});
+ sub.forEach((el,i)=>el.addEventListener('click',()=>sections[i]?.scrollIntoView({behavior:'smooth',block:'start'})));
+ document.querySelectorAll('.nav b').forEach((el,i)=>el.addEventListener('click',()=>{if(i===0)window.scrollTo({top:0,behavior:'smooth'});else sections[Math.min(i,sections.length-1)]?.scrollIntoView({behavior:'smooth',block:'start'})}));
+ const setActive=i=>sub.forEach((el,j)=>el.classList.toggle('active',i===j));
+ const io=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){const i=sections.indexOf(e.target);if(i>=0)setActive(i)}})},{rootMargin:'-125px 0px -18% 0px',threshold:.01});
+ sections.forEach(s=>io.observe(s));
+ const sync=()=>{let idx=0;sections.forEach((s,i)=>{if(s.getBoundingClientRect().top<=135)idx=i});setActive(idx)};
+ window.addEventListener('scroll',sync,{passive:true}); sync();
+ const forceBottom=()=>{if(window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-24)setActive(sections.length-1);else setTimeout(sync,80)};
+ window.addEventListener('scroll',forceBottom,{passive:true});
+});
+</script>
+<script>
+window.addEventListener('load',()=>{const sections=[...document.querySelectorAll('.section')];if(sections.length<4)return;const original=sections.map(s=>s.innerHTML);const autumn=[
+'<h2>кофе авторский</h2><div class="pass autumnHero">Латте медовик с сырной пенкой<br><small>475 ₽</small></div><div class="row"><article class="tile"><div class="pic">🥛</div><h3>Латте медовик с сырной пенкой</h3><p>495 ₽　›</p></article><article class="tile"><div class="pic">☕</div><h3>Раф медовик</h3><p>435 ₽　›</p></article><article class="tile"><div class="pic">☕</div><h3>Капучино медовик</h3><p>385 ₽　›</p></article><article class="tile"><div class="pic">🥛</div><h3>Латте Эрл Грей Тимут</h3><p>385 ₽　›</p></article></div>',
+'<h2>матча авторская</h2><div class="pass autumnHero matchaHero">Матча Эрл Грей Тимут-Кокос<br><small>385 ₽</small></div><div class="row"><article class="tile"><div class="pic">🍵</div><h3>Матча-латте кокос</h3><p>385 ₽　›</p></article><article class="tile"><div class="pic">🍵</div><h3>Ходзича-латте</h3><p>435 ₽　›</p></article></div>',
+'<h2>функциональные напитки</h2><div class="row"><article class="tile"><div class="pic">🧋</div><h3>Латте двойной протеин ваниль</h3><p>465 ₽　›</p></article><article class="tile"><div class="pic">🍵</div><h3>Матча двойной протеин</h3><p>475 ₽　›</p></article><article class="tile"><div class="pic">🥤</div><h3>Лимонад энергия манго-лайм</h3><p>435 ₽　›</p></article><article class="tile"><div class="pic">🧋</div><h3>Капучино энергия-протеин</h3><p>470 ₽　›</p></article></div>',
+'<h2>еда</h2><div class="pass autumnHero foodHero">Чизкейк Эрл Грей<br><small>335 ₽</small></div><div class="row"><article class="tile"><div class="pic">🍳</div><h3>Омлет с цыплёнком и томатами</h3><p>295 ₽　›</p></article><article class="tile"><div class="pic">🥪</div><h3>Скрэмбл с беконом</h3><p>415 ₽　›</p></article><article class="tile"><div class="pic">🍰</div><h3>Тарт с лимоном</h3><p>255 ₽　›</p></article><article class="tile"><div class="pic">🍰</div><h3>Чизкейк с ягодами</h3><p>335 ₽　›</p></article></div>',
+'<h2>новое для тебя</h2><div class="row"><article class="tile"><div class="pic">🧁</div><h3>Новая сезонная коллекция</h3><p>от 335 ₽　›</p></article></div>'
+];const restore=()=>sections.forEach((s,i)=>s.innerHTML=original[i]);const render=()=>{if(document.querySelector('.app')?.classList.contains('autumn-mode'))sections.forEach((s,i)=>{if(autumn[i])s.innerHTML=autumn[i]});else restore()};window.renderAutumn=render;document.querySelector('.nav b:nth-child(2)')?.addEventListener('click',()=>setTimeout(render,30));document.querySelector('.nav b:first-child')?.addEventListener('click',()=>setTimeout(render,30));render()});
+</script>
+<style>
+.autumn-mode .row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:14px}.autumn-mode .tile{min-width:0;flex-basis:auto;height:292px}.autumn-mode .tile .pic{height:160px;font-size:64px}.autumn-mode .combo .row{display:flex;overflow:auto}.autumn-mode .combo .tile{min-width:180px}.autumn-mode .large{min-width:0}
+</style>
+<script>
+window.addEventListener('load',()=>{const autumn=document.querySelector('.nav b:nth-child(2)'),home=document.querySelector('.nav b:first-child');if(!autumn)return;const sub=[...document.querySelectorAll('.sub span')],heads=[...document.querySelectorAll('.section h2')];const labels=['кофе авторский','матча авторская','функциональные напитки','еда','новое для тебя'];const mark=on=>{autumn.style.setProperty('color',on?'#151820':'#8b8f98','important');home.style.setProperty('color',on?'#8b8f98':'#151820','important');autumn.style.fontWeight=on?'600':'400';home.style.fontWeight=on?'400':'600'};mark(false);document.addEventListener('click',e=>{if(e.target===autumn||autumn.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();mark(true);document.querySelector('.app')?.classList.add('autumn-mode');sub.forEach((x,i)=>x.textContent=labels[i]);heads.forEach((x,i)=>x.textContent=labels[i]);window.renderAutumn?.();window.scrollTo({top:0,behavior:'smooth'})}else if(e.target===home||home?.contains(e.target)){mark(false);document.querySelector('.app')?.classList.remove('autumn-mode');window.renderAutumn?.()}},true)});
+</script>
+<script>
+window.addEventListener('load',()=>{
+ const ai=document.querySelector('.aiPanel'),promo=document.querySelector('.promoPanel'),sparkle=document.querySelector('.hero .round');
+ if(!ai||!sparkle)return;
+ ai.innerHTML='<button class="close">×</button><h1>ИИ-помощник</h1><p>Напишите запрос в свободной форме — подключение модели добавим следующим этапом.</p><textarea placeholder="Например: хочу тёплый напиток без сахара"></textarea><button class="aiStart">Подобрать напиток</button>';
+ document.addEventListener('click',(e)=>{if(e.target===sparkle||sparkle.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();if(promo)promo.style.display='none';ai.style.display='block'}},true);
+ ai.querySelector('.close').onclick=()=>{ai.style.display='none';if(promo)promo.style.display='none'};
+});
+</script>
+<style>
+.aiPanel{background:#f3f6fb!important;color:#121a28!important;padding:24px 22px 34px!important}.aiPanel h1{font-size:25px!important;margin-top:54px!important}.aiQuick{display:flex;gap:10px;overflow-x:auto;padding:8px 0 16px;margin:0 -4px 8px;scrollbar-width:none}.aiQuick::-webkit-scrollbar{display:none}.aiQuick button{flex:0 0 auto;border:0;border-radius:999px;padding:12px 16px;background:#fff;color:#1d2738;font-size:15px;box-shadow:0 3px 12px #17224412;white-space:nowrap}.aiPanel textarea{background:#fff!important;border:1px solid #dfe4ec!important;min-height:150px!important}.aiPanel .aiStart{background:#3452ed;color:#fff;border:0;border-radius:999px;padding:16px;width:100%;font-size:18px}
+</style>
+<script>
+window.addEventListener('load',()=>{const ai=document.querySelector('.aiPanel');if(!ai)return;ai.innerHTML='<button class="close">×</button><h1>ИИ-помощник</h1><p>Выберите быстрый запрос или напишите свой</p><div class="aiQuick"><button>Кофе для повышения энергии</button><button>Напиток главного героя</button><button>Когда ничего не можется</button><button>Напоить внутреннего гения</button><button>Пока мама не видит</button></div><textarea placeholder="Напишите, что хочется сегодня..."></textarea><button class="aiStart">Подобрать напиток</button>';const field=ai.querySelector('textarea');ai.querySelectorAll('.aiQuick button').forEach(b=>b.onclick=()=>{field.value=b.textContent;field.focus()});ai.querySelector('.close').onclick=()=>{ai.style.display='none';(()=>{const p=document.querySelector('.promoPanel');if(p)p.style.setProperty('display','none')})()};});
+</script>
+<style>.randomPick{width:52px;height:52px;border:0;border-radius:16px;background:#fff;box-shadow:0 4px 16px #17224416;font-size:26px;cursor:pointer;display:block;margin:4px 0 12px}</style>
+<script>
+window.addEventListener('load',()=>{const ai=document.querySelector('.aiPanel');if(!ai||ai.querySelector('.randomPick'))return;const p=ai.querySelector('p'),field=ai.querySelector('textarea');const b=document.createElement('button');b.className='randomPick';b.textContent='⚄';b.title='Случайный выбор';p?.after(b);const options=['Кофе для повышения энергии','Напиток главного героя','Когда ничего не можется','Напоить внутреннего гения','Пока мама не видит'];b.onclick=()=>{field.value=options[Math.floor(Math.random()*options.length)];field.focus()}});
+</script>
+<style>
+.aiPanel{background:linear-gradient(180deg,#9db7d5 0%,#7293bb 58%,#6f8fb6 100%)!important;color:#fff!important;padding:28px 22px 30px!important;border-radius:0 0 48px 48px!important;display:none;overflow:hidden}.aiPanel h1{font-size:22px!important;text-align:center;margin:48px 0 2px!important;font-weight:400}.aiPanel h1:after{content:'';display:block;font-size:14px;opacity:.8;margin-top:4px}.aiPanel p{text-align:center;font-size:28px!important;line-height:1.15;margin:390px 0 18px!important;color:#fff!important}.aiPanel .aiQuick{margin:0 -22px 12px;padding:8px 22px}.aiPanel .aiQuick button{background:#ffffff3d;color:#fff;box-shadow:none}.aiPanel textarea{position:absolute;left:22px;right:22px;bottom:28px;width:calc(100% - 44px);min-height:82px!important;height:82px;border:0!important;border-radius:34px!important;background:#f5f7fb!important;color:#263348!important;padding:20px 56px 16px 22px!important;font-size:17px!important}.aiPanel textarea::placeholder{color:#6f7d90}.aiPanel .aiStart{display:none}.aiPanel .close{position:absolute;right:20px;top:20px;background:#ffffff22;color:#fff;border-color:#ffffff88}.aiPanel .randomPick{position:absolute;left:22px;bottom:80px;margin:0;width:54px;height:42px;border-radius:24px;background:#ffffff55;color:#fff;z-index:2}.aiVisual{position:absolute;left:50%;top:155px;transform:translateX(-50%);width:78%;height:380px;border-radius:48px;background:linear-gradient(145deg,#0b1931,#203e67 54%,#0c172c);box-shadow:inset 0 0 34px #9bb9d955,0 18px 35px #314f7277;display:grid;place-items:center;font-size:126px}
+</style>
+<script>
+window.addEventListener('load',()=>{const ai=document.querySelector('.aiPanel');if(!ai)return;ai.innerHTML='<button class="close">×</button><h1>Bubble Up Лаб</h1><div class="aiVisual">🥤</div><p>Нальём в стакан всё,<br>что у тебя на уме</p><div class="aiQuick"><button>Кофе для повышения энергии</button><button>Напиток главного героя</button><button>Когда ничего не можется</button><button>Напоить внутреннего гения</button></div><button class="randomPick">⚄</button><textarea placeholder="Твой гениальный запрос..."></textarea>';const f=ai.querySelector('textarea');ai.querySelectorAll('.aiQuick button').forEach(b=>b.onclick=()=>{f.value=b.textContent;f.focus()});ai.querySelector('.randomPick').onclick=()=>{const a=[...ai.querySelectorAll('.aiQuick button')];f.value=a[Math.floor(Math.random()*a.length)].textContent;f.focus()};ai.querySelector('.close').onclick=()=>ai.style.display='none'});
+</script>
+<style>
+.accountPanel{background:#f3f6fb!important;color:#101827!important;padding:24px 22px 34px!important;border-radius:0 0 48px 48px}.accountPanel .profileHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.accountPanel .profileHead h1{padding:0!important;margin:0!important;font-size:24px!important}.accountPanel .headerIcon{width:48px;height:48px;border-radius:50%;border:1px solid #c9d0d9;background:#fff;font-size:22px}.profileUser{display:flex;align-items:center;gap:18px;padding:20px;border-radius:28px;background:#fff;margin-bottom:30px}.profileAvatar{width:76px;height:76px;border-radius:50%;background:radial-gradient(circle at 50% 35%,#aab2b9 0 17%,transparent 18%),radial-gradient(ellipse at 50% 78%,#aab2b9 0 31%,transparent 32%),#eef1f4;border:8px solid #adb5bc}.profileUser strong{font-size:25px;font-weight:400}.profileUser small{display:block;color:#77808b;font-size:18px;margin-top:5px}.accountPanel h2{font-size:22px;font-weight:400;margin:22px 0 10px}.giftGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.giftCard{height:220px;border:0;border-radius:26px;background:linear-gradient(150deg,#075896,#3384c2);color:#fff;padding:18px;font-size:18px;text-align:center}.giftCard.alt{background:linear-gradient(150deg,#b8d7eb,#8fb6d0)}.orderEmpty{text-align:center;padding:34px 10px;color:#151c29}.clock{width:110px;height:110px;margin:0 auto 20px;border-radius:50%;background:#c4ccd4;display:grid;place-items:center;font-size:55px;color:#fff}.profileOrder{width:100%;border:0;border-radius:999px;padding:17px;background:#3452ed;color:#fff;font-size:20px}.supportPanel{display:none;position:absolute;inset:0;padding:24px;border-radius:0 0 48px 48px;background:#fff;z-index:2}.supportPanel h2{text-align:center;margin:28px 0;font-size:22px}.supportTiles{display:flex;justify-content:center;gap:14px}.supportTile{width:140px;height:140px;border:0;border-radius:24px;background:#fff;box-shadow:0 5px 22px #1a254015;font-size:17px}.settingsPanel{display:none;position:absolute;inset:0;padding:24px;border-radius:0 0 48px 48px;background:#f3f6fb;z-index:2}.settingsPanel h2{text-align:center;margin:28px 0;font-size:22px}.settingRow{display:flex;justify-content:space-between;align-items:center;padding:20px;border-bottom:1px solid #edf0f4;background:#fff;font-size:18px}.settingBlock{border-radius:24px;overflow:hidden;margin-bottom:16px}.settingRow small{color:#89919b}.settingRow button{border:0;background:none;color:#3452ed;font-size:22px}.subClose{position:absolute;right:20px;top:20px}
+</style>
+<script>
+window.addEventListener('load',()=>{const p=document.querySelector('.accountPanel');if(!p)return;p.innerHTML='<div class="profileHead"><button class="headerIcon supportOpen">•••</button><h1>Профиль</h1><button class="headerIcon close">×</button></div><div class="profileUser"><div class="profileAvatar"></div><div><strong>Михаил</strong><small>+7 924 118-61-40</small></div><span style="margin-left:auto;font-size:32px;color:#aeb6bd">›</span></div><h2>пункт выдачи приколов</h2><div class="giftGrid"><button class="giftCard">Приведи друга и<br>получи напиток<br><br>🥤</button><button class="giftCard alt">Подарок другу<br><br>✨ 🥤 ✨</button></div><h2>история заказов</h2><div class="orderEmpty"><div class="clock">◷</div><div style="font-size:24px;margin-bottom:30px">Здесь будет история заказов</div><button class="profileOrder">Заказать</button></div><div class="supportPanel"><button class="headerIcon subClose">×</button><h2>Напиши нам</h2><div class="supportTiles"><button class="supportTile">🔵<br>Telegram</button><button class="supportTile">@<br>E-mail</button></div><p style="text-align:center;margin-top:36px;font-size:18px">Проблема с приложением?</p><button class="profileOrder">📋 Скопируй и отправь</button></div><div class="settingsPanel"><button class="headerIcon subClose">×</button><h2>Настройки</h2><div class="settingBlock"><div class="settingRow">Имя <small>Михаил</small></div><div class="settingRow">Номер телефона <small>+7 924 118-61-40</small></div></div><div class="settingBlock"><div class="settingRow">Уведомления <button>◯</button></div><div class="settingRow">Почта для чеков <button>＋</button></div><div class="settingRow">О приложении <button>ⓘ</button></div><div class="settingRow">Напиши нам <button class="supportOpen">•••</button></div></div></div>';const close=p.querySelector('.close');close.onclick=()=>p.style.display='none';p.querySelectorAll('.supportOpen').forEach(b=>b.onclick=()=>p.querySelector('.supportPanel').style.display='block');p.querySelector('.supportPanel .subClose').onclick=()=>p.querySelector('.supportPanel').style.display='none';p.querySelector('.settingsPanel .subClose').onclick=()=>p.querySelector('.settingsPanel').style.display='none';p.querySelector('.profileUser').onclick=()=>p.querySelector('.settingsPanel').style.display='block';});
+</script>
+<style>
+.aiPanel textarea{display:block;width:100%;min-height:170px;margin:24px 0;padding:18px;border:1px solid #d8ddea;border-radius:24px;background:#fff;color:#151820;font:18px Arial;resize:vertical}.aiPanel textarea::placeholder{color:#9299aa}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+ const ai=document.querySelector('.aiPanel'), promo=document.querySelector('.promoPanel'), sparkle=document.querySelector('.hero .round');
+ if(!ai||!sparkle)return;
+ ai.innerHTML='<button class="close">×</button><h1>ИИ-помощник</h1><p>Напишите, что вы хотите, а помощник подберёт напиток по заданному сценарию.</p><textarea placeholder="Например: хочу что-нибудь тёплое, не слишком сладкое и без лактозы"></textarea><button class="aiStart">Подобрать напиток</button>';
+ const close=ai.querySelector('.close');
+ sparkle.addEventListener('click',()=>{if(promo)promo.style.display='none';ai.style.display='block'});
+ close.addEventListener('click',()=>{ai.style.display='none';if(promo)promo.style.display='none'});
+});
+</script>
+<style>
+.accountPanel{display:none;position:fixed;z-index:60;left:50%;top:0;transform:translateX(-50%);width:min(620px,100%);height:100vh;padding:34px 24px;background:#f6f7f9;color:#151820;overflow:auto;border-radius:0 0 44px 44px}.accountPanel .close{float:right;width:48px;height:48px;border-radius:50%;border:1px solid #bbb;background:#fff;font-size:28px}.accountPanel h1{clear:both;padding-top:28px;font-weight:400;font-size:30px}.accountCard{margin:16px 0;padding:22px;border-radius:26px;background:#fff;box-shadow:0 5px 20px #18234a12}.accountCard strong{display:block;font-size:28px;margin-top:8px}.accountAction{width:100%;padding:15px;margin-top:10px;border:0;border-radius:999px;background:#3452ed;color:#fff;font-size:17px}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{const buttons=document.querySelectorAll('.hero .round');if(buttons.length<2)return;const panel=document.createElement('div');panel.className='accountPanel';panel.innerHTML='<button class="close">×</button><h1>Профиль</h1><div class="accountCard"><span>Бонусы Bubble Up</span><strong>240 баллов</strong><small>Ещё 60 баллов до следующего уровня</small></div><div class="accountCard"><b>Последний заказ</b><p>Холодный латте · 515 ₽</p><button class="accountAction">Повторить заказ</button></div><div class="accountCard"><b>Уведомления в Telegram</b><p>Получайте статус готовности и начисление бонусов</p><button class="accountAction">Подключить Telegram</button></div>';document.body.appendChild(panel);buttons[1].addEventListener('click',()=>panel.style.display='block');panel.querySelector('.close').addEventListener('click',()=>panel.style.display='none');buttons[0].addEventListener('click',()=>{document.querySelector('.promoPanel')?.style.setProperty('display','block')})});
+</script>
+<style>
+.loc{cursor:pointer}.loc small{display:none!important}.moon{cursor:pointer}.hero.day{filter:none}.hero.night{background:linear-gradient(180deg,#0f1d3d,#172e62 48%,#18233c 100%)!important}.app.night{background:#111a31!important;color:#fff!important}.app.night .nav,.app.night .sub{background:rgba(17,26,49,.96)!important}.app.night .section h2{color:#fff}.app.night .tile,.app.night .kit{background:#0a1021!important;color:#fff;box-shadow:none}.app.night .more{color:#a7b7ff}
+.aiPanel,.locationPanel{display:none;position:fixed;z-index:70;left:50%;top:0;transform:translateX(-50%);width:min(620px,100%);height:100vh;padding:30px 24px;background:#f5f7ff;color:#151820;overflow:auto;border-radius:0 0 44px 44px}.aiPanel .close,.locationPanel .close{float:right;width:48px;height:48px;border-radius:50%;border:1px solid #bbb;background:#fff;font-size:28px}.aiPanel h1,.locationPanel h1{clear:both;padding-top:32px;font-weight:400}.aiOption,.cafeOption{display:block;width:100%;text-align:left;border:0;border-radius:22px;background:#fff;padding:20px;margin:12px 0;font-size:18px;box-shadow:0 4px 16px #1b285014}.aiStart{width:100%;padding:16px;border:0;border-radius:999px;background:#3452ed;color:#fff;font-size:18px}
+.avatar{background:radial-gradient(circle at 50% 34%,#fff 0 13%,transparent 14%),radial-gradient(ellipse at 50% 76%,#fff 0 27%,transparent 28%),#8a5b23!important;color:transparent!important}
+.nav{box-shadow:none!important}
+.app.night .hero{background:linear-gradient(180deg,#254477 0%,#172d59 48%,#111a31 100%)!important}
+.app.night .hero:after{background:linear-gradient(180deg,transparent 0%,rgba(17,26,49,.72) 72%,#111a31 100%)!important}
+.app.night .heroText,.app.night .loc{color:#fff}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+ const app=document.querySelector('.app'),hero=document.querySelector('.hero'),moon=document.querySelector('.moon'),loc=document.querySelector('.loc'),rounds=document.querySelectorAll('.hero .round');
+ if(!app||!hero)return;
+ moon.title='Переключить тему'; moon.addEventListener('click',(event)=>{event.stopPropagation();event.preventDefault();const night=!app.classList.contains('night');app.classList.toggle('night',night);hero.classList.toggle('night',night);moon.textContent=night?'☀':'☾'});
+ const avatar=rounds[1];if(avatar){avatar.classList.add('avatar');avatar.textContent='';avatar.title='Профиль'}
+ const ai=document.createElement('div');ai.className='aiPanel';ai.innerHTML='<button class="close">×</button><h1>Помощник Bubble Up</h1><p>Подберём напиток по настроению и вкусу</p><button class="aiOption">Хочу что-нибудь сладкое</button><button class="aiOption">Нужен бодрящий кофе</button><button class="aiOption">Выбрать без кофеина</button><button class="aiOption">Что-нибудь холодное</button><button class="aiStart">Показать рекомендации</button>';document.body.appendChild(ai);rounds[0]?.addEventListener('click',()=>ai.style.display='block');ai.querySelector('.close').onclick=()=>ai.style.display='none';
+ const lp=document.createElement('div');lp.className='locationPanel';lp.innerHTML='<button class="close">×</button><h1>Выберите кофейню</h1><button class="cafeOption">Дзержинского, 1<br><small>Открыто сегодня</small></button><button class="cafeOption">Ленина, 24<br><small>Открыто сегодня</small></button><button class="cafeOption">Океанский проспект, 12<br><small>Открыто сегодня</small></button>';document.body.appendChild(lp);loc.addEventListener('click',()=>lp.style.display='block');lp.querySelector('.close').onclick=()=>lp.style.display='none';lp.querySelectorAll('.cafeOption').forEach(b=>b.onclick=()=>{loc.querySelector('b').textContent=b.innerText.split('\n')[0];lp.style.display='none'});
+});
+</script>
+<style>
+.heroText{position:absolute!important;bottom:8px!important;z-index:3;font-size:0}.heroText b{font-size:30px}.heroText a{display:block;margin-top:8px;color:#fff;text-decoration:none;font-size:15px;opacity:.88;cursor:pointer}
+.promoPanel{display:none;position:fixed;z-index:50;left:50%;top:0;transform:translateX(-50%);width:min(620px,100%);height:100vh;padding:150px 34px 34px;border-radius:0 0 48px 48px;overflow:auto;color:#fff;text-align:center;background:linear-gradient(180deg,#d77b1ceF 0%,#9d5436f5 52%,#562616f8 100%);box-shadow:0 14px 50px #0008}
+.promoPanel .promoClose{position:absolute;right:20px;top:20px;width:58px;height:58px;border:1px solid #ffffff88;border-radius:50%;background:#ffffff22;color:#fff;font-size:38px;font-weight:200}.promoPanel h1{font-size:30px;font-weight:400;margin:410px 0 10px}.promoPanel p{font-size:20px;line-height:1.35;margin:0 auto 26px;max-width:520px;color:#fffddf}.promoPanel .want{display:block;width:100%;padding:16px;border:1px solid #fff;border-radius:999px;background:#ffffff12;color:#fff;font-size:20px}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{const hero=document.querySelector('.heroText');if(!hero)return;const link=document.createElement('a');link.textContent='подробнее';hero.appendChild(link);const panel=document.createElement('div');panel.className='promoPanel';panel.innerHTML='<button class="promoClose">×</button><h1>Медовые месяцы</h1><p>Коллекция «Медовые месяцы» — про замедление, уют, ценность времени с близкими и наедине с собой.<br><br>Два новых вкуса: нежный медовик на гречишном алтайском мёде и чай Эрл Грей с кофе, молочной нежностью и цитрусовым перцем Тимут.</p><button class="want">Хочу</button>';document.body.appendChild(panel);link.onclick=()=>panel.style.display='block';panel.querySelector('.promoClose').onclick=()=>panel.style.display='none';panel.querySelector('.want').onclick=()=>{panel.style.display='none';document.querySelector('.more')?.scrollIntoView({behavior:'smooth'})}});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+ const items=[...document.querySelectorAll('.sub span')], blocks=[...document.querySelectorAll('.section')];
+ const paint=i=>items.forEach((x,n)=>{x.classList.toggle('active',n===i);x.style.setProperty('color',n===i?'#151820':'#8b8f98','important');x.style.setProperty('font-weight',n===i?'600':'400','important')});
+ const recalc=()=>{
+   let i=0;
+   for(let n=0;n<blocks.length;n++) if(blocks[n].offsetTop<=window.scrollY+190) i=n;
+   if(window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-30) i=blocks.length-1;
+   paint(i);
+ };
+ window.addEventListener('scroll',recalc,{passive:true});
+ window.addEventListener('resize',recalc);
+ items.forEach((x,n)=>x.addEventListener('click',()=>{paint(n);blocks[n]?.scrollIntoView({behavior:'smooth',block:'start'})}));
+ setInterval(recalc,250); recalc();
+});
+</script>
+<style>
+.aiPanel .aiQuick{position:absolute;left:22px;right:22px;bottom:126px;width:auto;margin:0;padding:0 0 0 66px;display:flex;align-items:center;overflow-x:auto;z-index:2}.aiPanel .randomPick{position:absolute!important;left:22px!important;bottom:126px!important;margin:0!important;width:52px!important;height:42px!important;z-index:3}.aiPanel textarea{z-index:2}
+.aiPanel textarea{height:64px!important;min-height:64px!important;max-height:64px!important;padding:0 22px!important;line-height:64px!important;white-space:nowrap!important;overflow:hidden!important;resize:none!important;border-radius:32px!important;box-sizing:border-box!important}
+</style>
+<style>.aiPanel{max-width:620px!important}</style>
+<style>
+.app>.nav{position:-webkit-sticky!important;position:sticky!important;top:0!important;z-index:100!important;display:flex!important}
+.app>.sub{position:-webkit-sticky!important;position:sticky!important;top:62px!important;z-index:99!important;display:flex!important}
+</style>
+<script>
+window.addEventListener('load',()=>{const nav=document.querySelector('.app>.nav'),sub=document.querySelector('.app>.sub');if(!nav||!sub)return;nav.style.position='relative';sub.style.position='relative';const nTop=nav.offsetTop,sTop=sub.offsetTop;const pin=()=>{const y=window.scrollY||document.documentElement.scrollTop;nav.style.transform=`translateY(${Math.max(0,y-nTop)}px)`;sub.style.transform=`translateY(${Math.max(0,y+62-sTop)}px)`};window.addEventListener('scroll',pin,{passive:true});pin()});
+</script>
+<script>
+window.addEventListener('load',()=>{const fest=document.querySelector('.nav b:nth-child(3)'),sections=[...document.querySelectorAll('.section')],sub=[...document.querySelectorAll('.sub span')],heads=[...document.querySelectorAll('.section h2')];if(!fest||!sections.length)return;const base=sections.map(s=>s.innerHTML),labels=['церемониальная матча','ходзича из Японии','японский чай','еда','новое для тебя'];const data=['<h2>церемониальная матча</h2><div class="pass autumnHero matchaHero">Матча-латте<br><small>295 ₽</small></div><div class="row"><article class="tile"><div class="pic">🍵</div><h3>Айс Матча-латте</h3><p>335 ₽　›</p></article><article class="tile"><div class="pic">🍵</div><h3>Матча-капучино</h3><p>295 ₽　›</p></article></div>','<h2>ходзича из Японии</h2><div class="pass autumnHero hojichaHero">Айс Ходзича-латте Солёная карамель<br><small>395 ₽</small></div><div class="row"><article class="tile"><div class="pic">🧋</div><h3>Ходзича-латте Солёная карамель</h3><p>395 ₽　›</p></article></div>','<h2>японский чай</h2><div class="pass autumnHero teaHero">Гречишный чай-латте Соба-тя<br><small>345 ₽</small></div><div class="row"><article class="tile wideTea"><div class="pic">🍵</div><h3>Зелёный чай Японская липа</h3><p>225 ₽　›</p></article></div>','<h2>еда</h2><div class="pass autumnHero foodHero">Чизкейк Матча<br><small>335 ₽</small></div><div class="row"><article class="tile"><div class="pic">🍰</div><h3>Чизкейк Матча</h3><p>335 ₽　›</p></article></div>','<h2>новое для тебя</h2><div class="row"><article class="tile"><div class="pic">🍵</div><h3>Японская новинка</h3><p>от 295 ₽　›</p></article></div>'];const render=()=>{sections.forEach((s,i)=>s.innerHTML=data[i]);sub.forEach((x,i)=>x.textContent=labels[i]);heads.forEach((x,i)=>x.textContent=labels[i]);document.querySelector('.app')?.classList.add('fest-mode');document.querySelector('.app')?.classList.remove('autumn-mode')};document.addEventListener('click',e=>{if(e.target===fest||fest.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();render();fest.style.setProperty('color','#151820','important');document.querySelector('.nav b:nth-child(2)')?.style.setProperty('color','#8b8f98','important');window.scrollTo({top:0,behavior:'smooth'})}},true)});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+ const nav=[...document.querySelectorAll('.nav b')],sub=[...document.querySelectorAll('.sub span')],heads=[...document.querySelectorAll('.section h2')];
+ const normal=['Bubble Box','популярные напитки','комбо','кофепасс','новое для тебя'];
+ const autumn=['кофе авторский','матча авторская','функциональные напитки','еда','новое для тебя'];
+ const normalHeads=['Bubble Box','популярные напитки','комбо','кофепасс','новое для тебя'];
+ const autumnHeads=['кофе авторский','матча авторская','функциональные напитки','еда','новое для тебя'];
+ const setMode=aut=>{sub.forEach((x,i)=>x.textContent=(aut?autumn:normal)[i]);heads.forEach((x,i)=>x.textContent=(aut?autumnHeads:normalHeads)[i]);document.querySelector('.app').classList.toggle('autumn-mode',aut)};
+ nav[0]?.addEventListener('click',()=>setMode(false));nav[1]?.addEventListener('click',()=>{setMode(true);document.querySelector('.section')?.scrollIntoView({behavior:'smooth',block:'start'})});setMode(false);
+});
+</script>
+<script>
+window.addEventListener('load',()=>{const nav=document.querySelector('.app>.nav'),sub=document.querySelector('.app>.sub');if(!nav||!sub)return;const panels=[...document.querySelectorAll('.aiPanel,.accountPanel,.promoPanel,.locationPanel')];const sync=()=>{const open=panels.some(p=>p&&getComputedStyle(p).display!=='none');nav.style.visibility=open?'hidden':'visible';sub.style.visibility=open?'hidden':'visible';nav.style.pointerEvents=open?'none':'auto';sub.style.pointerEvents=open?'none':'auto'};panels.forEach(p=>p&&new MutationObserver(sync).observe(p,{attributes:true,attributeFilter:['style','class']}));sync()});
+</script>
+<style>
+html,body{overflow-x:hidden!important}.aiPanel{left:50%!important;right:auto!important;width:min(620px,100vw)!important;max-width:620px!important;transform:translateX(-50%)!important;overflow-x:hidden!important;box-sizing:border-box!important}.aiPanel .aiQuick{max-width:calc(100% - 44px)!important}
+.aiPanel textarea{left:22px!important;right:22px!important;width:auto!important;max-width:calc(100% - 44px)!important;min-width:0!important}.aiPanel>p{position:absolute!important;left:22px;right:22px;bottom:202px;margin:0!important;text-align:center!important}.aiPanel .aiQuick{bottom:126px!important;clip-path:inset(0 0 0 66px)!important;scroll-padding-left:66px!important}
+.aiPanel .close{background:#7898bd!important;border:1px solid #fff!important;color:#fff!important;box-shadow:none!important}
+.aiPanel .aiVisual{width:78%!important;height:500px!important;top:135px!important;border-radius:54px!important}
+.combo .tile{height:300px!important;flex-basis:180px!important;border-radius:30px!important;padding:16px!important;background:#fff!important;color:#101827!important}.combo .tile .pic{height:178px!important;font-size:68px!important;transform:scale(.72)!important}.combo .tile h3{font-size:20px!important;line-height:1.12!important;margin:6px 0 16px!important}.combo .tile p{font-size:19px!important;color:#101827!important}
+.combo .pic{line-height:1;display:grid!important;place-items:center;letter-spacing:0}.combo .comboGrid{width:100%;height:100%;display:grid;place-items:center;gap:4px}.combo .comboGrid span{display:grid;place-items:center;font-size:58px;line-height:1}.combo .comboGrid.duo{grid-template-columns:1fr 1fr}.combo .comboGrid.trio{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}.combo .comboGrid.trio span:first-child{grid-column:1 / span 2}.combo .comboGrid.quad{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}.combo .comboGrid.quad span{font-size:45px}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{const p=document.querySelectorAll('.combo .tile .pic');if(p.length>=3){p[0].innerHTML='<div class="comboGrid duo"><span>☕</span><span>🥞</span></div>';p[1].innerHTML='<div class="comboGrid trio"><span>☕</span><span>🍰</span><span>🥞</span></div>';p[2].innerHTML='<div class="comboGrid quad"><span>☕</span><span>🧋</span><span>🥞</span><span>🥪</span></div>'}});
+</script>
+
+
+
+
+<style>.fest-mode .row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;gap:14px}.fest-mode .tile{min-width:0;height:292px}.fest-mode .pass{height:430px}.fest-mode .autumnHero{background:linear-gradient(145deg,#789d2a,#315410)!important}.fest-mode .hojichaHero{background:linear-gradient(145deg,#b17b4f,#5c321b)!important}.fest-mode .teaHero{background:linear-gradient(145deg,#e5b08c,#b87b57)!important}.fest-mode .foodHero{background:linear-gradient(145deg,#78a83d,#456d1f)!important}</style>
+<style>.fest-mode .wideTea{grid-column:1 / -1!important;height:150px!important;display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:24px;padding:14px 24px!important}.fest-mode .wideTea .pic{height:118px!important;flex:0 0 150px!important;font-size:62px!important}.fest-mode .wideTea h3{margin:0!important;font-size:19px!important}.fest-mode .wideTea p{margin-left:auto!important;font-size:18px!important}</style>
+<style>.fest-mode .row:has(> .tile:only-child){grid-template-columns:1fr!important}.fest-mode .row:has(> .tile:only-child)>.tile{width:100%!important}</style>
+
+<script>window.addEventListener('load',()=>{const title=localStorage.getItem('bubbleUpPromoTitle');if(title){const b=document.querySelector('.heroText b');if(b)b.textContent=title}});</script>
+
+<script>window.addEventListener('load',()=>{const nav=[...document.querySelectorAll('.nav b')],coffee=nav[3];if(!coffee)return;document.addEventListener('click',e=>{if(e.target===coffee||coffee.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();nav.forEach((b,i)=>{b.style.setProperty('color',i===3?'#151820':'#8b8f98','important');b.style.fontWeight=i===3?'600':'400'});document.querySelector('.app')?.classList.remove('autumn-mode','fest-mode');window.scrollTo({top:0,behavior:'smooth'})}},true);});</script>
+<style>.nav{align-items:center;height:62px!important;line-height:1!important}.nav b{display:flex!important;align-items:center!important;height:40px!important;padding:0!important;line-height:1!important}.sub{align-items:center;height:48px!important;line-height:1!important}.sub span{display:flex!important;align-items:center!important;height:36px!important;padding:0!important;line-height:1!important}</style>
+<script>window.addEventListener('load',()=>{const nav=[...document.querySelectorAll('.nav b')];window.addEventListener('click',e=>{const i=nav.findIndex(b=>b===e.target||b.contains(e.target));if(i<0)return;nav.forEach((b,n)=>{b.style.setProperty('color',n===i?'#151820':'#8b8f98','important');b.style.setProperty('font-weight',n===i?'600':'400','important')})},true);});</script>
+<style>.nav b{font-family:Arial,sans-serif!important;font-style:normal!important;letter-spacing:0!important}</style>
+<script>
+window.addEventListener('load',()=>{const raw=localStorage.getItem('bubbleUpCampaign_custom');if(!raw)return;let c;try{c=JSON.parse(raw)}catch(e){return}if(!c?.name)return;const nav=document.querySelector('.nav');if(!nav)return;const b=document.createElement('b');b.textContent=c.name;b.className='customCampaign';nav.appendChild(b);b.addEventListener('click',()=>{nav.querySelectorAll('b').forEach(x=>{x.style.setProperty('color',x===b?'#151820':'#8b8f98','important');x.style.fontWeight=x===b?'600':'400'});document.querySelector('.heroText b')?.replaceChildren(document.createTextNode(c.name));document.querySelector('.promoPanel h1')?.replaceChildren(document.createTextNode(c.name));const p=document.querySelector('.promoPanel p');if(p&&c.desc)p.textContent=c.desc;window.scrollTo({top:0,behavior:'smooth'})})});
+</script>
+<script>
+window.addEventListener('load',()=>{const b=document.querySelector('.customCampaign');if(!b)return;b.addEventListener('click',()=>{document.querySelector('.app')?.classList.remove('autumn-mode','fest-mode');document.querySelectorAll('.section').forEach((s,i)=>{s.innerHTML=i===0?'<h2>'+b.textContent+'</h2><div style="padding:48px 20px;text-align:center;color:#7c8694;background:#fff;border-radius:24px">В этой акции пока нет разделов и товаров.<br>Добавьте наполнение в конструкторе.</div>':'<h2 style="color:#a1a8b3">Раздел не настроен</h2>'});document.querySelectorAll('.sub span').forEach((x,i)=>x.textContent=i===0?'пустая акция':'—');});});
+</script>
+<script>
+window.addEventListener('load',()=>{const b=document.querySelector('.customCampaign');if(!b)return;b.addEventListener('click',()=>{const names=JSON.parse(localStorage.getItem('bubbleUpMenus_'+b.textContent)||'[]');const sections=[...document.querySelectorAll('.section')];if(!names.length)return;sections.forEach((s,i)=>{if(i<names.length){const n=names[i];s.innerHTML='<h2>'+n+'</h2><div class="pass autumnHero">'+n+'<br><small>Добавьте продукты в конструкторе</small></div>'}else s.innerHTML=''});document.querySelectorAll('.sub span').forEach((x,i)=>x.textContent=i<names.length?names[i]:'')})});
+</script>
+<script>
+window.addEventListener('load',()=>{const b=document.querySelector('.customCampaign');if(!b)return;b.addEventListener('click',()=>{const camp=b.textContent.trim(),menus=JSON.parse(localStorage.getItem('bubbleUpMenus_'+camp)||'[]'),sections=[...document.querySelectorAll('.section')];menus.forEach((m,i)=>{const a=JSON.parse(localStorage.getItem('bubbleUpProducts_'+camp+'_'+m)||'[]');if(!a.length)return;const s=sections[i];if(!s)return;s.innerHTML='<h2>'+m+'</h2><div class="items">'+a.map(x=>'<div class="tile"><div class="pic">🥤</div><b>'+x.name+'</b><small>'+(x.badge||'')+'</small><strong>'+(x.price||'')+' ₽　›</strong></div>').join('')+'</div>'})})});
+</script>
+<style>
+.section .customHero{height:230px;border-radius:24px;background:linear-gradient(145deg,#d88a3b,#8f9fcf);padding:18px;display:flex;align-items:flex-end;color:#fff;font-size:20px;margin-bottom:12px}.section .customGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.section .customGrid .tile{background:#fff;border-radius:16px;padding:10px;min-width:0}.section .customGrid .tile .pic{height:100px;border-radius:12px;background:linear-gradient(145deg,#e2c09d,#7184c5);display:grid;place-items:center;font-size:32px}.section .customGrid .tile b{display:block;margin-top:8px;font-weight:500}.section .customGrid .tile small{display:block;color:#3452ed;margin-top:3px}.section .customGrid .tile strong{display:block;margin-top:8px}.section .customGrid .tile:last-child:nth-child(odd){grid-column:1/-1}
+</style>
+<script>
+window.addEventListener('load',()=>{const b=document.querySelector('.customCampaign');if(!b)return;b.addEventListener('click',()=>{setTimeout(()=>{const camp=b.textContent.trim(),menus=JSON.parse(localStorage.getItem('bubbleUpMenus_'+camp)||'[]'),sections=[...document.querySelectorAll('.section')];menus.forEach((m,i)=>{const a=JSON.parse(localStorage.getItem('bubbleUpProducts_'+camp+'_'+m)||'[]'),s=sections[i];if(!s||!a.length)return;const main=a.find(x=>x.main),rest=a.filter(x=>!x.main);s.innerHTML='<h2>'+m+'</h2>'+(main?'<div class="customHero"><div><b>'+main.name+'</b><br><small>'+((main.price||'')+' ₽')+'</small></div></div>':'')+'<div class="customGrid">'+rest.map(x=>'<div class="tile"><div class="pic">🥤</div><b>'+x.name+'</b><small>'+((x.badge)||'')+'</small><strong>'+((x.price||'')+' ₽　›')+'</strong></div>').join('')+'</div>'})},30)})});
+</script>
+<script>
+window.addEventListener('load',()=>{const b=document.querySelector('.customCampaign');if(!b)return;b.addEventListener('click',()=>setTimeout(()=>{document.querySelectorAll('.customHero').forEach((h)=>h.style.backgroundSize='cover')},80))});
+</script>
+<script>
+window.addEventListener('load',()=>{const b=document.querySelector('.customCampaign');if(!b)return;b.addEventListener('click',()=>setTimeout(()=>{const camp=b.textContent.trim(),menus=JSON.parse(localStorage.getItem('bubbleUpMenus_'+camp)||'[]');menus.forEach((m,i)=>{const a=JSON.parse(localStorage.getItem('bubbleUpProducts_'+camp+'_'+m)||'[]'),s=document.querySelectorAll('.section')[i];if(!s)return;const main=a.find(x=>x.main);if(main?.media){const h=s.querySelector('.customHero');if(h)h.style.backgroundImage=`url("${main.media}")`}s.querySelectorAll('.tile').forEach((t,j)=>{const x=a.filter(z=>!z.main)[j];if(x?.media){const p=t.querySelector('.pic');if(p){p.textContent='';p.style.backgroundImage=`url("${x.media}")`;p.style.backgroundSize='cover';p.style.backgroundPosition='center'}}})})},100))});
+</script>
+<style>
+.section .customGrid .tile small{left:auto;right:8px;bottom:auto;top:92px;width:max-content;max-width:calc(100% - 16px);padding:7px 11px;border-radius:999px;background:#3452ed;color:#fff;text-shadow:none;font-weight:600;line-height:1.05}
+</style>
+<script>
+window.addEventListener('load',()=>{const b=document.querySelector('.customCampaign');if(!b)return;b.addEventListener('click',()=>setTimeout(()=>{const camp=b.textContent.trim(),menus=JSON.parse(localStorage.getItem('bubbleUpMenus_'+camp)||'[]');menus.forEach((m,i)=>{const a=JSON.parse(localStorage.getItem('bubbleUpProducts_'+camp+'_'+m)||'[]'),x=a.find(z=>z.main),h=document.querySelectorAll('.customHero')[i];if(x?.badge&&h&&!h.querySelector('.heroBadge')){const q=document.createElement('span');q.className='heroBadge';q.textContent=x.badge;q.style.cssText='position:absolute;left:50%;bottom:54px;transform:translateX(-50%);background:#3452ed;color:#fff;padding:7px 13px;border-radius:999px;font-weight:600';h.appendChild(q)}})},120))});
+</script>
+<style>
+.section .customGrid .tile small{top:48%;right:8px;bottom:auto;transform:translateY(-50%);font-size:clamp(10px,2.8vw,14px);padding:5px 9px;max-width:58%;white-space:normal;text-align:center}
+.section .customHero{position:relative;overflow:hidden}
+.section .customHero .heroBadge{top:58%!important;bottom:auto!important;left:58%!important;transform:translate(-50%,-50%)!important;font-size:clamp(11px,3vw,15px);max-width:42%;text-align:center;white-space:normal;line-height:1.05}
+</style>
+<style>.section .customGrid .tile small:empty{display:none!important}</style>
+<style>
+.section .customGrid .tile{position:relative;display:flex;flex-direction:column;min-height:245px}
+.section .customGrid .tile .pic{height:132px;min-height:132px;width:100%;flex:none;overflow:hidden}
+.section .customGrid .tile b{position:static;display:block;margin-top:10px;color:#182133;text-shadow:none;font-size:15px;line-height:1.2;min-height:36px}
+.section .customGrid .tile small{top:66px;right:4px;transform:translateY(-50%);font-size:10px;padding:4px 7px;max-width:48%;z-index:3}
+.section .customGrid .tile strong{margin-top:auto;display:block;color:#182133;font-size:15px}
+</style>
+<style>
+.section .customGrid .tile{position:relative;display:flex;flex-direction:column;justify-content:flex-start}
+.section .customGrid .tile .pic{order:1;position:relative}
+.section .customGrid .tile b{order:2}
+.section .customGrid .tile strong{order:3}
+.section .customGrid .tile small{position:absolute!important;top:66px!important;right:6px!important;bottom:auto!important;left:auto!important;transform:translateY(-50%)!important;z-index:5!important;pointer-events:none}
+</style>
+<style>
+.section .customGrid .tile{min-height:300px}
+.section .customGrid .tile .pic{height:188px;min-height:188px}
+.section .customGrid .tile b{margin-top:8px;min-height:34px}
+.section .customGrid .tile strong{margin-top:3px}
+.section .customGrid .tile small{top:94px!important}
+</style>
+<script>
+window.addEventListener('load',()=>{const b=document.querySelector('.customCampaign');if(!b)return;b.addEventListener('click',()=>setTimeout(()=>{const camp=b.textContent.trim(),menus=JSON.parse(localStorage.getItem('bubbleUpMenus_'+camp)||'[]');menus.forEach((m,i)=>{const a=JSON.parse(localStorage.getItem('bubbleUpProducts_'+camp+'_'+m)||'[]'),s=document.querySelectorAll('.section')[i];if(!s)return;const main=a.find(x=>x.main),rest=a.filter(x=>!x.main);if(main?.media){const h=s.querySelector('.customHero');if(h)h.style.backgroundImage=`url("${main.media}")`}s.querySelectorAll('.tile').forEach((t,j)=>{if(rest[j]?.media){const p=t.querySelector('.pic');if(p){p.textContent='';p.style.backgroundImage=`url("${rest[j].media}")`;p.style.backgroundSize='cover';p.style.backgroundPosition='center'}}})})},120))});
+</script>
+<script>
+window.addEventListener('load',()=>{const b=document.querySelector('.customCampaign');if(!b)return;b.addEventListener('click',()=>setTimeout(()=>{const camp=b.textContent.trim(),menus=JSON.parse(localStorage.getItem('bubbleUpMenus_'+camp)||'[]');menus.forEach((m,i)=>{const a=JSON.parse(localStorage.getItem('bubbleUpProducts_'+camp+'_'+m)||'[]'),s=document.querySelectorAll('.section')[i];if(!s)return;const main=a.find(x=>x.main),rest=a.filter(x=>!x.main);if(main?.media&&/\.(mp4|webm|mov)$/i.test(main.fileName||'')){const h=s.querySelector('.customHero');if(h){h.style.backgroundImage='none';const v=document.createElement('video');v.src=main.media;v.autoplay=true;v.loop=true;v.muted=true;v.playsInline=true;v.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover';h.prepend(v)}}s.querySelectorAll('.tile').forEach((t,j)=>{const x=rest[j];if(!x?.media)return;const p=t.querySelector('.pic');if(!p)return;if(/\.(mp4|webm|mov)$/i.test(x.fileName||'')){p.textContent='';const v=document.createElement('video');v.src=x.media;v.autoplay=true;v.loop=true;v.muted=true;v.playsInline=true;v.style.cssText='width:100%;height:100%;object-fit:cover';p.appendChild(v)}else{p.style.backgroundImage=`url("${x.media}")`;p.style.backgroundSize='cover';p.style.backgroundPosition='center'}})})},160))});
+</script>
+<script>
+window.addEventListener('load',()=>{const b=document.querySelector('.customCampaign');if(b){setTimeout(()=>b.click(),180)}});
+</script>
+<style>
+.section .customHero{position:relative;cursor:pointer}.section .customHero>div{position:absolute;left:18px;bottom:16px;z-index:3;text-align:left;color:#fff;text-shadow:0 1px 3px #000}.section .customHero>div b{display:block;font-size:18px}.section .customHero>div small{display:block;margin-top:7px;font-size:15px;color:#fff}
+</style>
+
+
+<script>
+window.addEventListener('load',()=>{const nav=document.querySelector('.nav');if(!nav)return;nav.addEventListener('click',e=>{const b=e.target.closest('b');if(!b)return;nav.querySelectorAll('b').forEach(x=>{x.classList.remove('active');x.style.removeProperty('color');x.style.removeProperty('font-weight');x.style.removeProperty('font-family');x.style.removeProperty('font-size');x.style.color='#8b8f98';x.style.fontWeight='400'});b.classList.add('active');b.style.color='#151820';b.style.fontWeight='600';});},true);
+</script>
+<script>
+window.addEventListener('load',()=>{const nav=document.querySelector('.nav');if(!nav)return;window.addEventListener('click',e=>{const b=e.target.closest?.('.nav b');if(!b)return;nav.querySelectorAll('b').forEach(x=>{x.classList.remove('active');x.style.setProperty('color','#8b8f98','important');x.style.setProperty('font-weight','400','important');x.style.removeProperty('font-family');x.style.removeProperty('font-size')});b.classList.add('active');b.style.setProperty('color','#151820','important');b.style.setProperty('font-weight','600','important')},true)});
+</script>
+<script>
+window.addEventListener('load',()=>{
+  window.addEventListener('click',e=>{
+    const card=e.target.closest?.('.customGrid .tile,.customHero');
+    if(!card) return;
+    const sec=card.closest('.section');
+    const camp=document.querySelector('.customCampaign')?.textContent.trim();
+    const menu=sec?.querySelector('h2')?.textContent.trim();
+    if(!camp||!menu) return;
+    let arr=[];
+    try{arr=JSON.parse(localStorage.getItem('bubbleUpProducts_'+camp+'_'+menu)||'[]')}catch(_){ }
+    const label=(card.querySelector('b')?.textContent||card.querySelector('h3')?.textContent||'').trim();
+    const tiles=[...card.parentElement.querySelectorAll(':scope > .tile')]; const x=card.classList.contains('customHero') ? arr.find(v=>v.main) : (arr.filter(v=>!v.main)[tiles.indexOf(card)] || arr.find(v=>v.name===label) || arr.find(v=>label && card.textContent.includes(v.name)));
+    if(!x) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    try{localStorage.setItem('bubbleUpSelectedProductRef',JSON.stringify({camp,menu,index:card.classList.contains('customHero')?-1:tiles.indexOf(card)}));localStorage.removeItem('bubbleUpSelectedProduct')}catch(_){} location.href='product-options.html';
+  },true);
+});
+</script>
+<script>
+(()=>{const DB='bubbleUpMediaDB',STORE='files';const get=k=>new Promise((res,rej)=>{const q=indexedDB.open(DB,1);q.onupgradeneeded=()=>q.result.createObjectStore(STORE);q.onsuccess=()=>{const r=q.result.transaction(STORE).objectStore(STORE).get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)};q.onerror=()=>rej(q.error)});const apply=async()=>{const b=document.querySelector('.customCampaign');if(!b)return;const camp=b.textContent.trim(),menus=JSON.parse(localStorage.getItem('bubbleUpMenus_'+camp)||'[]'),sections=[...document.querySelectorAll('.section')];for(let i=0;i<menus.length;i++){const a=JSON.parse(localStorage.getItem('bubbleUpProducts_'+camp+'_'+menus[i])||'[]'),s=sections[i];if(!s)continue;const all=a.map(x=>x);for(const x of all){if(!x.mediaRef)continue;try{x.media=URL.createObjectURL(await get(x.mediaRef))}catch(_){}}const main=all.find(x=>x.main),rest=all.filter(x=>!x.main);if(main?.media){const h=s.querySelector('.customHero');if(h)h.style.backgroundImage=`url("${main.media}")`}s.querySelectorAll('.tile').forEach((t,j)=>{const x=rest[j];if(!x?.media)return;const p=t.querySelector('.pic');if(p){p.textContent='';p.style.backgroundImage=`url("${x.media}")`;p.style.backgroundSize='cover';p.style.backgroundPosition='center'}})}};window.addEventListener('load',()=>setTimeout(apply,250));})();
+</script>
+<script>
+(()=>{const DB='bubbleUpMediaDB',STORE='files';const get=k=>new Promise((res,rej)=>{const q=indexedDB.open(DB,1);q.onsuccess=()=>{const r=q.result.transaction(STORE).objectStore(STORE).get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)};q.onerror=()=>rej(q.error)});window.addEventListener('load',async()=>{const b=document.querySelector('.customCampaign');if(!b)return;const camp=b.textContent.trim(),menus=JSON.parse(localStorage.getItem('bubbleUpMenus_'+camp)||'[]'),ss=[...document.querySelectorAll('.section')];for(let i=0;i<menus.length;i++){const a=JSON.parse(localStorage.getItem('bubbleUpProducts_'+camp+'_'+menus[i])||'[]'),s=ss[i];if(!s)continue;const all=a,main=all.find(x=>x.main);if(main?.mediaRef){try{const f=await get(main.mediaRef);if((f?.type||'').startsWith('video/')||/^video\\//i.test(main.mediaType||'')||/\\.(mp4|webm|mov)$/i.test(main.fileName||'')){const h=s.querySelector('.customHero');if(h){h.style.backgroundImage='none';const v=document.createElement('video');v.src=URL.createObjectURL(f);v.autoplay=true;v.loop=true;v.muted=true;v.playsInline=true;v.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover';h.prepend(v)}}}catch(_){} }}})})();
+</script>
+<script>
+window.addEventListener('load',()=>setTimeout(()=>{document.querySelectorAll('.customHero').forEach(h=>{const u=(h.style.backgroundImage.match(/url\("?([^"\)]+)\)?/)||[])[1];if(!u||!u.startsWith('blob:'))return;const v=document.createElement('video');v.src=u;v.autoplay=true;v.loop=true;v.muted=true;v.playsInline=true;v.style.cssText='position:absolute;inset:0;width:100%;height:100%;object-fit:cover';v.onerror=()=>v.remove();h.style.backgroundImage='none';h.prepend(v)})},1200));
+</script>
