@@ -1,0 +1,130 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bubble Up · допы</title><style>*{box-sizing:border-box}body{margin:0;background:#101625;color:#fff;font:16px Arial}.screen{max-width:620px;min-height:100vh;margin:auto;padding:24px 20px 190px;position:relative;overflow:hidden;background:linear-gradient(150deg,#412719,#d49a7d 45%,#3b55c7)}.top{display:flex;justify-content:space-between;align-items:center;position:relative;z-index:2}.circle{width:46px;height:46px;border-radius:50%;border:1px solid #ffffff55;background:#ffffff20;color:#fff;font-size:26px}.title{text-align:center;font-size:22px;line-height:1.08}.nut{display:flex;justify-content:center;gap:22px;text-align:center;margin:20px 0}.nut b{display:block}.nut small{color:#ffffffaa}.visual{height:calc(100vh - 365px);min-height:360px;display:grid;place-items:center;font-size:180px;position:relative}.visual:after{content:'';position:absolute;width:170px;height:18px;bottom:18%;border-radius:50%;background:#ffffff77;filter:blur(9px)}.addons{position:fixed;z-index:3;bottom:78px;left:50%;transform:translateX(-50%);width:min(620px,100%);display:flex;gap:10px;overflow:auto;padding:10px 20px;background:linear-gradient(180deg,transparent,#334d9ecc 28%)}.addon{flex:0 0 118px;height:142px;border:0;border-radius:24px;background:#6079d477;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}.addon .plus{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#718be8;font-size:25px}.bottom{position:fixed;z-index:4;bottom:0;left:50%;transform:translateX(-50%);width:min(620px,100%);display:flex;gap:14px;padding:14px 20px 20px;background:#1b326dcc;backdrop-filter:blur(12px)}.volume,.add{border:0;border-radius:999px;padding:18px;background:#7187bd88;color:#fff;font-size:18px}.add{flex:1;background:#3452ed}.popover{display:none;position:fixed;z-index:6;width:240px;padding:12px;border:1px solid #ffffff35;border-radius:22px;background:#7f92c95c;backdrop-filter:blur(20px);box-shadow:0 14px 40px #0c173b88}.pop-title{font-size:13px;color:#ffffffaa;margin-bottom:9px}.choices{display:flex;gap:7px;overflow:auto}.choice{flex:0 0 72px;min-height:70px;border:0;border-radius:14px;background:#1e2e62cc;color:#fff;padding:7px;font-size:11px}.choice span{display:block;font-size:24px;margin-bottom:5px}.choice.active{outline:2px solid #fff}</style></head><body><main class="screen"><div class="top"><button class="circle">‹</button><div class="title">Холодный латте двойной<br>протеин ваниль</div><button class="circle">···</button></div><div class="nut"><div><b>213 ккал</b><small>энергия</small></div><div><b>27,2 г</b><small>белки</small></div><div><b>5,6 г</b><small>жиры</small></div><div><b>12,0 г</b><small>углеводы</small></div></div><div class="visual">🥤</div><div id="popover" class="popover"><div class="pop-title" id="popTitle"></div><div id="choices" class="choices"></div></div><div class="addons"><button class="addon" data-menu="Молоко|🥛 Протеиновое|🥥 Кокосовое|🌱 Овсяное"><span>🥛</span>Молоко</button><button class="addon" data-menu="Сиропы|🍯 Ванильный|🍫 Шоколадный|🍓 Клубничный"><span class="plus">+</span>Сиропы</button><button class="addon" data-menu="Топпинги|🟤 Посыпки|🍪 Печенье|🍬 Маршмеллоу"><span class="plus">+</span>Топпинги</button><button class="addon" data-menu="Подача|🧊 Со льдом|🥤 Стакан|🚫 Без манжета"><span class="plus">+</span>Подача</button></div><div class="bottom"><button class="volume">400 мл</button><button class="add">+ 515 ₽</button></div></main><script>(()=>{let raw=localStorage.getItem("bubbleUpSelectedProduct");let x=null;try{const r=JSON.parse(localStorage.getItem("bubbleUpSelectedProductRef")||"null");if(r){const a=JSON.parse(localStorage.getItem("bubbleUpProducts_"+r.camp+"_"+r.menu)||"[]");x=r.index<0?a.find(v=>v.main):a.filter(v=>!v.main)[r.index]}}catch(e){}if(!x){try{x=raw?JSON.parse(raw):null}catch(e){x=null}}if(!x)return;const title=document.querySelector(".title");if(title&&x.name)title.textContent=x.name;const nut=document.querySelector(".nut");const vals=[x.kcal||x.calories,x.protein,x.fat,x.carbs];if(!vals.some(v=>v!==undefined&&v!==null&&v!=="")){if(nut)nut.style.display="none"}else if(nut){const bs=nut.querySelectorAll("b");vals.forEach((v,i)=>{if(bs[i])bs[i].textContent=v==null||v===""?"":String(v)+(i===0?" ккал":" г")});nut.querySelectorAll("b").forEach(b=>{if(!b.textContent.trim())b.parentElement.style.display="none"})}const visual=document.querySelector(".visual");if(visual&&x.media){visual.textContent="";if((/\\.(mp4|webm|mov)$/i.test(x.fileName||"")||/^data:video\\//i.test(x.media||""))){const v=document.createElement("video");v.src=x.media;v.autoplay=true;v.loop=true;v.muted=true;v.playsInline=true;v.style.cssText="width:100%;height:100%;object-fit:contain";visual.appendChild(v)}else{visual.style.backgroundImage=`url("${x.media}")`;visual.style.backgroundSize="contain";visual.style.backgroundRepeat="no-repeat";visual.style.backgroundPosition="center"}}const back=document.querySelector(".circle");if(back)back.onclick=()=>history.back()})();</script></body></html>
+<style>.popover{bottom:335px!important}</style>
+<style>.popover{bottom:auto!important}</style>
+
+<style>.popover{left:0!important;bottom:235px!important;top:auto!important;transform:none;width:100%!important;max-width:620px!important;padding:0 20px!important;border:0!important;background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;pointer-events:none!important}.popover:after{display:none}.pop-title{display:none}.choices{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px!important;overflow:visible!important}.choice{pointer-events:auto!important;flex:initial!important;min-height:146px!important;border-radius:26px!important;background:#837b78b8!important;backdrop-filter:blur(12px);font-size:15px!important}.choice span{font-size:34px!important;margin-bottom:12px!important}</style>
+<style>.popover{left:50%!important;transform:translateX(-50%)}</style>
+<style>.choices{grid-template-columns:repeat(3,minmax(0,120px))!important;justify-content:center!important;gap:10px!important}.choice{min-height:176px!important;padding:14px 8px!important;font-size:15px!important}.choice small{display:block;margin-top:8px;color:#ffffffcc;font-size:13px}</style>
+<style>.choice em{display:block;font-style:normal;font-size:24px;margin-top:8px}.qty{display:flex;justify-content:center;gap:14px;align-items:center;margin-top:10px}.qty b{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#ffffffaa;color:#263252;font-size:22px}.qty strong{font-size:17px}</style>
+
+
+
+<style>.choice.active{background:#fff!important;color:#1c2433!important;outline:0!important}.choice.active small{color:#5b6472!important}.choice.active .qty b{background:#eef0f4;color:#1c2433}</style>
+<style>.detailsBtn{position:relative;z-index:2;align-self:center;margin:-4px 0 0;border:0;border-radius:999px;background:#5f4538cc;color:#fff;padding:10px 20px;font-size:15px;transition:.25s}.detailsPanel{display:none;position:fixed;z-index:20;inset:0;padding:90px 34px 40px;overflow:auto;border-radius:48px;background:#080b11f5;color:#fff}.detailsPanel h1{font-size:32px;line-height:1.12;font-weight:400;margin:18px 0 14px}.detailsPanel h2{font-size:27px;font-weight:400;margin:28px 0 10px}.detailsPanel p{font-size:21px;line-height:1.35;margin:0;color:#f3f3f4}.detailsClose{position:absolute;right:26px;top:26px;width:60px;height:60px;border-radius:50%;border:1px solid #ffffff55;background:#ffffff16;color:#fff;font-size:40px;font-weight:200}@media(max-width:420px){.detailsPanel{padding:76px 34px 34px}.detailsPanel h1{font-size:29px}.detailsPanel h2{font-size:26px}.detailsPanel p{font-size:20px}}
+<style>.detailsPanel{position:absolute!important;inset:0!important;max-width:620px!important;margin:auto!important;border-radius:0!important;background:#080b11f5!important;padding:24px 34px 40px!important}.detailsPanel .detailsClose{top:20px!important}.detailsPanel .nutClone{display:flex;justify-content:center;gap:22px;text-align:center;margin:72px 0 24px}.detailsPanel .nutClone b{display:block;font-size:19px}.detailsPanel .nutClone small{display:block;color:#ffffffaa;font-size:13px;margin-top:4px}</style>
+<style>
+.detailsBtn{display:block!important;margin:-4px auto 0!important}
+.detailsPanel{left:50%!important;right:auto!important;width:min(620px,100%)!important;transform:translateX(-50%);box-sizing:border-box!important;overflow-y:auto!important}
+</style>
+
+
+
+<style>.productHeroImage{width:100%;height:100%;object-fit:contain;position:absolute;inset:0}.productHeroVideo{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}</style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<style>
+.popover{width:min(620px,calc(100vw - 16px))!important;max-width:calc(100vw - 16px)!important;overflow:hidden!important}
+.choices{grid-template-columns:repeat(auto-fit,minmax(88px,1fr))!important;max-width:100%!important;overflow:hidden!important}
+</style>
+
+<style>
+.popover{width:240px!important;max-width:240px!important;overflow:visible!important}
+.choices{grid-template-columns:repeat(3,minmax(0,120px))!important;justify-content:center!important;overflow:visible!important}
+</style>
+
+<style>
+.popover{width:480px!important;max-width:calc(100vw - 16px)!important;overflow:visible!important}
+</style>
+
+<style>
+.choice.selected{background:#fff!important;color:#1c2433!important;outline:0!important}.choice .checkmark{display:block;margin:8px auto 0;width:24px;height:24px;border-radius:50%;background:#3452ed;color:#fff;font-weight:700;line-height:24px;text-align:center}
+</style>
+
+<style>
+.choice{height:176px!important;min-height:176px!important;max-height:176px!important;box-sizing:border-box!important;overflow:hidden!important}
+.choice.active{background:#fff!important;color:#1c2433!important}
+.choice .checkmark{display:block!important;margin:8px auto 0;width:24px;height:24px;border-radius:50%;background:#3452ed;color:#fff;font-weight:700;line-height:24px;text-align:center}
+</style>
+
+<style>
+.choice{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;padding:12px 8px!important}
+.choice img,.choice span:first-child{flex:0 0 auto!important}
+.choice small{margin-top:4px!important}.choice em,.choice .plus{margin-top:auto!important}.choice .checkmark{margin-top:auto!important}
+</style>
+
+
+<style>
+.choice .choicePlus{margin-top:auto!important;display:block!important}.choice .checkmark{margin-top:auto!important}
+</style>
+
+
+
+<style>
+.choice{height:176px!important;min-height:176px!important;max-height:176px!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;padding:12px 8px!important;box-sizing:border-box!important}.choiceName{margin-top:6px}.choice small{margin-top:4px}.choiceMark{margin-top:auto!important;width:24px;height:24px;line-height:24px;border-radius:50%;background:#ffffff33;text-align:center;font-size:20px}.choice.active{background:#fff!important;color:#1c2433!important}.choice.active .choiceMark{background:#3452ed;color:#fff}
+</style>
+
+
+<style>
+.choiceName{font-size:14px!important;line-height:1.15!important;max-width:100%!important;display:-webkit-box!important;-webkit-line-clamp:2!important;-webkit-box-orient:vertical!important;overflow:hidden!important;word-break:break-word!important}.choiceMark{background:transparent!important;width:auto!important;height:auto!important;line-height:1!important;font-size:18px!important;color:inherit!important;border-radius:0!important}.choicePlus{background:transparent!important;width:auto!important;height:auto!important;font-size:18px!important}
+</style>
+
+
+
+<style>
+.choiceName{font-size:12px!important;line-height:1.1!important;max-width:100%!important;white-space:normal!important;overflow:hidden!important;text-overflow:ellipsis!important;text-align:center!important}
+.choiceMark{display:block!important;width:18px!important;height:18px!important;min-width:18px!important;min-height:18px!important;border-radius:0!important;background:transparent!important;font-size:16px!important;line-height:18px!important;text-align:center!important;margin-top:auto!important}
+</style>
+<style>
+.choice .checkmark,.choice .choiceMark{display:block!important;width:16px!important;height:16px!important;min-width:16px!important;min-height:16px!important;padding:0!important;margin:8px auto 0!important;border:0!important;border-radius:0!important;background:transparent!important;color:inherit!important;font-size:16px!important;line-height:16px!important;text-align:center!important;box-shadow:none!important}
+.choice .choiceName{font-size:11px!important;line-height:1.1!important;max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+.popover{top:auto!important;bottom:235px!important}
+</style>
+
+
+
+
+
+
+<style>
+.popover{left:50%!important;transform:translateX(-50%);top:auto!important;bottom:235px!important}
+</style>
+
+
+<style>
+.choices.layout-1{grid-template-columns:120px!important;justify-content:center!important}.choices.layout-2{grid-template-columns:repeat(2,120px)!important;justify-content:center!important}.choices.layout-3{grid-template-columns:repeat(3,120px)!important;justify-content:center!important}.choices.layout-4{grid-template-columns:repeat(2,120px)!important;justify-content:center!important}.choices.layout-5,.choices.layout-6,.choices.layout-more{grid-template-columns:repeat(3,120px)!important;justify-content:center!important}
+</style>
+
+
+
+
+
+
+
+<style>
+.choices.layout-more{display:grid!important;grid-template-columns:none!important;grid-template-rows:repeat(2,176px)!important;grid-auto-flow:column!important;grid-auto-columns:120px!important;justify-content:start!important;align-content:start!important;overflow-x:auto!important;overflow-y:hidden!important;max-width:100%!important;padding-bottom:4px!important}
+</style>
+<style>
+.choices.layout-more{scrollbar-width:none!important;-ms-overflow-style:none!important}.choices.layout-more::-webkit-scrollbar{display:none!important;width:0!important;height:0!important}.popover{bottom:320px!important}
+</style>
+
+<style>.popover{bottom:390px!important}</style>
+
+<style>.popover{bottom:500px!important;top:auto!important}</style>
+
+
+<script>(()=>{const pop=document.getElementById("popover"),title=document.getElementById("popTitle"),choices=document.getElementById("choices"),add=document.querySelector(".add"),base=515,key="bubbleUpAddonSelections";let active="",lastIndex=-1;const read=()=>JSON.parse(localStorage.getItem(key)||"{}");const write=x=>localStorage.setItem(key,JSON.stringify(x));const total=()=>Object.values(read()).flat().reduce((n,x)=>n+Number(x.price||0),0);const price=()=>add.textContent="+ "+(base+total())+" ₽";function open(btn){const next=btn.dataset.menu.split("|")[0],reopening=pop.style.display!=="block";if(active===next&&pop.style.display==="block"){pop.style.display="none";return}active=next;const custom=JSON.parse(localStorage.getItem("bubbleUpAddons")||"[]").filter(x=>x.group===active),fallback=btn.dataset.menu.split("|").slice(1).map(x=>({name:x.replace(/^.. /,""),price:0})),items=custom.length?custom:fallback,sel=read()[active]||[];title.textContent=active;choices.innerHTML=items.map((x,i)=>`<button class="choice ${sel.some(q=>q.i===i)?"active":""}" data-i="${i}">${x.image?`<img src="${x.image}" style="width:54px;height:54px;object-fit:contain;border-radius:12px">`:"<span>＋</span>"}<span class="choiceName">${x.name}</span><small>+${x.price||0} ₽</small><span class="choiceMark">${sel.some(q=>q.i===i)?"✓":"＋"}</span></button>`).join("");choices.className="choices layout-"+(items.length>6?"more":items.length);pop.style.display="block";const bar=btn.parentElement;const idx=[...bar.children].indexOf(btn),dir=idx>=lastIndex?"right":"left";const br0=bar.getBoundingClientRect(),rr0=btn.getBoundingClientRect(),wasCentered=reopening||Math.abs((rr0.left+rr0.width/2)-(br0.left+br0.width/2))<12;lastIndex=idx;pop.className="popover slide-in-"+dir;pop.style.setProperty("transform","none","important");bar.style.scrollBehavior="smooth";bar.style.paddingLeft=(bar.clientWidth/2-btn.offsetWidth/2)+'px';bar.style.paddingRight=(bar.clientWidth/2-btn.offsetWidth/2)+'px';bar.scrollLeft=Math.max(0,btn.offsetLeft-(bar.clientWidth-btn.offsetWidth)/2);const sr=document.querySelector(".screen").getBoundingClientRect();const br=bar.getBoundingClientRect();const targetLeft=sr.left+(sr.width-pop.offsetWidth)/2,startLeft=wasCentered?targetLeft:(dir==="right"?sr.right:sr.left-pop.offsetWidth);pop.style.transition="none";pop.style.setProperty("left",startLeft+"px","important");pop.style.opacity=".2";void pop.offsetWidth;if(!wasCentered)requestAnimationFrame(()=>{pop.style.transition="left .65s ease,opacity .65s ease";pop.style.setProperty("left",targetLeft+"px","important");pop.style.opacity="1"});pop.style.setProperty("top",Math.max(8,br.top-pop.offsetHeight-12)+"px","important");if(wasCentered){choices.classList.remove("vertical-in");void choices.offsetWidth;choices.classList.add("vertical-in");const finalTop=Math.max(8,br.top-pop.offsetHeight-12),startTop=br.bottom-10;pop.style.transition="top .35s ease,opacity .35s ease";pop.style.setProperty("top",startTop+"px","important");pop.style.opacity=".2";void pop.offsetHeight;requestAnimationFrame(()=>{pop.style.setProperty("top",finalTop+"px","important");pop.style.opacity="1"})}pop.style.setProperty("bottom","auto","important");price()}const bar=document.querySelector(".addons");JSON.parse(localStorage.getItem("bubbleUpAddonGroups")||"[]").forEach(g=>{if([...bar.querySelectorAll(".addon")].some(b=>b.dataset.menu.split("|")[0]===g))return;const b=document.createElement("button");b.className="addon";b.dataset.menu=g; b.innerHTML="<span class=\"plus\">+</span>"+g;bar.appendChild(b)});document.querySelectorAll(".addon").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();open(b)}));choices.addEventListener("click",e=>{const c=e.target.closest(".choice");if(!c)return;e.stopPropagation();const i=+c.dataset.i,pr=Number((c.querySelector("small")?.textContent.match(/-?\d+/)||[0])[0]),s=read();s[active]??=[];const j=s[active].findIndex(x=>x.i===i);if(j>=0)s[active].splice(j,1);else s[active].push({i,price:pr});write(s);c.classList.toggle("active");c.querySelector(".choiceMark").textContent=c.classList.contains("active")?"✓":"＋";price()});document.addEventListener("click",e=>{if(!e.target.closest(".popover")&&!e.target.closest(".addon"))pop.style.display="none"});price()})();</script>
+<style>.popover{bottom:auto!important}</style><style>.addons{scroll-behavior:smooth}.popover{will-change:transform,opacity}.popover.slide-in-right{animation:popInRight .32s ease both}.popover.slide-in-left{animation:popInLeft .32s ease both}@keyframes popInRight{from{opacity:0;transform:translateX(calc(-50% + 42px))}to{opacity:1;transform:translateX(-50%)}}@keyframes popInLeft{from{opacity:0;transform:translateX(calc(-50% - 42px))}to{opacity:1;transform:translateX(-50%)}}</style><style>.popover.slide-in-right{animation:popInRightEdge .65s ease both}.popover.slide-in-left{animation:popInLeftEdge .65s ease both}@keyframes popInRightEdge{from{opacity:.2;transform:translateX(calc(-50% + 100vw))}to{opacity:1;transform:translateX(-50%)}}@keyframes popInLeftEdge{from{opacity:.2;transform:translateX(calc(-50% - 100vw))}to{opacity:1;transform:translateX(-50%)}}</style><style>.choices.vertical-in .choice{animation:choiceRise .42s cubic-bezier(.22,.8,.32,1) both}.choices.vertical-in .choice:nth-child(2){animation-delay:.035s}.choices.vertical-in .choice:nth-child(3){animation-delay:.07s}.choices.vertical-in .choice:nth-child(4){animation-delay:.105s}.choices.vertical-in .choice:nth-child(5){animation-delay:.14s}.choices.vertical-in .choice:nth-child(6){animation-delay:.175s}@keyframes choiceRise{from{opacity:.25;transform:translateY(90px)}to{opacity:1;transform:translateY(0)}}</style><script>
+(()=>{const DB='bubbleUpMediaDB',STORE='files';const get=key=>new Promise((res,rej)=>{const q=indexedDB.open(DB,1);q.onupgradeneeded=()=>q.result.createObjectStore(STORE);q.onsuccess=()=>{const t=q.result.transaction(STORE);const r=t.objectStore(STORE).get(key);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)};q.onerror=()=>rej(q.error)});window.addEventListener('load',async()=>{const raw=localStorage.getItem('bubbleUpSelectedProduct');let x;try{x=raw&&JSON.parse(raw)}catch(_){}if(!x){try{const r=JSON.parse(localStorage.getItem('bubbleUpSelectedProductRef')||'null');if(r){const a=JSON.parse(localStorage.getItem('bubbleUpProducts_'+r.camp+'_'+r.menu)||'[]');x=r.index<0?a.find(v=>v.main):a.filter(v=>!v.main)[r.index]}}catch(_){} }if(!x?.mediaRef)return;try{const b=await get(x.mediaRef);if(!b)return;const v=document.querySelector('.visual');if(!v)return;v.textContent='';const u=URL.createObjectURL(b);if(b.type.startsWith('video/')){const e=document.createElement('video');e.src=u;e.autoplay=true;e.loop=true;e.muted=true;e.playsInline=true;e.style.cssText='width:100%;height:100%;object-fit:contain';v.appendChild(e)}else{v.style.backgroundImage=`url("${u}")`;v.style.backgroundSize='contain';v.style.backgroundRepeat='no-repeat';v.style.backgroundPosition='center'}}catch(_){} });})();
+</script>
