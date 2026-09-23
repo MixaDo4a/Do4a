@@ -21,7 +21,8 @@ export async function GET(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const entity = new URL(request.url).searchParams.get("entity") || "campaigns";
   if (!allowed.has(entity)) return NextResponse.json({ error: "Unknown entity" }, { status: 400 });
-  const response = await fetch(`${c.url}/rest/v1/${entity}?select=*&order=sort_order.asc`, { headers: { apikey: c.key, Authorization: `Bearer ${c.key}` }, cache: "no-store" });
+  const order = entity === "campaigns" ? "created_at.asc" : "sort_order.asc";
+  const response = await fetch(`${c.url}/rest/v1/${entity}?select=*&order=${order}`, { headers: { apikey: c.key, Authorization: `Bearer ${c.key}` }, cache: "no-store" });
   return NextResponse.json(await response.json(), { status: response.status });
 }
 
