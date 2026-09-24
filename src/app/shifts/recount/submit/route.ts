@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     value: Number(denomination.value),
     quantity: Math.max(0, Math.floor(Number(String(formData.get(`denomination_${denomination.id}`) ?? "0").trim()) || 0)),
   }));
-  const totalAmount = denominationCounts.reduce((sum, row) => sum + row.value * row.quantity, 0) + coinsAmount;
+  const totalAmount = denominationCounts.reduce((sum, row) => sum + row.value * row.quantity, 0);
   if (withdrawalAmount > totalAmount) {
     return NextResponse.redirect(new URL(`/shifts/recount?storeId=${storeId}&shiftId=${shiftId}&message=error`, request.url), 303);
   }

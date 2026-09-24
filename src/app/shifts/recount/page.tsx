@@ -51,14 +51,23 @@ export default async function CashRecountPage({ searchParams }: PageProps) {
     .limit(1)
     .maybeSingle<PreviousCashCount & { denominations: PreviousCashCount | null }>();
 
+  const { data: latestStoreCashCount } = await supabase
+    .from("store_cash_counts")
+    .select("denominations")
+    .eq("store_id", shift.store_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ denominations: PreviousCashCount | null }>();
+
   const previousDenominations = previousCashCount?.denominations;
   const initialCounts = Object.fromEntries(
     (previousDenominations?.rows ?? [])
       .filter((row) => row.denomination_id != null && Number.isFinite(Number(row.quantity)) && Number(row.quantity) >= 0)
       .map((row) => [String(row.denomination_id), String(Math.floor(Number(row.quantity)))])
   );
-  const initialCoins = Number.isFinite(Number(previousDenominations?.coins_amount)) && Number(previousDenominations?.coins_amount) >= 0
-    ? String(previousDenominations?.coins_amount)
+  const carriedCoins = latestStoreCashCount?.denominations?.coins_amount;
+  const initialCoins = Number.isFinite(Number(carriedCoins)) && Number(carriedCoins) >= 0
+    ? String(carriedCoins)
     : "";
   const initialWithdrawal = Number.isFinite(Number(previousCashCount?.withdrawal_amount)) && Number(previousCashCount?.withdrawal_amount) >= 0
     ? String(previousCashCount?.withdrawal_amount)
