@@ -119,17 +119,6 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || warehouseManagerOnly || managerOnly;
   const accessibleStores = await getAccessibleStores(supabase);
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
-  const { data: managerShift } = managerOnly && employeeId
-    ? await supabase
-        .from("shifts")
-        .select("store_id")
-        .eq("opened_by_employee_id", employeeId)
-        .in("status", ["opened", "correction_required"])
-        .order("opened_at", { ascending: false })
-        .limit(1)
-        .maybeSingle<{ store_id: string }>()
-    : { data: null };
-
   const [tasksResult, employeesResult, profilesResult, userRolesResult] = await Promise.all([
     canSeeAllTasks
       ? (() => {
@@ -216,13 +205,11 @@ export default async function TasksPage({ searchParams }: PageProps) {
           </p>
         ) : null}
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            <Link className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-brand/30 bg-brand/10 px-4 text-sm font-semibold text-brand transition hover:border-brand/60 hover:bg-brand/15" href="/tasks/archive">
-              Архив закрытых задач
-            </Link>
-            {managerOnly && managerShift?.store_id ? <Link className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-brand/30 bg-brand/10 px-4 text-sm font-semibold text-brand" href={`/checklists?store_id=${managerShift.store_id}`}>Архив чек-листов</Link> : null}
-          </div>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-brand/30 bg-brand/10 px-2 text-center text-xs font-semibold text-brand transition hover:border-brand/60 hover:bg-brand/15 sm:px-4 sm:text-sm" href={storeId ? `/tasks/archive?storeId=${storeId}` : "/tasks/archive"}>
+            Архив закрытых задач
+          </Link>
+          {canSeeAllTasks && storeId ? <Link className="inline-flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md border border-brand/30 bg-brand/10 px-2 text-center text-xs font-semibold text-brand transition hover:border-brand/60 hover:bg-brand/15 sm:px-4 sm:text-sm" href={`/checklists?store_id=${storeId}`}>Архив чек-листов</Link> : null}
         </div>
 
         {canSeeAllTasks && (storeId || taskId || selectedEmployeeId) ? (
