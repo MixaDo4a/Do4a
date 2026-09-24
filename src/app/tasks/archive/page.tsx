@@ -13,6 +13,7 @@ type TaskRow = {
   id: string;
   title: string;
   description: string | null;
+  created_at: string;
   due_at: string | null;
   completed_at: string | null;
   priority: "low" | "normal" | "high" | "urgent";
@@ -72,7 +73,7 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
 
   let query = supabase
     .from("tasks")
-    .select("id, title, description, due_at, completed_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)")
+    .select("id, title, description, created_at, due_at, completed_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)")
     .in("status", ["done", "overdue", "cancelled"])
     .in("store_id", accessibleStoreIds)
     .order("completed_at", { ascending: false, nullsFirst: false })
@@ -172,6 +173,9 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-3 text-sm text-muted">
+                <span className="inline-flex items-center gap-1">
+                  <Clock size={15} /> Поставлена: {formatStoreDateTime(task.created_at, task.stores?.timezone)}
+                </span>
                 <span className="inline-flex items-center gap-1">
                   <Clock size={15} /> Срок: {formatStoreDateTime(task.due_at, task.stores?.timezone)}
                 </span>

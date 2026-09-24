@@ -22,6 +22,7 @@ type TaskRow = {
   recurrence_rule_id: string | null;
   title: string;
   description: string | null;
+  created_at: string;
   due_at: string | null;
   priority: "low" | "normal" | "high" | "urgent";
   status: "open" | "in_progress" | "done" | "overdue" | "cancelled";
@@ -89,7 +90,7 @@ function buildTasksQuery(supabase: Awaited<ReturnType<typeof createSupabaseServe
   return supabase
     .from("tasks")
     .select(
-      "id, recurrence_rule_id, title, description, due_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)",
+      "id, recurrence_rule_id, title, description, created_at, due_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)",
     )
     .in("status", activeTaskStatuses)
     .order("due_at", { ascending: true, nullsFirst: false })
@@ -387,6 +388,9 @@ export default async function TasksPage({ searchParams }: PageProps) {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-3 text-sm text-muted">
+                <span className="inline-flex items-center gap-1">
+                  <Clock size={15} /> Поставлена: {formatStoreDateTime(task.created_at, task.stores?.timezone)}
+                </span>
                 <span className="inline-flex items-center gap-1">
                   <Clock size={15} /> {formatDue(task.due_at, task.stores?.timezone)}
                 </span>
