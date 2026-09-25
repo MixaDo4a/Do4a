@@ -30,8 +30,8 @@ export function CashRecountForm({
   const [withdrawal, setWithdrawal] = useState(initialWithdrawal);
   const [withdrawalComment, setWithdrawalComment] = useState(initialWithdrawalComment);
   const total = useMemo(
-    () => denominations.reduce((sum, denomination) => sum + denomination.value * Number(counts[denomination.id] || 0), 0),
-    [counts, denominations],
+    () => denominations.reduce((sum, denomination) => sum + denomination.value * Number(counts[denomination.id] || 0), 0) + Number(coins || 0),
+    [coins, counts, denominations],
   );
 
   return (
@@ -63,7 +63,7 @@ export function CashRecountForm({
         <span>Мелочь в мешках</span>
         <input className="h-10 ui-panel px-3 outline-none focus:border-brand" inputMode="decimal" min="0" name="coins_amount" onChange={(event) => setCoins(event.target.value)} step="0.01" type="number" value={coins} />
       </label>
-      <p className="-mt-1 text-xs text-muted">Мелочь сохраняется отдельно за магазином, переносится на следующую смену и не входит в итог кассы.</p>
+      <p className="-mt-1 text-xs text-muted">Мелочь сохраняется за магазином, переносится на следующую смену и входит в общий остаток наличности.</p>
       <label className="grid grid-cols-[1fr_100px] items-center gap-2 text-sm">
         <span>Выемка</span>
         <input className="h-10 ui-panel px-3 outline-none focus:border-brand" inputMode="decimal" min="0" name="withdrawal_amount" onChange={(event) => setWithdrawal(event.target.value)} step="0.01" type="number" value={withdrawal} />
@@ -82,7 +82,7 @@ export function CashRecountForm({
         <span>Итого</span>
         <span>{money(total)} руб.</span>
       </div>
-      <p className="text-xs text-muted">Остаток по купюрам: {money(total)} руб. Выемка фиксируется отдельно и не уменьшает сумму кассы.</p>
+      <p className="text-xs text-muted">Общий остаток наличности с учётом мелочи: {money(total)} руб. Выемка фиксируется отдельно и не уменьшает сумму кассы.</p>
       <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white" type="submit">Внести</button>
     </form>
   );
