@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { PhotoFileInput } from "@/components/photo-file-input";
 import { SectionHeader } from "@/components/section-header";
+import { ShiftCloseFields } from "@/components/shift-close-fields";
 import { getCurrentEmployeeId, getCurrentRoleCodes } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -19,7 +20,7 @@ type Denomination = {
 type ShiftOption = {
   id: string;
   shift_date: string;
-  stores: { name: string } | null;
+  stores: { name: string; city: string | null } | null;
   shift_participants: {
     participant_role: "primary_seller" | "secondary_seller";
     employees: { full_name: string } | null;
@@ -31,50 +32,18 @@ const messages: Record<string, string> = {
   "photo-required": "Смена не может быть закрыта: добавьте фото Z-отчёта.",
   "cash-comment-required": "Смена не может быть закрыта: укажите комментарий к инкассации.",
   "cash-counts-required": "Смена не может быть закрыта: заполните покупюрник полностью.",
+  "advance-recipient-required": "Выберите менеджера, которому выдан аванс.",
   "number-error": "Проверьте числовые поля: суммы должны быть в допустимом диапазоне.",
   "close-error": "Не удалось закрыть смену. Проверьте данные или права доступа.",
   "photo-error": "Смена закрыта, но фото отчёта не сохранилось.",
 };
 
-const MONEY_INPUT_MAX = "999999999999.99";
 const COUNT_INPUT_MAX = "999999";
-
-const cashFields = [
-  ["cash_revenue", "Выручка наличными"],
-  ["card_revenue", "Выручка безналом"],
-  ["cash_returns", "Возвраты наличными"],
-  ["card_returns", "Возвраты безналом"],
-  ["receipt_count", "Количество чеков"],
-  ["items_sold_count", "Количество товаров"],
-  ["cash_collection_amount", "Инкассация"],
-  ["advance_amount", "Аванс"],
-] as const;
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("ru-RU", {
     maximumFractionDigits: value < 1 ? 2 : 0,
   }).format(value);
-}
-
-function formatShiftDate(value: string) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "numeric",
-    month: "long",
-  }).format(new Date(value));
-}
-
-function formatShiftOption(shift: ShiftOption) {
-  const primarySeller = shift.shift_participants.find(
-    (participant) => participant.participant_role === "primary_seller",
-  );
-
-  return [
-    shift.stores?.name ?? "Магазин не найден",
-    formatShiftDate(shift.shift_date),
-    primarySeller?.employees?.full_name ? `основной: ${primarySeller.employees.full_name}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 }
 
 export default async function CloseShiftPage({ searchParams }: CloseShiftPageProps) {
@@ -106,7 +75,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
     (() => {
       let query = supabase
         .from("shifts")
-        .select("id, shift_date, stores(name), shift_participants(participant_role, employees(full_name))")
+        .select("id, shift_date, stores(name, city), shift_participants(participant_role, employees(full_name))")
         .in("status", ["opened", "correction_required"])
         .order("shift_date", { ascending: false });
       if (managerOnly && employeeId) query = query.eq("opened_by_employee_id", employeeId);
@@ -123,6 +92,17 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
   }
 
   const selectedShiftId = shiftId ?? shiftsResult.data[0]?.id ?? "";
+  const cityShiftPairs = new Map<string, string>();
+  for (const shift of shiftsResult.data) {
+    const key = shift.stores?.city?.trim().toLocaleLowerCase("ru-RU") ?? "";
+    if (key && !cityShiftPairs.has(key)) cityShiftPairs.set(key, shift.id);
+  }
+  const managerResults = await Promise.all([...cityShiftPairs].map(async ([city, representativeShiftId]) => {
+    const { data, error } = await supabase.rpc("list_city_managers_for_shift", { p_shift_id: representativeShiftId });
+    if (error) throw new Error(error.message);
+    return [city, data ?? []] as const;
+  }));
+  const managersByCity = Object.fromEntries(managerResults);
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -137,56 +117,12 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
 
         <form action="/shifts/close/submit" className="mt-4 grid gap-4" encType="multipart/form-data" method="post">
           {compactClose ? <input name="hide_cash" type="hidden" value="1" /> : null}
-          <section className="ui-panel p-4">
-            <h2 className="text-base font-semibold">Смена</h2>
-            <label className="mt-4 grid gap-1 text-sm">
-              <span className="text-muted">Открытая смена</span>
-              <select className="h-11 ui-panel px-3 outline-none focus:border-brand" defaultValue={selectedShiftId} name="shift_id" required>
-                {shiftsResult.data.length === 0 ? (
-                  <option value="">Нет открытых смен</option>
-                ) : (
-                  shiftsResult.data.map((shift) => (
-                    <option key={shift.id} value={shift.id}>
-                      {formatShiftOption(shift)}
-                    </option>
-                  ))
-                )}
-              </select>
-            </label>
-          </section>
-
-          <section className="ui-panel p-4">
-            <h2 className="text-base font-semibold">Касса</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {cashFields.map(([name, label]) => {
-                const isCount = name === "receipt_count" || name === "items_sold_count";
-
-                return (
-                  <label key={name} className="grid gap-1 text-sm">
-                    <span className="text-muted">{label}</span>
-                    <input
-                      className="h-11 ui-panel px-3 outline-none focus:border-brand"
-                      defaultValue={params[name] ?? ""}
-                      inputMode={isCount ? "numeric" : "decimal"}
-                      max={isCount ? COUNT_INPUT_MAX : MONEY_INPUT_MAX}
-                      min="0"
-                      name={name}
-                      step={isCount ? "1" : "0.01"}
-                      type="number"
-                    />
-                  </label>
-                );
-              })}
-            </div>
-            <label className="mt-3 grid gap-1 text-sm">
-              <span className="text-muted">Комментарий к выемке / РКО</span>
-              <textarea
-                className="min-h-20 ui-panel px-3 py-2 outline-none focus:border-brand"
-                defaultValue={params.cash_collection_comment ?? ""}
-                name="cash_collection_comment"
-              />
-            </label>
-          </section>
+          <ShiftCloseFields
+            managersByCity={managersByCity}
+            params={params}
+            selectedShiftId={selectedShiftId}
+            shifts={shiftsResult.data}
+          />
 
           {!compactClose ? <section className="ui-panel p-4">
             <h2 className="text-base font-semibold">Покупюрник</h2>

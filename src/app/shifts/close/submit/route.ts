@@ -48,6 +48,7 @@ function closeUrl(request: NextRequest, formData: FormData, message: string, det
     "cash_collection_amount",
     "cash_collection_comment",
     "advance_amount",
+    "advance_employee_id",
   ];
   keysToPreserve.forEach((key) => {
     const value = String(formData.get(key) ?? "").trim();
@@ -111,6 +112,7 @@ async function uploadKkmReportPhoto(
 async function recalculateShiftPayroll(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   shiftId: string,
+  advanceRecipientEmployeeId: string | null,
 ) {
   const { data: shift, error: shiftError } = await supabase
     .from("shifts")
@@ -120,11 +122,14 @@ async function recalculateShiftPayroll(
   if (shiftError) throw new Error(shiftError.message);
   if (!shift?.shift_date || !shift.opened_by_employee_id) return;
 
-  const { error } = await supabase.rpc("calculate_employee_payroll_period", {
-    p_employee_id: shift.opened_by_employee_id,
-    p_period_month: `${shift.shift_date.slice(0, 7)}-01`,
-  });
-  if (error) throw new Error(error.message);
+  const employeeIds = new Set([shift.opened_by_employee_id, advanceRecipientEmployeeId].filter((id): id is string => Boolean(id)));
+  for (const employeeId of employeeIds) {
+    const { error } = await supabase.rpc("calculate_employee_payroll_period", {
+      p_employee_id: employeeId,
+      p_period_month: `${shift.shift_date.slice(0, 7)}-01`,
+    });
+    if (error) throw new Error(error.message);
+  }
 }
 
 async function notifyShiftClosed(
@@ -200,11 +205,17 @@ export async function POST(request: NextRequest) {
     p_cash_collection_amount: number | null;
     p_cash_collection_comment: string | null;
     p_advance_amount: number | null;
+    p_advance_employee_id: string | null;
     p_cash_counts: { denomination_id: string; quantity: number }[];
   };
 
   try {
     const cashCollectionAmount = numeric(formData, "cash_collection_amount");
+    const advanceAmount = numeric(formData, "advance_amount");
+    const advanceRecipientEmployeeId = String(formData.get("advance_employee_id") ?? "").trim() || null;
+    if ((advanceAmount ?? 0) > 0 && !advanceRecipientEmployeeId) {
+      return NextResponse.redirect(closeUrl(request, formData, "advance-recipient-required"), 303);
+    }
     const cashCollectionComment = String(formData.get("cash_collection_comment") ?? "").trim();
     if ((cashCollectionAmount ?? 0) > 0 && !cashCollectionComment) {
       return NextResponse.redirect(closeUrl(request, formData, "cash-comment-required"), 303);
@@ -230,7 +241,8 @@ export async function POST(request: NextRequest) {
       p_items_sold_count: integer(formData, "items_sold_count"),
       p_cash_collection_amount: cashCollectionAmount,
       p_cash_collection_comment: cashCollectionComment || null,
-      p_advance_amount: numeric(formData, "advance_amount"),
+      p_advance_amount: advanceAmount,
+      p_advance_employee_id: advanceRecipientEmployeeId,
       p_cash_counts: cashCounts,
     };
   } catch {
@@ -246,18 +258,27 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("close_shift", payload);
+  const { error } = await supabase.rpc("close_shift_with_advance_recipient", payload);
   if (error) return NextResponse.redirect(closeUrl(request, formData, "close-error", error.message), 303);
 
   try {
     await uploadKkmReportPhoto(supabase, shiftId, formData);
   } catch (photoError) {
+    try {
+      await recalculateShiftPayroll(supabase, shiftId, payload.p_advance_employee_id);
+    } catch (payrollError) {
+      const detail = payrollError instanceof Error ? payrollError.message : "Payroll recalculation failed";
+      const url = new URL("/shifts", request.url);
+      url.searchParams.set("message", "shift-closed-payroll-error");
+      url.searchParams.set("detail", detail);
+      return NextResponse.redirect(url, 303);
+    }
     const detail = photoError instanceof Error ? photoError.message : "Photo upload failed";
     return NextResponse.redirect(closeUrl(request, formData, "photo-error", detail), 303);
   }
 
   try {
-    await recalculateShiftPayroll(supabase, shiftId);
+    await recalculateShiftPayroll(supabase, shiftId, payload.p_advance_employee_id);
   } catch (payrollError) {
     const detail = payrollError instanceof Error ? payrollError.message : "Payroll recalculation failed";
     const url = new URL("/shifts", request.url);
