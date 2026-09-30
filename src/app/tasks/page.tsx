@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
+import { TaskVoiceDescription } from "@/components/task-voice-description";
 import {
   getCurrentEmployeeId,
   getCurrentRoleCodes,
@@ -267,7 +268,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
             </summary>
             <form action="/tasks/create" className="mt-4 grid gap-3" method="post">
               <input className="h-11 rounded-md border border-line px-3 outline-none focus:border-brand" name="title" placeholder="Название" />
-              <textarea className="min-h-20 rounded-md border border-line px-3 py-2 outline-none focus:border-brand" name="description" placeholder="Описание" />
+              <TaskVoiceDescription />
               <div className="grid gap-3 sm:grid-cols-2">
                 <fieldset className="rounded-md border border-line p-3 sm:col-span-2">
                   <legend className="px-1 text-sm font-medium">Магазины</legend>

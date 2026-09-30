@@ -40,8 +40,6 @@ type TemplateSettingsMap = Record<
   string,
   {
     requiresPhoto: boolean;
-    aiReviewEnabled: boolean;
-    referencePhotoLabel: string | null;
   }
 >;
 
@@ -56,8 +54,6 @@ function buildTemplateSettingsMap(rows: RoutineTemplateItemSettingsRow[]): Templ
       row.item_key,
       {
         requiresPhoto: row.requires_photo,
-        aiReviewEnabled: row.ai_review_enabled,
-        referencePhotoLabel: row.reference_photo_file ? `${row.reference_photo_file.bucket}/${row.reference_photo_file.path}` : null,
       },
     ]),
   );
@@ -81,7 +77,7 @@ function RoutineItemSettingsRow({
           <p className="font-medium text-ink">{title}</p>
           <p className="mt-1 text-xs text-muted">Ключ пункта: {itemKey}</p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[360px]">
+        <div className="grid gap-2 lg:min-w-[180px]">
           <label className="flex items-center gap-2 rounded-2xl border border-line/80 bg-[#120b0d] px-3 py-2 text-sm">
             <input
               className="h-4 w-4 accent-brand"
@@ -91,29 +87,7 @@ function RoutineItemSettingsRow({
             />
             Фото обязательно
           </label>
-          <label className="flex items-center gap-2 rounded-2xl border border-line/80 bg-[#120b0d] px-3 py-2 text-sm">
-            <input
-              className="h-4 w-4 accent-brand"
-              defaultChecked={settings?.aiReviewEnabled ?? false}
-              name={`ai_review_enabled_${itemKey}`}
-              type="checkbox"
-            />
-            AI-проверка
-          </label>
         </div>
-      </div>
-
-      <div className="mt-3 grid gap-2">
-        <label className="grid gap-2 text-sm text-muted">
-          <span>Фото-стандарт пункта</span>
-          <input
-            accept="image/*"
-            className="block w-full rounded-2xl border border-line/80 bg-[#0b0809] px-3 py-2 text-sm text-ink file:mr-3 file:rounded-xl file:border-0 file:bg-brand file:px-4 file:py-2 file:text-white"
-            name={`reference_photo_${itemKey}`}
-            type="file"
-          />
-        </label>
-        {settings?.referencePhotoLabel ? <p className="text-xs text-brand">Текущий стандарт: {settings.referencePhotoLabel}</p> : null}
       </div>
     </div>
   );
@@ -274,8 +248,8 @@ export default async function AdminRoutinePage({ searchParams }: PageProps) {
 
   const { data: settingsRows, error: settingsError } = selectedStoreId
     ? await supabase
-        .from("day_routine_template_item_settings")
-        .select("id, template_id, item_key, requires_photo, ai_review_enabled, reference_photo_file_id, reference_photo_file:files(id, bucket, path, mime_type)")
+      .from("day_routine_template_item_settings")
+        .select("id, template_id, item_key, requires_photo")
         .in(
           "template_id",
           (templateRows ?? []).map((template) => template.id),

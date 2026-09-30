@@ -30,7 +30,7 @@ Do4a Staff Only — закрытое внутреннее web/PWA-приложе
 - PostgreSQL 17 в локальной конфигурации Supabase.
 - `web-push` для серверной отправки push-уведомлений.
 - Vercel используется как production-хостинг Next.js.
-- OpenAI Vision API используется для проверки фотографий распорядка дня, если на сервере задан `OPENAI_API_KEY`.
+- OpenAI `gpt-transcribe` используется серверной точкой `/api/tasks/transcribe` для преобразования записи речи в описание задачи. Аудио не сохраняется в базе или Storage; клиент ограничивает запись 90 секундами и 4 MiB.
 
 ## Структура проекта
 
@@ -92,7 +92,9 @@ scripts/                    вспомогательные SQL/PowerShell/Node-�
 
 Есть утренний и вечерний распорядок, шаблоны и редактирование управляющим. Пункты имеют иерархию, порядок, отметку выполнения и время отметки. Менеджер отмечает пункты после открытия смены; управляющий видит текущий прогресс по магазинам и может корректировать отметку вручную.
 
-Для пункта можно включить обязательную фотографию и загрузить эталонное фото. Фотография сотрудника сохраняется отдельно, а серверный модуль `routine-photo-ai.ts` может сравнивать её с эталоном через OpenAI и сохранить результат/комментарий. При отсутствии ключа или невозможности проверки применяется ручная проверка.
+Для пункта можно включить обязательную фотографию. Фотографии сохраняются для ручной проверки; автоматическое распознавание и сравнение фото через ИИ отключено. Старые AI-отчёты в Supabase сохранены как история и больше не используются приложением.
+
+При создании задачи описание можно надиктовать. Запись отправляется только на серверную точку транскрибации, текст добавляется в редактируемое описание, аудиофайл не сохраняется. Длительность ограничена 90 секундами, размер — 4 MiB.
 
 ### Чек-листы
 
@@ -138,7 +140,7 @@ scripts/                    вспомогательные SQL/PowerShell/Node-�
 - задачи: `tasks`, `task_recurrence_rules`, `task_comments`, `task_files`;
 - зарплата и KPI: `employee_advances`, `expiration_writeoffs`, `payroll_product_writeoffs`, `inventory_periods`, `inventory_loss_allocations`, `kpi_periods`, `sales_metrics`, `payroll_periods`, `payroll_entries`, `payroll_adjustments`, `payroll_snapshots`;
 - уведомления: `notifications`, `notification_deliveries`, `cron_job_runs`, `daily_digest_runs`;
-- распорядок: `day_routine_templates`, `day_routine_template_items`, `day_routine_template_item_settings`, `day_routine_sessions`, `day_routine_session_items`, `day_routine_session_item_photos`, `day_routine_item_photo_reviews`, `day_routine_reminder_log`;
+- распорядок: `day_routine_templates`, `day_routine_template_items`, `day_routine_template_item_settings`, `day_routine_sessions`, `day_routine_session_items`, `day_routine_session_item_photos`, `day_routine_reminder_log`; `day_routine_item_photo_reviews` — сохранённая историческая таблица, больше не читается и не пополняется приложением;
 - закупки: `supplier_promotions`, `purchase_orders`, `purchase_order_problem_files`, `warehouse_google_sheet_imports`;
 - кассовые движения и push: `store_cash_movements`, `push_subscriptions`.
 
@@ -148,7 +150,7 @@ scripts/                    вспомогательные SQL/PowerShell/Node-�
 
 - В `supabase/config.toml` включены API, Auth, Storage и Realtime; API изначально рассчитан на схему `public` и `graphql_public`.
 - В публичный клиент допустимы только `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` и публичный VAPID key.
-- На сервере нужны `SUPABASE_SERVICE_ROLE_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT`, а для проверки фото — `OPENAI_API_KEY`.
+- На сервере нужны `SUPABASE_SERVICE_ROLE_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT`; для транскрибации описаний задач — `OPENAI_API_KEY`.
 - Для защищённого cron route предусмотрен `CRON_SECRET`. Поскольку Vercel/сервер пользователя может не поддерживать cron, часть фоновых действий вызывается при активности приложения через `/api/routine/reminders`, `/api/tasks/recurrences` и `/api/push/sync`.
 - Storage buckets создаются миграциями, среди них buckets для отчётов смен, чек-листов, закупочных файлов и фото распорядка. Ошибка `Bucket not found` означает, что соответствующая миграция Storage не применена к целевому проекту.
 - Все exposed public tables/functions должны иметь подходящие grants и RLS. RLS-политики являются частью миграций, но актуальность cloud-схемы нужно проверять применением всех миграций и тестовым запросом.
@@ -179,14 +181,15 @@ scripts/                    вспомогательные SQL/PowerShell/Node-�
 - `src/lib/auth/roles.ts`, `src/lib/auth/role-constants.ts`, `src/lib/auth/stores.ts` — роли и область доступных магазинов.
 - `src/lib/supabase/server.ts`, `browser.ts`, `route.ts`, `service-role.ts` — Supabase-клиенты для разных контекстов.
 - `src/lib/push.ts`, `src/lib/push-client.ts`, `src/app/api/push/*`, `public/sw.js` — push-подписка, синхронизация, отправка и service worker.
-- `src/lib/routine.ts`, `src/lib/routine-photo-ai.ts`, `src/components/routine-checklist-client.tsx` — распорядок, фото и AI-проверка.
+- `src/lib/routine.ts`, `src/components/routine-checklist-client.tsx` — распорядок и фото для ручной проверки.
+- `src/app/api/tasks/transcribe/route.ts`, `src/components/task-voice-description.tsx` — серверная голосовая транскрибация описаний задач и форма записи.
 - `src/lib/cash.ts`, `src/app/cash/page.tsx`, `src/app/cash/movement/create/route.ts` — наличные и РКО/ПКО.
 - `src/lib/task-recurrence.ts`, `src/app/tasks/*`, `src/app/api/tasks/recurrences/route.ts` — задачи, архив и повторения.
 - `supabase/migrations/202607030001_initial_core.sql` — базовая схема и базовые функции.
 - `supabase/migrations/202607030002_operations.sql` — операции, задачи, зарплата и уведомления.
 - `supabase/migrations/20260803100000_day_routine.sql` — распорядок дня.
 - `supabase/migrations/20260803140000_push_notifications.sql` и последующие push-миграции — push-подписки, RPC и дедупликация.
-- `supabase/migrations/20260807120000_day_routine_photos_ai.sql` и `20260807124500_day_routine_item_keys_runtime.sql` — фото распорядка, AI-проверка и совместимость ключей пунктов.
+- `supabase/migrations/20260807120000_day_routine_photos_ai.sql` и `20260807124500_day_routine_item_keys_runtime.sql` — фото распорядка, историческая схема AI-отчётов и совместимость ключей пунктов; приложение AI-распознавание не использует.
 - `package.json` — версии и команды `typecheck`, `build`, `check`, `dev`.
 - `vercel.json` — минимальная конфигурация Vercel.
 

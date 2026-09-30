@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
-import { ensureStorageBucket } from "@/lib/storage/ensure-storage-bucket";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { uploadFormFile } from "@/lib/storage/upload-form-file";
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -72,50 +70,10 @@ export async function POST(request: NextRequest) {
   }
 
   const serviceSupabase = createSupabaseServiceRoleClient();
-  await ensureStorageBucket(serviceSupabase, "routine-photos", {
-    public: false,
-    fileSizeLimit: 25 * 1024 * 1024,
-    allowedMimeTypes: ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/heic", "image/heif"],
-  });
-  const settings: {
-    item_key: string;
-    requires_photo: boolean;
-    ai_review_enabled: boolean;
-    reference_photo_file_id: string | null;
-  }[] = [];
-
-  try {
-    for (const itemKey of itemKeys) {
-      const requiresPhoto = formData.get(`requires_photo_${itemKey}`) === "on";
-      const aiReviewEnabled = requiresPhoto && formData.get(`ai_review_enabled_${itemKey}`) === "on";
-      const referenceFile = formData.get(`reference_photo_${itemKey}`);
-      let referencePhotoFileId: string | null = null;
-
-      if (referenceFile instanceof File && referenceFile.size > 0) {
-        referencePhotoFileId = await uploadFormFile(
-          serviceSupabase,
-          "routine-photos",
-          `templates/${templateId}/${itemKey}`,
-          referenceFile,
-          user.id,
-          "day_routine_template_item_reference_photo",
-          null,
-        );
-      }
-
-      settings.push({
-        item_key: itemKey,
-        requires_photo: requiresPhoto,
-        ai_review_enabled: aiReviewEnabled,
-        reference_photo_file_id: referencePhotoFileId,
-      });
-    }
-  } catch (error) {
-    return NextResponse.redirect(
-      redirectUrl(request, "routine-error", error instanceof Error ? error.message : "Не удалось сохранить фото-настройки.", storeId),
-      303,
-    );
-  }
+  const settings = itemKeys.map((itemKey) => ({
+    item_key: itemKey,
+    requires_photo: formData.get(`requires_photo_${itemKey}`) === "on",
+  }));
 
   const { error: deleteError } = await serviceSupabase
     .from("day_routine_template_item_settings")
@@ -132,8 +90,6 @@ export async function POST(request: NextRequest) {
         template_id: templateId,
         item_key: setting.item_key,
         requires_photo: setting.requires_photo,
-        ai_review_enabled: setting.ai_review_enabled,
-        reference_photo_file_id: setting.reference_photo_file_id,
         created_by: user.id,
         updated_by: user.id,
       })),

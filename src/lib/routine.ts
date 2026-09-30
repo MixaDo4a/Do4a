@@ -24,14 +24,6 @@ export type RoutineTemplateItemSettingsRow = {
   template_id: string;
   item_key: string;
   requires_photo: boolean;
-  ai_review_enabled: boolean;
-  reference_photo_file_id: string | null;
-  reference_photo_file: {
-    id: string;
-    bucket: string;
-    path: string;
-    mime_type: string | null;
-  } | null;
 };
 
 export type RoutineOutlineNode = {

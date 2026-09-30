@@ -38,7 +38,6 @@ type TemplateSettingsMap = Record<
   string,
   {
     requiresPhoto: boolean;
-    aiReviewEnabled: boolean;
   }
 >;
 
@@ -186,8 +185,8 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
 
   const { data: settingsRows, error: settingsError } = templateRows
     ? await supabase
-        .from("day_routine_template_item_settings")
-        .select("id, template_id, item_key, requires_photo, ai_review_enabled")
+    .from("day_routine_template_item_settings")
+        .select("id, template_id, item_key, requires_photo")
         .eq("template_id", templateRows.id)
         .returns<RoutineTemplateItemSettingsRow[]>()
     : { data: [] as RoutineTemplateItemSettingsRow[], error: null };
@@ -209,7 +208,6 @@ export default async function RoutineKindPage({ params, searchParams }: PageProp
       row.item_key,
       {
         requiresPhoto: row.requires_photo,
-        aiReviewEnabled: row.ai_review_enabled,
       },
     ]),
   );

@@ -17,7 +17,6 @@ type ItemSettingsMap = Record<
   string,
   {
     requiresPhoto: boolean;
-    aiReviewEnabled: boolean;
   }
 >;
 
@@ -101,7 +100,6 @@ function TreeRow({
         <div className="mt-2 rounded-2xl border border-dashed border-line/80 bg-[#0b0809]/85 p-3" style={{ marginLeft: depth * 12 }}>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
             <span>Фото обязательно</span>
-            {settings.aiReviewEnabled ? <span className="rounded-full border border-brand/40 px-2 py-0.5 text-brand">AI-проверка включена</span> : null}
           </div>
           <label className="mt-2 block text-sm text-muted">
             <span className="mb-2 block">Фото пункта</span>
