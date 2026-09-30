@@ -16,6 +16,7 @@ type BottomNavItem = {
 };
 
 const managementRoles = ["manager", "store_manager", "super_admin", "developer"];
+let lastBottomNavPosition: { index: number; itemCount: number } | null = null;
 
 const items: BottomNavItem[] = [
   { href: "/", label: "Главная", icon: Home, roles: null, hideForAuditorOnly: false },
@@ -194,35 +195,68 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
 
   const activeIndex = useMemo(() => resolveActiveIndex(pathname, visibleItems), [pathname, visibleItems]);
   const indicatorCircleRef = useRef<HTMLSpanElement>(null);
-  const previousActiveIndexRef = useRef(activeIndex);
+  const didMountRef = useRef(false);
   const interruptedTransformRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
-    if (previousActiveIndexRef.current === activeIndex) return;
-    previousActiveIndexRef.current = activeIndex;
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
     const circle = indicatorCircleRef.current;
-    if (!circle) return;
-
-    const startTransform = interruptedTransformRef.current ?? window.getComputedStyle(circle).transform;
-    interruptedTransformRef.current = null;
-    const animation = circle.animate(
-      [
-        { transform: startTransform, offset: 0 },
-        { transform: "translateX(-50%) translateY(-25px) scale(1.06)", offset: 0.4 },
-        { transform: "translateX(-50%) translateY(-10px) scale(1.02)", offset: 0.72 },
-        { transform: "translateX(-50%) translateY(0) scale(1)", offset: 1 },
-      ],
-      { duration: 400, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    const grid = circle?.closest<HTMLElement>(".bottom-nav-grid");
+    const indicator = circle?.parentElement;
+    const previousPosition = lastBottomNavPosition;
+    const positionChanged = previousPosition !== null && (
+      previousPosition.index !== activeIndex || previousPosition.itemCount !== visibleItems.length
     );
+    lastBottomNavPosition = { index: activeIndex, itemCount: visibleItems.length };
+
+    if (!positionChanged || !circle || !grid || !indicator) {
+      didMountRef.current = true;
+      return;
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      didMountRef.current = true;
+      return;
+    }
+
+    let animation: Animation | null = null;
+    let frameId: number | null = null;
+    const startAnimation = () => {
+      const startTransform = interruptedTransformRef.current ?? window.getComputedStyle(circle).transform;
+      interruptedTransformRef.current = null;
+      animation = circle.animate(
+        [
+          { transform: startTransform, offset: 0 },
+          { transform: "translateX(-50%) translateY(-25px) scale(1.06)", offset: 0.4 },
+          { transform: "translateX(-50%) translateY(-10px) scale(1.02)", offset: 0.72 },
+          { transform: "translateX(-50%) translateY(0) scale(1)", offset: 1 },
+        ],
+        { duration: 400, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      );
+    };
+
+    if (!didMountRef.current && previousPosition) {
+      const previousX = (previousPosition.index + 0.5) / previousPosition.itemCount;
+      const currentX = (activeIndex + 0.5) / visibleItems.length;
+      indicator.style.left = `calc(100% * ${previousX})`;
+      grid.style.setProperty("--bottom-nav-active-x", `calc(100% * ${previousX})`);
+      frameId = window.requestAnimationFrame(() => {
+        indicator.style.left = `calc(100% * ${currentX})`;
+        grid.style.setProperty("--bottom-nav-active-x", `calc(100% * ${currentX})`);
+        startAnimation();
+      });
+    } else {
+      startAnimation();
+    }
+    didMountRef.current = true;
 
     return () => {
-      interruptedTransformRef.current = window.getComputedStyle(circle).transform;
-      animation.cancel();
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      if (animation) {
+        interruptedTransformRef.current = window.getComputedStyle(circle).transform;
+        animation.cancel();
+      }
     };
-  }, [activeIndex]);
+  }, [activeIndex, visibleItems.length]);
 
   const navGridStyle = {
     gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))`,
