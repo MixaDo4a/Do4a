@@ -3,7 +3,7 @@
 import { BadgePercent, Bell, CalendarClock, ClipboardCheck, Home, ListTodo, PackageSearch, Settings, ShieldCheck, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
 import { PROCUREMENT_ROLES } from "@/lib/auth/role-constants";
 import { registerPushServiceWorker } from "@/lib/push-client";
 
@@ -193,6 +193,36 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   );
 
   const activeIndex = useMemo(() => resolveActiveIndex(pathname, visibleItems), [pathname, visibleItems]);
+  const indicatorCircleRef = useRef<HTMLSpanElement>(null);
+  const previousActiveIndexRef = useRef(activeIndex);
+  const interruptedTransformRef = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (previousActiveIndexRef.current === activeIndex) return;
+    previousActiveIndexRef.current = activeIndex;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const circle = indicatorCircleRef.current;
+    if (!circle) return;
+
+    const startTransform = interruptedTransformRef.current ?? window.getComputedStyle(circle).transform;
+    interruptedTransformRef.current = null;
+    const animation = circle.animate(
+      [
+        { transform: startTransform, offset: 0 },
+        { transform: "translateX(-50%) translateY(-25px) scale(1.06)", offset: 0.4 },
+        { transform: "translateX(-50%) translateY(-10px) scale(1.02)", offset: 0.72 },
+        { transform: "translateX(-50%) translateY(0) scale(1)", offset: 1 },
+      ],
+      { duration: 400, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+
+    return () => {
+      interruptedTransformRef.current = window.getComputedStyle(circle).transform;
+      animation.cancel();
+    };
+  }, [activeIndex]);
 
   const navGridStyle = {
     gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))`,
@@ -207,10 +237,10 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
       >
         <div
           aria-hidden="true"
-          className="bottom-nav-indicator pointer-events-none absolute z-0 transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          className="bottom-nav-indicator pointer-events-none absolute z-0"
           style={{ left: `calc((100% / ${visibleItems.length}) * ${activeIndex + 0.5})` }}
         >
-          <span className="bottom-nav-indicator-circle" />
+          <span ref={indicatorCircleRef} className="bottom-nav-indicator-circle" />
         </div>
         {visibleItems.map((item) => {
           const active = pathname === item.href || (item.href !== "/" && item.href !== "/checklists" && pathname.startsWith(item.href));
