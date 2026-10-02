@@ -551,17 +551,17 @@ export default async function HomePage() {
               {auditorOnly
                 ? "Проверки и задачи"
                 : managementView
-                  ? accountName
+                  ? <Link className="hover:text-brand" href="/profile">{accountName}</Link>
                   : buyerOnlyView
                     ? "Акции"
                     : warehouseManagerOnlyView || warehouseAssistantOnlyView
                       ? "Склад и задачи"
                       : managerOnlyView
-                        ? accountName
+                        ? <Link className="hover:text-brand" href="/profile">{accountName}</Link>
                         : "Смена и задачи"}
             </h1>
             {managementView || managerOnlyView ? (
-              <div className="mt-1 flex items-center gap-2">
+              <div className="mt-1 flex flex-wrap items-center gap-2">
                 <div data-tour="role-switcher"><RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} /></div>
                 <form action="/logout" method="post">
                   <button className="inline-flex h-7 items-center justify-center gap-1 rounded-md bg-brand px-2 text-xs font-semibold text-white" type="submit">
@@ -572,43 +572,7 @@ export default async function HomePage() {
             ) : null}
           </div>
           {(managementView || managerOnlyView) ? <Link
-            className="relative grid h-12 w-12 place-items-center self-center ui-panel shadow-soft"
-            style={{ overflow: "visible" }}
-            aria-label="Уведомления"
-            href="/notifications"
-          >
-            <Bell
-              size={25}
-              className={notificationsCount ? "relative z-10 text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : "relative z-10"}
-            />
-            {notificationsCount ? (
-              <span className="pointer-events-none absolute right-[-0.45rem] top-[-0.45rem] z-30 grid min-h-5 min-w-5 place-items-center rounded-full border border-white/20 bg-brand px-1 text-[10px] font-semibold leading-none text-white shadow-[0_0_12px_rgba(255,57,72,0.6)]">
-                {notificationsCount}
-              </span>
-            ) : null}
-          </Link> : null}
-        </header>
-
-        {!managerOnlyView && !managementView ? <section className="role-switcher-panel mt-4 ui-panel p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-surface">
-                <UserRound className="text-brand" size={20} />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-base font-semibold">{accountName}</p>
-                <div className="mt-1 flex items-center gap-2">
-                  <div data-tour="role-switcher"><RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} /></div>
-                  <form action="/logout" method="post">
-                    <button className="inline-flex h-7 items-center justify-center gap-1 ui-panel px-2 text-xs font-semibold text-ink shadow-soft" type="submit">
-                      <LogOut size={13} /> Выйти
-                    </button>
-                  </form>
-                </div>
-              </div>
-            </div>
-            <Link
-              className="relative grid h-12 w-12 shrink-0 place-items-center self-center ui-panel shadow-soft"
+              className="relative grid h-12 w-12 place-items-center self-center ui-panel shadow-soft"
               style={{ overflow: "visible" }}
               aria-label="Уведомления"
               href="/notifications"
@@ -622,7 +586,45 @@ export default async function HomePage() {
                   {notificationsCount}
                 </span>
               ) : null}
-            </Link>
+            </Link> : null}
+        </header>
+
+        {!managerOnlyView && !managementView ? <section className="role-switcher-panel mt-4 ui-panel p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-surface">
+                <UserRound className="text-brand" size={20} />
+              </div>
+              <div className="min-w-0">
+                <Link className="block truncate text-base font-semibold hover:text-brand" href="/profile">{accountName}</Link>
+                <div className="mt-1 flex items-center gap-2">
+                  <div data-tour="role-switcher"><RoleSwitcher activeRole={roleState.activeRole} roles={allRoleCodes} /></div>
+                  <form action="/logout" method="post">
+                    <button className="inline-flex h-7 items-center justify-center gap-1 ui-panel px-2 text-xs font-semibold text-ink shadow-soft" type="submit">
+                      <LogOut size={13} /> Выйти
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2 self-center">
+              <Link
+                className="relative grid h-12 w-12 place-items-center ui-panel shadow-soft"
+                style={{ overflow: "visible" }}
+                aria-label="Уведомления"
+                href="/notifications"
+              >
+                <Bell
+                  size={25}
+                  className={notificationsCount ? "relative z-10 text-brand drop-shadow-[0_0_10px_rgba(255,57,72,0.7)]" : "relative z-10"}
+                />
+                {notificationsCount ? (
+                  <span className="pointer-events-none absolute right-[-0.45rem] top-[-0.45rem] z-30 grid min-h-5 min-w-5 place-items-center rounded-full border border-white/20 bg-brand px-1 text-[10px] font-semibold leading-none text-white shadow-[0_0_12px_rgba(255,57,72,0.6)]">
+                    {notificationsCount}
+                  </span>
+                ) : null}
+              </Link>
+            </div>
           </div>
         </section> : null}
 

@@ -15,6 +15,8 @@ type RoleCode =
   | "super_admin"
   | "developer";
 
+const INITIAL_EMPLOYEE_PASSWORD = "123456789";
+
 function adminUrl(request: NextRequest, message: string, detail?: string) {
   const url = appRedirectUrl(request, "/admin/employees");
   url.searchParams.set("message", message);
@@ -113,9 +115,11 @@ export async function POST(request: NextRequest) {
 
   const { data: storeRow } = await supabase.from("stores").select("city").eq("id", primaryStoreId).maybeSingle();
 
-  const { data: createdAuthUser, error: authError } = await serviceSupabase.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${new URL("/auth/callback", request.url).origin}/auth/callback`,
-    data: {
+  const { data: createdAuthUser, error: authError } = await serviceSupabase.auth.admin.createUser({
+    email,
+    password: INITIAL_EMPLOYEE_PASSWORD,
+    email_confirm: true,
+    user_metadata: {
       full_name: fullName,
       employee_role: employeeRoles.join(","),
       telegram_username: telegramUsername,

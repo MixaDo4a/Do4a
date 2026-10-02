@@ -5,7 +5,8 @@ import { useState } from "react";
 type ShiftCloseOption = {
   id: string;
   shift_date: string;
-  stores: { name: string; city: string | null } | null;
+  store_id: string;
+  stores: { id: string; name: string; city: string | null } | null;
   shift_participants: {
     participant_role: "primary_seller" | "secondary_seller";
     employees: { full_name: string } | null;
@@ -19,6 +20,7 @@ type Props = {
   managersByCity: Record<string, ManagerOption[]>;
   selectedShiftId: string;
   params: Record<string, string | undefined>;
+  coinsByStore: Record<string, string>;
 };
 
 const cashFields = [
@@ -48,11 +50,12 @@ function formatShiftOption(shift: ShiftCloseOption) {
   ].filter(Boolean).join(" · ");
 }
 
-export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params }: Props) {
+export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, coinsByStore }: Props) {
   const [shiftId, setShiftId] = useState(selectedShiftId);
   const [advanceAmount, setAdvanceAmount] = useState(params.advance_amount ?? "");
   const [recipientId, setRecipientId] = useState(params.advance_employee_id ?? "");
   const selectedShift = shifts.find((shift) => shift.id === shiftId);
+  const [coinsAmount, setCoinsAmount] = useState(params.coins_amount ?? coinsByStore[selectedShift?.store_id ?? ""] ?? "0");
   const cityManagers = managersByCity[cityKey(selectedShift?.stores?.city)] ?? [];
   const requiresRecipient = Number(advanceAmount.replace(",", ".")) > 0;
 
@@ -68,6 +71,8 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
             onChange={(event) => {
               setShiftId(event.target.value);
               setRecipientId("");
+              const nextShift = shifts.find((shift) => shift.id === event.target.value);
+              setCoinsAmount(coinsByStore[nextShift?.store_id ?? ""] ?? "0");
             }}
             required
             value={shiftId}
@@ -115,6 +120,21 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
             />
           </label>
         </div>
+        <label className="mt-3 grid gap-1 text-sm">
+          <span className="text-muted">Мелочь в мешках</span>
+          <input
+            className="h-11 ui-panel px-3 outline-none focus:border-brand"
+            inputMode="decimal"
+            max={MONEY_INPUT_MAX}
+            min="0"
+            name="coins_amount"
+            onChange={(event) => setCoinsAmount(event.target.value)}
+            step="0.01"
+            type="number"
+            value={coinsAmount}
+          />
+          <span className="text-xs text-muted">Сумма сохранится за магазином и будет учтена в следующем пересчёте.</span>
+        </label>
         {requiresRecipient ? (
           <label className="mt-3 grid gap-1 text-sm">
             <span className="text-muted">Кому выдать аванс</span>

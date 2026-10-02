@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 
 const denominationIds = [
   "5000",
@@ -49,6 +50,7 @@ function closeUrl(request: NextRequest, formData: FormData, message: string, det
     "cash_collection_comment",
     "advance_amount",
     "advance_employee_id",
+    "coins_amount",
   ];
   keysToPreserve.forEach((key) => {
     const value = String(formData.get(key) ?? "").trim();
@@ -208,9 +210,11 @@ export async function POST(request: NextRequest) {
     p_advance_employee_id: string | null;
     p_cash_counts: { denomination_id: string; quantity: number }[];
   };
+  let coinsAmount = 0;
 
   try {
     const cashCollectionAmount = numeric(formData, "cash_collection_amount");
+    coinsAmount = hideCash ? 0 : numeric(formData, "coins_amount") ?? 0;
     const advanceAmount = numeric(formData, "advance_amount");
     const advanceRecipientEmployeeId = String(formData.get("advance_employee_id") ?? "").trim() || null;
     if ((advanceAmount ?? 0) > 0 && !advanceRecipientEmployeeId) {
@@ -258,6 +262,48 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createSupabaseServerClient();
+  if (!hideCash) {
+    const [{ data: auth }, { roles }, { employeeId }] = await Promise.all([
+      supabase.auth.getUser(),
+      getCurrentRoleCodes(supabase),
+      getCurrentEmployeeId(supabase),
+    ]);
+    if (!auth.user || !employeeId) return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
+
+    const { data: shift } = await supabase.from("shifts")
+      .select("id, store_id, opened_by_employee_id")
+      .eq("id", shiftId)
+      .in("status", ["opened", "correction_required"])
+      .maybeSingle<{ id: string; store_id: string; opened_by_employee_id: string | null }>();
+    if (!shift || (shift.opened_by_employee_id !== employeeId && !hasAnyRole(roles, [...MANAGE_ROLES, "manager"]))) {
+      return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
+    }
+
+    const denominationIdsForCount = payload.p_cash_counts.map((row) => row.denomination_id);
+    const { data: denominations, error: denominationError } = denominationIdsForCount.length
+      ? await supabase.from("cash_denominations").select("id, value").in("id", denominationIdsForCount)
+      : { data: [], error: null };
+    if (denominationError) return NextResponse.redirect(closeUrl(request, formData, "cash-count-save-error"), 303);
+    const valueById = new Map((denominations ?? []).map((item) => [item.id, Number(item.value)]));
+    const countedAmount = Number((coinsAmount + payload.p_cash_counts.reduce(
+      (sum, row) => sum + (valueById.get(row.denomination_id) ?? 0) * row.quantity,
+      0,
+    )).toFixed(2));
+    const { error: cashCountError } = await supabase.from("store_cash_counts").insert({
+      store_id: shift.store_id,
+      shift_id: shift.id,
+      counted_by_employee_id: employeeId,
+      created_by: auth.user.id,
+      cash_amount: countedAmount,
+      counted_amount: countedAmount,
+      withdrawal_amount: 0,
+      denominations: { coins_amount: coinsAmount, rows: payload.p_cash_counts },
+    });
+    if (cashCountError) {
+      return NextResponse.redirect(closeUrl(request, formData, "cash-count-save-error", cashCountError.message), 303);
+    }
+  }
+
   const { error } = await supabase.rpc("close_shift_with_advance_recipient", payload);
   if (error) return NextResponse.redirect(closeUrl(request, formData, "close-error", error.message), 303);
 

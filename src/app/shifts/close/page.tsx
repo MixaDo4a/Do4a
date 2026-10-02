@@ -20,18 +20,22 @@ type Denomination = {
 type ShiftOption = {
   id: string;
   shift_date: string;
-  stores: { name: string; city: string | null } | null;
+  store_id: string;
+  stores: { id: string; name: string; city: string | null } | null;
   shift_participants: {
     participant_role: "primary_seller" | "secondary_seller";
     employees: { full_name: string } | null;
   }[];
 };
 
+type StoreCashCount = { store_id: string; created_at: string; denominations: { coins_amount?: unknown } | null };
+
 const messages: Record<string, string> = {
   "shift-required": "Выберите смену.",
   "photo-required": "Смена не может быть закрыта: добавьте фото Z-отчёта.",
   "cash-comment-required": "Смена не может быть закрыта: укажите комментарий к инкассации.",
   "cash-counts-required": "Смена не может быть закрыта: заполните покупюрник полностью.",
+  "cash-count-save-error": "Не удалось сохранить пересчёт наличности с мелочью. Смена не закрыта; проверьте доступ и повторите попытку.",
   "advance-recipient-required": "Выберите менеджера, которому выдан аванс.",
   "number-error": "Проверьте числовые поля: суммы должны быть в допустимом диапазоне.",
   "close-error": "Не удалось закрыть смену. Проверьте данные или права доступа.",
@@ -75,7 +79,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
     (() => {
       let query = supabase
         .from("shifts")
-        .select("id, shift_date, stores(name, city), shift_participants(participant_role, employees(full_name))")
+        .select("id, shift_date, store_id, stores(id, name, city), shift_participants(participant_role, employees(full_name))")
         .in("status", ["opened", "correction_required"])
         .order("shift_date", { ascending: false });
       if (managerOnly && employeeId) query = query.eq("opened_by_employee_id", employeeId);
@@ -92,6 +96,21 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
   }
 
   const selectedShiftId = shiftId ?? shiftsResult.data[0]?.id ?? "";
+  const storeIds = [...new Set(shiftsResult.data.map((shift) => shift.store_id))];
+  const cashCountResults = await Promise.all(storeIds.map((storeId) => supabase.from("store_cash_counts")
+    .select("store_id, created_at, denominations")
+    .eq("store_id", storeId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<StoreCashCount>()));
+  const cashCountError = cashCountResults.find((result) => result.error)?.error;
+  if (cashCountError) throw new Error(cashCountError.message);
+  const coinsByStore: Record<string, string> = {};
+  for (const { data: cashCount } of cashCountResults) {
+    if (!cashCount) continue;
+    const amount = Number(cashCount.denominations?.coins_amount ?? 0);
+    if (Number.isFinite(amount) && amount >= 0) coinsByStore[cashCount.store_id] = String(amount);
+  }
   const cityShiftPairs = new Map<string, string>();
   for (const shift of shiftsResult.data) {
     const key = shift.stores?.city?.trim().toLocaleLowerCase("ru-RU") ?? "";
@@ -118,6 +137,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
         <form action="/shifts/close/submit" className="mt-4 grid gap-4" encType="multipart/form-data" method="post">
           {compactClose ? <input name="hide_cash" type="hidden" value="1" /> : null}
           <ShiftCloseFields
+            coinsByStore={coinsByStore}
             managersByCity={managersByCity}
             params={params}
             selectedShiftId={selectedShiftId}

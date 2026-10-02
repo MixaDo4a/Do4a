@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { EmployeeRoleStatusFields } from "@/components/employee-role-status-fields";
 import { SectionHeader } from "@/components/section-header";
+import { getTaskQualityPeriod, summarizeTaskQuality, type PersonalTaskDeadline } from "@/lib/task-quality";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
 import { canDeleteTargetRole, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES, ROLE_HIERARCHY, RoleRelation, roleRank } from "@/lib/auth/roles";
@@ -25,6 +26,7 @@ type EmployeeRow = {
 type RoleRow = { code: "manager" | "auditor" | "store_manager" | "buyer" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer"; name: string };
 type ProfileRoleRow = { profile_id: string; roles: RoleRelation<RoleRow["code"]> };
 type ProfileEmployeeRow = { id: string; employee_id: string | null };
+type EmployeeTaskQualityRow = PersonalTaskDeadline & { assignee_employee_id: string | null };
 type PageProps = {
   searchParams: Promise<{
     message?: string;
@@ -54,7 +56,7 @@ function roleCodesFromRelation(relation: RoleRelation<RoleRow["code"]>) {
 const pageMessages: Record<string, string> = {
   "admin-required": "Заполните все обязательные поля.",
   "admin-error": "Не удалось сохранить данные.",
-  "employee-created": "Сотрудник создан.",
+  "employee-created": "Сотрудник создан. Попросите его сменить начальный пароль в профиле.",
   "employee-updated": "Сотрудник обновлён.",
   "employee-deleted": "Сотрудник удалён.",
   "employee-restored": "Сотрудник восстановлен.",
@@ -103,6 +105,30 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
   const roleByEmployeeId = new Map(
     profilesResult.data.map((profile) => [profile.employee_id ?? "", roleByProfileId.get(profile.id) ?? []]),
   );
+  const managerIds = employees.filter((employee) => roleByEmployeeId.get(employee.id)?.includes("manager")).map((employee) => employee.id);
+  const qualityByEmployeeId = new Map<string, ReturnType<typeof summarizeTaskQuality>>();
+  if (managerIds.length > 0) {
+    const { start, end } = getTaskQualityPeriod();
+    const { data: personalTasks, error: taskQualityError } = await supabase
+      .from("tasks")
+      .select("assignee_employee_id, due_at, completed_at, status")
+      .in("assignee_employee_id", managerIds)
+      .gte("due_at", start)
+      .lte("due_at", end)
+      .neq("status", "cancelled")
+      .returns<EmployeeTaskQualityRow[]>();
+    if (taskQualityError) throw new Error(taskQualityError.message);
+    const tasksByEmployee = new Map<string, EmployeeTaskQualityRow[]>();
+    for (const task of personalTasks ?? []) {
+      if (!task.assignee_employee_id) continue;
+      const rows = tasksByEmployee.get(task.assignee_employee_id) ?? [];
+      rows.push(task);
+      tasksByEmployee.set(task.assignee_employee_id, rows);
+    }
+    for (const employeeId of managerIds) {
+      qualityByEmployeeId.set(employeeId, summarizeTaskQuality(tasksByEmployee.get(employeeId) ?? []));
+    }
+  }
   const currentRoleCode = [...ROLE_HIERARCHY].find((code) => roles.includes(code)) ?? null;
   const canEditAuthAccount = roles.some((role) => ["super_admin", "developer"].includes(role));
   const assignableRoleCodes = currentRoleCode ? roleHierarchy.filter((code) => roleRank(code) >= roleRank(currentRoleCode)) : [];
@@ -127,7 +153,7 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
             <input className="h-10 rounded-md border border-line px-3" name="telegram_username" placeholder="Telegram username" required />
             <input className="h-10 rounded-md border border-line px-3" name="city" placeholder="Город" required />
             <EmployeeRoleStatusFields assignableRoleCodes={assignableRoleCodes} defaultStatus="padawan" roleLabels={roleLabels} />
-            <p className="text-xs text-muted">Ссылка для установки пароля будет отправлена на email сотрудника.</p>
+            <p className="text-xs text-muted">Начальный пароль для новой учётной записи: <span className="font-semibold text-ink">123456789</span>. После входа сотруднику следует сменить его в профиле.</p>
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-muted">Магазины доступа</span>
@@ -162,6 +188,11 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
                 <summary className="cursor-pointer list-none font-semibold">
                   {employeeName(employee)}
                   {roleByEmployeeId.get(employee.id)?.includes("manager") ? ` · ${employeeStatusLabels[employee.employee_status]}` : ""}
+                  {roleByEmployeeId.get(employee.id)?.includes("manager")
+                    ? <span className="text-muted"> · Качество задач: {qualityByEmployeeId.get(employee.id)?.percentage === null || !qualityByEmployeeId.has(employee.id)
+                      ? "нет оценки"
+                      : <Link className="text-ink underline decoration-brand/60 underline-offset-4 hover:text-brand" href={`/tasks/quality?employeeId=${employee.id}`}>{qualityByEmployeeId.get(employee.id)?.percentage}%</Link>}</span>
+                    : ""}
                   {!employee.is_active ? <span className="ml-2 text-xs text-brand">Удалён</span> : null}
                 </summary>
                 <form action="/admin/employees/update" className="mt-3 grid gap-2" method="post">
