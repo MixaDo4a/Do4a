@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Save } from "lucide-react";
 
 type ShiftCloseOption = {
@@ -174,11 +174,22 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
 
 export function ShiftCloseSubmitButton() {
   const [submitting, setSubmitting] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const form = buttonRef.current?.form;
+    if (!form) return;
+
+    const handleSubmit = () => setSubmitting(true);
+    form.addEventListener("submit", handleSubmit);
+    return () => form.removeEventListener("submit", handleSubmit);
+  }, []);
+
   return (
     <button
       className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-4 font-semibold text-white disabled:cursor-wait disabled:opacity-70"
       disabled={submitting}
-      onClick={() => setSubmitting(true)}
+      ref={buttonRef}
       type="submit"
     >
       <Save size={18} /> {submitting ? "Закрываем смену…" : "Закрыть смену"}
