@@ -48,6 +48,7 @@ function closeUrl(request: NextRequest, formData: FormData, message: string, det
     "items_sold_count",
     "cash_collection_amount",
     "cash_collection_comment",
+    "actual_cash_amount",
     "advance_amount",
     "advance_employee_id",
     "coins_amount",
@@ -209,11 +210,16 @@ export async function POST(request: NextRequest) {
     p_advance_amount: number | null;
     p_advance_employee_id: string | null;
     p_cash_counts: { denomination_id: string; quantity: number }[];
+    p_actual_cash_amount: number;
   };
   let coinsAmount = 0;
 
   try {
     const cashCollectionAmount = numeric(formData, "cash_collection_amount");
+    const actualCashAmount = numeric(formData, "actual_cash_amount");
+    if (actualCashAmount === null) {
+      return NextResponse.redirect(closeUrl(request, formData, "actual-cash-required"), 303);
+    }
     coinsAmount = hideCash ? 0 : numeric(formData, "coins_amount") ?? 0;
     const advanceAmount = numeric(formData, "advance_amount");
     const advanceRecipientEmployeeId = String(formData.get("advance_employee_id") ?? "").trim() || null;
@@ -248,6 +254,7 @@ export async function POST(request: NextRequest) {
       p_advance_amount: advanceAmount,
       p_advance_employee_id: advanceRecipientEmployeeId,
       p_cash_counts: cashCounts,
+      p_actual_cash_amount: actualCashAmount,
     };
   } catch {
     return NextResponse.redirect(
@@ -262,7 +269,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createSupabaseServerClient();
-  if (!hideCash) {
+  {
     const [{ data: auth }, { roles }, { employeeId }] = await Promise.all([
       supabase.auth.getUser(),
       getCurrentRoleCodes(supabase),
@@ -271,11 +278,16 @@ export async function POST(request: NextRequest) {
     if (!auth.user || !employeeId) return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
 
     const { data: shift } = await supabase.from("shifts")
-      .select("id, store_id, opened_by_employee_id")
+      .select("id, store_id, opened_by_employee_id, status")
       .eq("id", shiftId)
-      .in("status", ["opened", "correction_required"])
-      .maybeSingle<{ id: string; store_id: string; opened_by_employee_id: string | null }>();
+      .maybeSingle<{ id: string; store_id: string; opened_by_employee_id: string | null; status: string }>();
     if (!shift || (shift.opened_by_employee_id !== employeeId && !hasAnyRole(roles, [...MANAGE_ROLES, "manager"]))) {
+      return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
+    }
+    if (shift.status === "closed" || shift.status === "auto_closed") {
+      return NextResponse.redirect(new URL("/shifts?message=shift-closed", request.url), 303);
+    }
+    if (shift.status !== "opened" && shift.status !== "correction_required") {
       return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
     }
 
@@ -289,23 +301,65 @@ export async function POST(request: NextRequest) {
       (sum, row) => sum + (valueById.get(row.denomination_id) ?? 0) * row.quantity,
       0,
     )).toFixed(2));
-    const { error: cashCountError } = await supabase.from("store_cash_counts").insert({
-      store_id: shift.store_id,
-      shift_id: shift.id,
-      counted_by_employee_id: employeeId,
-      created_by: auth.user.id,
-      cash_amount: countedAmount,
-      counted_amount: countedAmount,
-      withdrawal_amount: 0,
-      denominations: { coins_amount: coinsAmount, rows: payload.p_cash_counts },
-    });
-    if (cashCountError) {
-      return NextResponse.redirect(closeUrl(request, formData, "cash-count-save-error", cashCountError.message), 303);
+    const { data: previousCount, error: previousCountError } = await supabase
+      .from("store_cash_counts")
+      .select("counted_amount")
+      .eq("store_id", shift.store_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ counted_amount: number | string }>();
+    if (previousCountError) {
+      return NextResponse.redirect(closeUrl(request, formData, "cash-count-save-error", previousCountError.message), 303);
+    }
+    const expectedCashAmount = hideCash
+      ? (previousCount ? Number(previousCount.counted_amount) : null)
+      : countedAmount;
+    if (expectedCashAmount !== null && Number(expectedCashAmount.toFixed(2)) !== Number(payload.p_actual_cash_amount.toFixed(2))) {
+      const [{ data: store }, { data: employee }] = await Promise.all([
+        supabase.from("stores").select("name").eq("id", shift.store_id).maybeSingle<{ name: string }>(),
+        supabase.from("employees").select("full_name").eq("id", employeeId).maybeSingle<{ full_name: string }>(),
+      ]);
+      const detail = `По купюрнику: ${expectedCashAmount.toLocaleString("ru-RU")} руб.; указано: ${payload.p_actual_cash_amount.toLocaleString("ru-RU")} руб.`;
+      const { error: notificationError } = await supabase.rpc("send_store_managers_notification", {
+        p_store_id: shift.store_id,
+        p_event_type: "cash_balance_mismatch",
+        p_title: "Расхождение наличных при закрытии смены",
+        p_body: `${store?.name ?? "Магазин"}. ${employee?.full_name ?? "Менеджер"}. ${detail} Смена не закрыта.`,
+        p_related_entity_type: "shift",
+        p_related_entity_id: shift.id,
+      });
+      return NextResponse.redirect(closeUrl(
+        request,
+        formData,
+        notificationError ? "cash-balance-mismatch-notify-error" : "cash-balance-mismatch",
+        notificationError ? `${detail} Уведомление управляющим не отправилось: ${notificationError.message}` : detail,
+      ), 303);
+    }
+
+    if (!hideCash) {
+      const { error: cashCountError } = await supabase.from("store_cash_counts").insert({
+        store_id: shift.store_id,
+        shift_id: shift.id,
+        counted_by_employee_id: employeeId,
+        created_by: auth.user.id,
+        cash_amount: countedAmount,
+        counted_amount: countedAmount,
+        withdrawal_amount: 0,
+        denominations: { coins_amount: coinsAmount, rows: payload.p_cash_counts },
+      });
+      if (cashCountError) {
+        return NextResponse.redirect(closeUrl(request, formData, "cash-count-save-error", cashCountError.message), 303);
+      }
     }
   }
 
   const { error } = await supabase.rpc("close_shift_with_advance_recipient", payload);
-  if (error) return NextResponse.redirect(closeUrl(request, formData, "close-error", error.message), 303);
+  if (error) {
+    if (error.message.includes("Shift cannot be closed from status closed")) {
+      return NextResponse.redirect(new URL("/shifts?message=shift-closed", request.url), 303);
+    }
+    return NextResponse.redirect(closeUrl(request, formData, "close-error", error.message), 303);
+  }
 
   try {
     await uploadKkmReportPhoto(supabase, shiftId, formData);

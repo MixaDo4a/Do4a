@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Save } from "lucide-react";
 
 type ShiftCloseOption = {
   id: string;
@@ -31,6 +32,7 @@ const cashFields = [
   ["receipt_count", "Количество чеков"],
   ["items_sold_count", "Количество товаров"],
   ["cash_collection_amount", "Инкассация"],
+  ["actual_cash_amount", "Наличные по Z-отчёту"],
 ] as const;
 
 const MONEY_INPUT_MAX = "999999999999.99";
@@ -99,9 +101,13 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
                   max={isCount ? COUNT_INPUT_MAX : MONEY_INPUT_MAX}
                   min="0"
                   name={name}
+                  required={name === "actual_cash_amount"}
                   step={isCount ? "1" : "0.01"}
                   type="number"
                 />
+                {name === "actual_cash_amount" ? (
+                  <span className="text-xs text-muted">Укажите наличную сумму из Z-отчёта; она должна совпадать с итогом покупюрника.</span>
+                ) : null}
               </label>
             );
           })}
@@ -163,5 +169,19 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
         </label>
       </section>
     </>
+  );
+}
+
+export function ShiftCloseSubmitButton() {
+  const [submitting, setSubmitting] = useState(false);
+  return (
+    <button
+      className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-4 font-semibold text-white disabled:cursor-wait disabled:opacity-70"
+      disabled={submitting}
+      onClick={() => setSubmitting(true)}
+      type="submit"
+    >
+      <Save size={18} /> {submitting ? "Закрываем смену…" : "Закрыть смену"}
+    </button>
   );
 }

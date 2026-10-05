@@ -1,9 +1,9 @@
-import { ReceiptText, Save } from "lucide-react";
+import { ReceiptText } from "lucide-react";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { PhotoFileInput } from "@/components/photo-file-input";
 import { SectionHeader } from "@/components/section-header";
-import { ShiftCloseFields } from "@/components/shift-close-fields";
+import { ShiftCloseFields, ShiftCloseSubmitButton } from "@/components/shift-close-fields";
 import { getCurrentEmployeeId, getCurrentRoleCodes } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -36,6 +36,9 @@ const messages: Record<string, string> = {
   "cash-comment-required": "Смена не может быть закрыта: укажите комментарий к инкассации.",
   "cash-counts-required": "Смена не может быть закрыта: заполните покупюрник полностью.",
   "cash-count-save-error": "Не удалось сохранить пересчёт наличности с мелочью. Смена не закрыта; проверьте доступ и повторите попытку.",
+  "actual-cash-required": "Укажите фактическую сумму наличных в кассе.",
+  "cash-balance-mismatch": "Наличные в кассе не совпадают с последней суммой по покупюрнику. Смена не закрыта, управляющие уведомлены.",
+  "cash-balance-mismatch-notify-error": "Наличные в кассе не совпадают с покупюрником. Смена не закрыта, но уведомить управляющих не удалось.",
   "advance-recipient-required": "Выберите менеджера, которому выдан аванс.",
   "number-error": "Проверьте числовые поля: суммы должны быть в допустимом диапазоне.",
   "close-error": "Не удалось закрыть смену. Проверьте данные или права доступа.",
@@ -173,9 +176,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
             <PhotoFileInput name="kkm_report_photo" />
           </section>
 
-          <button className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-4 font-semibold text-white">
-            <Save size={18} /> Закрыть смену
-          </button>
+          <ShiftCloseSubmitButton />
         </form>
       </div>
       <BottomNav />

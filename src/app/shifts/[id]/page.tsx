@@ -29,6 +29,7 @@ type ClosingReport = {
   cash_collection_comment: string | null;
   check_depth: number | null;
   advance_amount: number | null;
+  actual_cash_amount: number | null;
   created_at: string;
 };
 
@@ -159,6 +160,7 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
           cash_collection_comment,
           check_depth,
           advance_amount,
+          actual_cash_amount,
           created_at
         ),
         cash_report_files(id, files(id, bucket, path, mime_type, size_bytes, created_at))
@@ -228,6 +230,7 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <Metric label="Открыта" value={formatDateTime(shift.opened_at)} />
             <Metric label="Закрыта" value={formatDateTime(shift.closed_at)} />
+            {report ? <Metric label="Наличные по Z-отчёту" value={`${formatMoney(report.actual_cash_amount)} руб.`} /> : null}
           </div>
         </section>
 
