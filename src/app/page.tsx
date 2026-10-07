@@ -25,7 +25,7 @@ import { notificationCutoffIso } from "@/lib/notification-retention";
 import { redirectInvalidSession } from "@/lib/supabase/errors";
 import { scheduleStatusBadgeClass, scheduleStatusLabel } from "@/lib/schedule-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formatStoreDateTime } from "@/lib/timezone";
+import { formatStoreDateTime, storeTimeZone } from "@/lib/timezone";
 
 type ProfileRow = {
   employee_id: string | null;
@@ -96,7 +96,7 @@ type ShiftPreview = {
   status: string;
   opened_at: string;
   opened_by_employee_id: string;
-  stores: { name: string } | null;
+  stores: { name: string; timezone: string | null } | null;
 };
 
 const managementRoles = ["manager", "store_manager", "super_admin", "developer"];
@@ -395,28 +395,28 @@ export default async function HomePage() {
   ] = (await Promise.all([
     auditorOnly || supportOnlyView
       ? Promise.resolve({
-          data: [] as { id: string; store_id: string; shift_date: string; status: string; opened_at: string; opened_by_employee_id: string; stores: { name: string } | null }[],
+          data: [] as ShiftPreview[],
           error: null,
         })
       : managementView
         ? supabase
             .from("shifts")
-            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name)")
+            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name, timezone)")
             .in("store_id", accessibleStoreIds)
             .in("status", ["opened", "correction_required"])
             .order("shift_date", { ascending: false })
             .limit(8)
-            .returns<{ id: string; store_id: string; shift_date: string; status: string; opened_at: string; opened_by_employee_id: string; stores: { name: string } | null }[]>()
+            .returns<ShiftPreview[]>()
       : profile?.employee_id
         ? supabase
             .from("shifts")
-            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name)")
+            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name, timezone)")
             .eq("opened_by_employee_id", profile.employee_id)
             .in("status", ["opened", "correction_required"])
             .order("shift_date", { ascending: false })
             .limit(1)
-            .returns<{ id: string; store_id: string; shift_date: string; status: string; opened_at: string; opened_by_employee_id: string; stores: { name: string } | null }[]>()
-        : Promise.resolve({ data: [] as { id: string; store_id: string; shift_date: string; status: string; opened_at: string; opened_by_employee_id: string; stores: { name: string } | null }[], error: null }),
+            .returns<ShiftPreview[]>()
+        : Promise.resolve({ data: [] as ShiftPreview[], error: null }),
     tasksQuery,
     personalTasksQuery,
     supabase
@@ -470,15 +470,7 @@ export default async function HomePage() {
     throw new Error(employeesLookupResult.error.message);
   }
 
-  const shifts = (shiftsResult.data ?? []) as {
-    id: string;
-    store_id: string;
-    shift_date: string;
-    status: string;
-    opened_at: string;
-    opened_by_employee_id: string;
-    stores: { name: string } | null;
-  }[];
+  const shifts = (shiftsResult.data ?? []) as ShiftPreview[];
   const tasks = (tasksResult.data ?? []) as TaskPreview[];
   // Manager view already uses the personal task query for the main task block.
   const personalTasks = (managerOnlyView ? tasksResult.data ?? [] : personalTasksResult.data ?? []) as TaskPreview[];
@@ -736,7 +728,7 @@ export default async function HomePage() {
                 {shifts.length > 0 ? (
                   shifts.map((shift) => (
                     <div key={shift.id} className="rounded-md border border-line bg-surface p-4">
-                      <p className="font-medium">{shift.stores?.name ?? "Магазин"} · {new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(shift.opened_at))}</p>
+                      <p className="font-medium">{shift.stores?.name ?? "Магазин"} · {new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: storeTimeZone(shift.stores?.timezone) }).format(new Date(shift.opened_at))}</p>
                       <p className="mt-1 text-sm text-muted">{employeeNameById.get(shift.opened_by_employee_id) ?? "Менеджер"}</p>
                     </div>
                   ))
