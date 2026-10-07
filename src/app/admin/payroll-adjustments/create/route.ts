@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   const reason = value(formData, "reason");
   const returnTo = value(formData, "return_to");
 
-  if (!employeeId || !/^\d{4}-\d{2}$/.test(month) || !adjustmentType || !amountRaw || !reason) {
+  if (!employeeId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !adjustmentType || !amountRaw || !reason) {
     return NextResponse.redirect(adminUrl(request, "admin-required", undefined, returnTo), 303);
   }
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 
   const amount = Number(amountRaw.replace(",", "."));
-  if (!Number.isFinite(amount) || amount < 0) {
+  if (!Number.isFinite(amount) || amount <= 0) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Некорректная сумма.", returnTo), 303);
   }
 
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   }
 
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
-  if (warehouseManagerOnly && adjustmentType === "bonus") {
+  if (warehouseManagerOnly && !["fine", "inventory", "expiration", "product"].includes(adjustmentType)) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Кладовщик может вносить только вычеты.", returnTo), 303);
   }
 
