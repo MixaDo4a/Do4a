@@ -5,7 +5,6 @@ import { BottomNav } from "@/components/bottom-nav";
 import { ClipboardCheck, PackageSearch } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { DEDUCTION_ROLES, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
-import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -46,24 +45,10 @@ export default async function AdminPage({ searchParams }: PageProps) {
   }
   const fullAdminView = hasAnyRole(roles, MANAGE_ROLES);
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !fullAdminView;
-  const [accessibleStores, currentScope] = warehouseManagerOnly
-    ? await Promise.all([getAccessibleStores(supabase), getCurrentEmployeeScope()])
-    : [[], null];
-  const accessibleStoreIds = new Set(accessibleStores.map((store) => store.id));
-  const { data: employees, error: employeesError } = warehouseManagerOnly && accessibleStoreIds.size > 0
-    ? await supabase
-        .from("employees")
-        .select("id, full_name, city, employee_store_assignments(store_id, valid_from, valid_to)")
-        .eq("is_active", true)
-        .order("full_name")
+  const { data: warehouseEmployees, error: employeesError } = warehouseManagerOnly
+    ? await supabase.rpc("list_warehouse_deduction_employees")
     : { data: [], error: null };
-  const today = new Date().toISOString().slice(0, 10);
-  const accessibleEmployees = (employees ?? []).filter((employee) =>
-    (!currentScope?.city || employee.city?.trim().toLowerCase() === currentScope.city.trim().toLowerCase()) &&
-    employee.employee_store_assignments.some((assignment) =>
-      accessibleStoreIds.has(assignment.store_id) && assignment.valid_from <= today && (!assignment.valid_to || assignment.valid_to >= today),
-    ),
-  );
+  const accessibleEmployees = (warehouseEmployees ?? []) as { id: string; full_name: string }[];
 
   const canRunNotificationCron = roles.some((role) => ["super_admin", "developer"].includes(role));
 
@@ -92,16 +77,16 @@ export default async function AdminPage({ searchParams }: PageProps) {
           <section className="mt-4 ui-panel p-4">
             <h2 className="font-semibold">Новый вычет</h2>
             {employeesError ? <p className="mt-3 text-sm text-brand">Не удалось загрузить сотрудников: {employeesError.message}</p> : null}
-            {!employeesError && accessibleEmployees.length === 0 ? (
-              <p className="mt-3 text-sm text-muted">Нет сотрудников доступных магазинов для вычета.</p>
+            {!employeesError && (accessibleEmployees?.length ?? 0) === 0 ? (
+              <p className="mt-3 text-sm text-muted">Нет сотрудников, привязанных к магазинам вашего города.</p>
             ) : null}
-            {accessibleEmployees.length > 0 ? (
+            {(accessibleEmployees?.length ?? 0) > 0 ? (
               <form action="/admin/payroll-adjustments/create" className="mt-4 grid gap-3" method="post">
                 <label className="grid gap-1 text-sm">
                   <span>Сотрудник</span>
                   <select className="h-11 rounded-md border border-line bg-surface px-3" name="employee_id" required defaultValue="">
                     <option value="" disabled>Выберите сотрудника</option>
-                    {accessibleEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}
+                    {accessibleEmployees?.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}
                   </select>
                 </label>
                 <label className="grid gap-1 text-sm">

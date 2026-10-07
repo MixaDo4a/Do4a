@@ -62,25 +62,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Кладовщик может вносить только вычеты.", returnTo), 303);
   }
 
-  const [accessibleStores, currentScope] = await Promise.all([getAccessibleStores(), getCurrentEmployeeScope()]);
-  if (!currentScope.isDeveloper) {
-    const accessibleStoreIds = new Set(accessibleStores.map((store) => store.id));
-    const currentCity = currentScope.city?.trim().toLowerCase() ?? "";
-    const { data: targetEmployee, error: targetEmployeeError } = await supabase
-      .from("employees")
-      .select("city, employee_store_assignments(store_id)")
-      .eq("id", employeeId)
-      .maybeSingle()
-      .returns<TargetEmployeeRow>();
-
-    if (targetEmployeeError) {
-      return NextResponse.redirect(adminUrl(request, "admin-error", targetEmployeeError.message, returnTo), 303);
+  if (warehouseManagerOnly) {
+    const { data: employees, error: employeesError } = await supabase.rpc("list_warehouse_deduction_employees");
+    if (employeesError || !(employees as { id: string }[] | null)?.some((employee) => employee.id === employeeId)) {
+      return NextResponse.redirect(adminUrl(request, "admin-error", employeesError?.message ?? "Сотрудник не привязан к вашему городу.", returnTo), 303);
     }
+  } else {
+    const [accessibleStores, currentScope] = await Promise.all([getAccessibleStores(), getCurrentEmployeeScope()]);
+    if (!currentScope.isDeveloper) {
+      const accessibleStoreIds = new Set(accessibleStores.map((store) => store.id));
+      const currentCity = currentScope.city?.trim().toLowerCase() ?? "";
+      const { data: targetEmployee, error: targetEmployeeError } = await supabase
+        .from("employees")
+        .select("city, employee_store_assignments(store_id)")
+        .eq("id", employeeId)
+        .maybeSingle()
+        .returns<TargetEmployeeRow>();
 
-    const targetCity = targetEmployee?.city?.trim().toLowerCase() ?? "";
-    const targetHasAccessibleStore = targetEmployee?.employee_store_assignments.some((assignment) => accessibleStoreIds.has(assignment.store_id)) ?? false;
-    if (!targetEmployee || (currentCity && targetCity !== currentCity) || !targetHasAccessibleStore) {
-      return NextResponse.redirect(adminUrl(request, "admin-error", "Можно начислять только сотрудникам своего города и доступных магазинов.", returnTo), 303);
+      if (targetEmployeeError) {
+        return NextResponse.redirect(adminUrl(request, "admin-error", targetEmployeeError.message, returnTo), 303);
+      }
+
+      const targetCity = targetEmployee?.city?.trim().toLowerCase() ?? "";
+      const targetHasAccessibleStore = targetEmployee?.employee_store_assignments.some((assignment) => accessibleStoreIds.has(assignment.store_id)) ?? false;
+      if (!targetEmployee || (currentCity && targetCity !== currentCity) || !targetHasAccessibleStore) {
+        return NextResponse.redirect(adminUrl(request, "admin-error", "Можно начислять только сотрудникам своего города и доступных магазинов.", returnTo), 303);
+      }
     }
   }
 
