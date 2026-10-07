@@ -1,6 +1,7 @@
 import { BottomNavClient } from "@/components/bottom-nav-client";
 import { TrainingOverlay } from "@/components/training-overlay";
 import { getCurrentRoleCodes } from "@/lib/auth/roles";
+import { notificationCutoffIso } from "@/lib/notification-retention";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function BottomNav() {
@@ -11,6 +12,7 @@ export async function BottomNav() {
         .from("notifications")
         .select("id", { count: "exact", head: true })
         .eq("recipient_profile_id", user.id)
+        .gte("created_at", notificationCutoffIso())
         .eq("is_read", false)
     : { count: 0 };
 

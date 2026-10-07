@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { notificationCutoffIso } from "@/lib/notification-retention";
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
     .from("notifications")
     .update({ is_read: true })
     .eq("id", notificationId)
+    .gte("created_at", notificationCutoffIso())
     .eq("recipient_profile_id", user.id);
 
   return NextResponse.redirect(new URL("/notifications", request.url), 303);

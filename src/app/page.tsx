@@ -21,6 +21,7 @@ import { StoreSchedulePreview } from "@/components/store-schedule-preview";
 import { cleanText, employeeName } from "@/lib/display";
 import { getCurrentRoleCodes } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
+import { notificationCutoffIso } from "@/lib/notification-retention";
 import { redirectInvalidSession } from "@/lib/supabase/errors";
 import { scheduleStatusBadgeClass, scheduleStatusLabel } from "@/lib/schedule-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -422,6 +423,7 @@ export default async function HomePage() {
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .eq("recipient_profile_id", user.id)
+      .gte("created_at", notificationCutoffIso())
       .eq("is_read", false),
     supabase
       .from("checklist_submissions")

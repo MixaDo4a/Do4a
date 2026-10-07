@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { PushNotificationsPanel } from "@/components/push-notifications-panel";
 import { SectionHeader } from "@/components/section-header";
+import { notificationCutoffIso } from "@/lib/notification-retention";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatStoreDateTime } from "@/lib/timezone";
 
@@ -104,6 +105,7 @@ export default async function NotificationsPage({
     .from("notifications")
     .select("id, event_type, title, body, related_entity_type, related_entity_id, is_read, created_at", { count: "exact" })
     .eq("recipient_profile_id", user.id)
+    .gte("created_at", notificationCutoffIso())
     .order("created_at", { ascending: false })
     .range(from, to)
     .returns<NotificationRow[]>();

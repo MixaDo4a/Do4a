@@ -1,5 +1,6 @@
 ﻿import webpush from "web-push";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { notificationCutoffIso } from "@/lib/notification-retention";
 
 export type PushTargetRow = {
   notification_id: string;
@@ -196,6 +197,7 @@ export async function dispatchPushNotificationsFromEvent(
     const { data: unreadNotifications, error: unreadError } = await workerSupabase
       .from("notifications")
       .select("recipient_profile_id")
+      .gte("created_at", notificationCutoffIso())
       .eq("is_read", false)
       .in("recipient_profile_id", recipientProfileIds);
 
