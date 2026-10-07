@@ -79,7 +79,16 @@ function resolveActiveIndex(pathname: string, navItems: BottomNavItem[]) {
     }
   }
 
-  return bestIndex;
+  if (bestLength >= 0) return bestIndex;
+
+  const fallback = pathname.startsWith("/cash") || pathname.startsWith("/payroll")
+    ? "/finances"
+    : pathname.startsWith("/schedule") || pathname.startsWith("/routine") || pathname.startsWith("/checklists")
+      ? "/admin"
+      : "/";
+
+  const fallbackIndex = navItems.findIndex((item) => item.href === fallback);
+  return fallbackIndex >= 0 ? fallbackIndex : 0;
 }
 
 export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unreadCount: number }) {
@@ -276,8 +285,8 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
         >
           <span ref={indicatorCircleRef} className="bottom-nav-indicator-circle" />
         </div>
-        {visibleItems.map((item) => {
-          const active = pathname === item.href || (item.href !== "/" && item.href !== "/checklists" && pathname.startsWith(item.href));
+        {visibleItems.map((item, index) => {
+          const active = index === activeIndex;
           const Icon = item.href === "/procurement" && managerOnly ? BadgePercent : item.icon;
           const label = warehouseManagerOnly && item.href === "/admin" ? "Вычеты" : item.href === "/procurement" && managerOnly ? "Акции" : item.label;
           const isNotifications = item.href === "/notifications";
@@ -289,6 +298,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
                 active ? "bottom-nav-item-active text-white" : "text-muted"
               }`}
               data-tour={`nav-${item.href === "/" ? "home" : item.href.slice(1).replaceAll("/", "-")}`}
+              aria-current={active ? "page" : undefined}
               style={{ overflow: "visible" }}
               href={item.href}
               prefetch
