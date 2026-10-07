@@ -1,3 +1,4 @@
+-- Allow warehouse managers to recalculate payroll only for staff in their city and stores.
 create or replace function public.calculate_employee_payroll_period(
   p_employee_id uuid,
   p_period_month date
