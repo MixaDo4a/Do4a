@@ -172,6 +172,7 @@ async function notifyCashMismatch(
   storeId: string,
   employeeId: string,
   detail: string,
+  closed = false,
 ) {
   const [{ data: store }, { data: employee }] = await Promise.all([
     supabase.from("stores").select("name").eq("id", storeId).maybeSingle<{ name: string }>(),
@@ -181,7 +182,7 @@ async function notifyCashMismatch(
     p_store_id: storeId,
     p_event_type: "cash_balance_mismatch",
     p_title: "Расхождение наличных при закрытии смены",
-    p_body: `${store?.name ?? "Магазин"}. ${employee?.full_name ?? "Сотрудник"}. ${detail} Смена не закрыта.`,
+    p_body: `${store?.name ?? "Магазин"}. ${employee?.full_name ?? "Сотрудник"}. ${detail} Смена ${closed ? "закрыта управляющим" : "не закрыта"}.`,
     p_related_entity_type: "shift",
     p_related_entity_id: shiftId,
   });
@@ -266,6 +267,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   let closingStoreId = "";
   let closingEmployeeId = "";
+  let managerMismatchDetail: string | null = null;
   {
     const [{ data: auth }, { roles }, { employeeId }] = await Promise.all([
       supabase.auth.getUser(),
@@ -290,6 +292,7 @@ export async function POST(request: NextRequest) {
     closingStoreId = shift.store_id;
     closingEmployeeId = employeeId;
 
+    let managerCanCloseWithMismatch = false;
     if (overdueOverrideRequested) {
       const allowedStores = await getAccessibleStores(supabase);
       const canCloseOverdue = hasAnyRole(roles, ["store_manager", "super_admin"])
@@ -298,6 +301,7 @@ export async function POST(request: NextRequest) {
       if (!canCloseOverdue) {
         return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
       }
+      managerCanCloseWithMismatch = true;
     }
 
     const { data: previousCount, error: previousCountError } = await supabase
@@ -315,13 +319,17 @@ export async function POST(request: NextRequest) {
     const expectedCashAmount = Number(previousCount.counted_amount);
     if (Number(expectedCashAmount.toFixed(2)) !== Number(payload.p_actual_cash_amount.toFixed(2))) {
       const detail = `Покупюрник: ${expectedCashAmount.toLocaleString("ru-RU")} руб.; наличные по Z-отчёту: ${payload.p_actual_cash_amount.toLocaleString("ru-RU")} руб.`;
-      const notificationError = await notifyCashMismatch(supabase, shift.id, shift.store_id, employeeId, detail);
-      return NextResponse.redirect(closeUrl(
-        request,
-        formData,
-        notificationError ? "cash-balance-mismatch-notify-error" : "cash-balance-mismatch",
-        notificationError ? `${detail} Уведомление управляющим не отправилось: ${notificationError.message}` : detail,
-      ), 303);
+      if (managerCanCloseWithMismatch) {
+        managerMismatchDetail = detail;
+      } else {
+        const notificationError = await notifyCashMismatch(supabase, shift.id, shift.store_id, employeeId, detail);
+        return NextResponse.redirect(closeUrl(
+          request,
+          formData,
+          notificationError ? "cash-balance-mismatch-notify-error" : "cash-balance-mismatch",
+          notificationError ? `${detail} Уведомление управляющим не отправилось: ${notificationError.message}` : detail,
+        ), 303);
+      }
     }
   }
 
@@ -348,6 +356,10 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.redirect(closeUrl(request, formData, "close-error", error.message), 303);
   }
+
+  const mismatchNotificationError = managerMismatchDetail
+    ? await notifyCashMismatch(supabase, shiftId, closingStoreId, closingEmployeeId, managerMismatchDetail, true)
+    : null;
 
   try {
     await uploadKkmReportPhoto(supabase, shiftId, formData);
@@ -382,7 +394,12 @@ export async function POST(request: NextRequest) {
     relatedEntityId: shiftId,
   }).catch(() => null);
 
-  return NextResponse.redirect(new URL("/shifts?message=shift-closed", request.url), 303);
+  const successMessage = managerMismatchDetail
+    ? (mismatchNotificationError ? "shift-closed-with-mismatch-notify-error" : "shift-closed-with-mismatch")
+    : "shift-closed";
+  const successUrl = new URL(`/shifts?message=${successMessage}`, request.url);
+  if (managerMismatchDetail) successUrl.searchParams.set("detail", managerMismatchDetail);
+  return NextResponse.redirect(successUrl, 303);
 }
 
 

@@ -24,6 +24,7 @@ type Props = {
   params: Record<string, string | undefined>;
   latestCashByStore: Record<string, number>;
   lockShift?: boolean;
+  allowMismatch?: boolean;
 };
 
 const cashFields = [
@@ -54,7 +55,7 @@ function formatShiftOption(shift: ShiftCloseOption) {
   ].filter(Boolean).join(" · ");
 }
 
-export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, latestCashByStore, lockShift = false }: Props) {
+export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, latestCashByStore, lockShift = false, allowMismatch = false }: Props) {
   const [shiftId, setShiftId] = useState(selectedShiftId);
   const [advanceAmount, setAdvanceAmount] = useState(params.advance_amount ?? "");
   const [actualCashAmount, setActualCashAmount] = useState(params.actual_cash_amount ?? "");
@@ -123,7 +124,9 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
                 {name === "actual_cash_amount" ? (
                   <>
                     <span className="text-xs text-muted">Укажите сумму наличных по Z-отчёту. Она должна совпасть с последним покупюрником.</span>
-                    {cashMismatch ? <span className="text-xs font-semibold text-danger">Суммы не равны. Закрыть смену не получится.</span> : null}
+                    {cashMismatch ? <span className="text-xs font-semibold text-danger">{allowMismatch
+                      ? "Суммы не равны. Расхождение будет зафиксировано, управляющие получат уведомление."
+                      : "Суммы не равны. Закрыть смену не получится."}</span> : null}
                   </>
                 ) : null}
               </label>

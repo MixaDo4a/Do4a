@@ -130,7 +130,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
         <form action="/shifts/close/submit" className="mt-4 grid gap-4" encType="multipart/form-data" method="post">
           {overdueMode ? <>
             <input name="overdue_override" type="hidden" value="1" />
-            <p className="ui-panel p-3 text-sm text-ink">Вы закрываете просроченную смену за сотрудника. Сумма наличных по Z-отчёту должна совпасть с последним покупюрником. При расхождении смена не закроется, управляющие получат уведомление.</p>
+            <p className="ui-panel p-3 text-sm text-ink">Вы закрываете просроченную смену за сотрудника. При расхождении с последним покупюрником смена закроется, а управляющие получат уведомление.</p>
           </> : null}
           <ShiftCloseFields
             latestCashByStore={latestCashByStore}
@@ -139,6 +139,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
             selectedShiftId={selectedShiftId}
             shifts={shiftsResult.data}
             lockShift={overdueMode}
+            allowMismatch={overdueMode}
           />
 
           <section className="ui-panel p-4">
