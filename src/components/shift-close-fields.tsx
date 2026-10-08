@@ -23,6 +23,7 @@ type Props = {
   params: Record<string, string | undefined>;
   coinsByStore: Record<string, string>;
   lockShift?: boolean;
+  hideCount?: boolean;
 };
 
 const cashFields = [
@@ -53,7 +54,7 @@ function formatShiftOption(shift: ShiftCloseOption) {
   ].filter(Boolean).join(" · ");
 }
 
-export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, coinsByStore, lockShift = false }: Props) {
+export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, coinsByStore, lockShift = false, hideCount = false }: Props) {
   const [shiftId, setShiftId] = useState(selectedShiftId);
   const [advanceAmount, setAdvanceAmount] = useState(params.advance_amount ?? "");
   const [recipientId, setRecipientId] = useState(params.advance_employee_id ?? "");
@@ -109,8 +110,8 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
                   type="number"
                 />
                 {name === "actual_cash_amount" ? (
-                  <span className="text-xs text-muted">{lockShift
-                    ? "Укажите сумму из Z-отчёта. Если она отличается от покупюрника, расхождение будет зафиксировано."
+          <span className="text-xs text-muted">{lockShift
+                    ? "Укажите сумму из Z-отчёта. Расхождение с последним пересчётом будет зафиксировано."
                     : "Укажите наличную сумму из Z-отчёта; она должна совпадать с итогом покупюрника."}</span>
                 ) : null}
               </label>
@@ -131,7 +132,7 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
             />
           </label>
         </div>
-        <label className="mt-3 grid gap-1 text-sm">
+        {!hideCount ? <label className="mt-3 grid gap-1 text-sm">
           <span className="text-muted">Мелочь в мешках</span>
           <input
             className="h-11 ui-panel px-3 outline-none focus:border-brand"
@@ -145,7 +146,7 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
             value={coinsAmount}
           />
           <span className="text-xs text-muted">Сумма сохранится за магазином и будет учтена в следующем пересчёте.</span>
-        </label>
+        </label> : null}
         {requiresRecipient ? (
           <label className="mt-3 grid gap-1 text-sm">
             <span className="text-muted">Кому выдать аванс</span>

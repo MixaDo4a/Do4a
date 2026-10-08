@@ -75,16 +75,18 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
   const overdueMode = params.overdue === "1";
   const canOverride = roles.some((role) => ["store_manager", "super_admin"].includes(role));
   if (overdueMode && (!canOverride || !shiftId)) redirect("/shifts");
-  const compactClose = managerOnly && hideCash === "1";
+  const compactClose = overdueMode || (managerOnly && hideCash === "1");
   const allowedStoreIds = overdueMode ? (await getAccessibleStores(supabase)).map((store) => store.id) : [];
 
   const [denominationsResult, shiftsResult] = await Promise.all([
-    supabase
-      .from("cash_denominations")
-      .select("id, value, kind")
-      .eq("is_active", true)
-      .order("value", { ascending: false })
-      .returns<Denomination[]>(),
+    compactClose
+      ? Promise.resolve({ data: [] as Denomination[], error: null })
+      : supabase
+          .from("cash_denominations")
+          .select("id, value, kind")
+          .eq("is_active", true)
+          .order("value", { ascending: false })
+          .returns<Denomination[]>(),
     (() => {
       let query = supabase
         .from("shifts")
@@ -116,7 +118,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
   }
 
   const selectedShiftId = shiftId ?? shiftsResult.data[0]?.id ?? "";
-  const storeIds = [...new Set(shiftsResult.data.map((shift) => shift.store_id))];
+  const storeIds = compactClose ? [] : [...new Set(shiftsResult.data.map((shift) => shift.store_id))];
   const cashCountResults = await Promise.all(storeIds.map((storeId) => supabase.from("store_cash_counts")
     .select("store_id, created_at, denominations")
     .eq("store_id", storeId)
@@ -157,7 +159,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
         <form action="/shifts/close/submit" className="mt-4 grid gap-4" encType="multipart/form-data" method="post">
           {overdueMode ? <>
             <input name="overdue_override" type="hidden" value="1" />
-            <p className="ui-panel p-3 text-sm text-ink">Вы закрываете просроченную смену за сотрудника. При расхождении с покупюрником смена будет закрыта, а управляющие получат уведомление.</p>
+            <p className="ui-panel p-3 text-sm text-ink">Вы закрываете просроченную смену за сотрудника. Сумма Z-отчёта сравнивается с последним сохранённым пересчётом. При расхождении смена закроется, а управляющие получат уведомление.</p>
           </> : null}
           {compactClose ? <input name="hide_cash" type="hidden" value="1" /> : null}
           <ShiftCloseFields
@@ -167,6 +169,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
             selectedShiftId={selectedShiftId}
             shifts={shiftsResult.data}
             lockShift={overdueMode}
+            hideCount={compactClose}
           />
 
           {!compactClose ? <section className="ui-panel p-4">

@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
     let allowOverdueOverride = false;
     if (overdueOverrideRequested) {
       const allowedStores = await getAccessibleStores(supabase);
-      allowOverdueOverride = !hideCash
+      allowOverdueOverride = hideCash
         && hasAnyRole(roles, ["store_manager", "super_admin"])
         && allowedStores.some((store) => store.id === shift.store_id)
         && isShiftOverdue(shift);
