@@ -42,6 +42,8 @@ const participantLabels: Record<string, string> = {
 
 const messageLabels: Record<string, string> = {
   "shift-closed": "Смена закрыта, зарплата пересчитана.",
+  "shift-closed-with-mismatch": "Смена закрыта управляющим, но наличные по Z-отчёту не совпали с покупюрником. Управляющие уведомлены.",
+  "shift-closed-with-mismatch-notify-error": "Смена закрыта управляющим с расхождением наличных, но уведомление не отправилось. Сообщите управляющим вручную.",
   "shift-closed-payroll-error": "Смена закрыта, но зарплату не удалось пересчитать автоматически.",
 };
 

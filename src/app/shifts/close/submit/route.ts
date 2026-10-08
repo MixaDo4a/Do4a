@@ -2,6 +2,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
+import { isShiftOverdue } from "@/lib/shift-overdue";
 
 const denominationIds = [
   "5000",
@@ -57,6 +59,7 @@ function closeUrl(request: NextRequest, formData: FormData, message: string, det
     const value = String(formData.get(key) ?? "").trim();
     if (value) url.searchParams.set(key === "shift_id" ? "shiftId" : key, value);
   });
+  if (formData.get("overdue_override") === "1") url.searchParams.set("overdue", "1");
   denominationIds.forEach((value) => {
     const quantity = String(formData.get(`denomination_${value}`) ?? "").trim();
     if (quantity) url.searchParams.set(`denomination_${value}`, quantity);
@@ -186,6 +189,7 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const shiftId = String(formData.get("shift_id") ?? "").trim();
   const hideCash = String(formData.get("hide_cash") ?? "") === "1";
+  const overdueOverrideRequested = formData.get("overdue_override") === "1";
 
   if (!shiftId) return NextResponse.redirect(closeUrl(request, formData, "shift-required"), 303);
 
@@ -269,6 +273,8 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createSupabaseServerClient();
+  let mismatchDetail: string | null = null;
+  let mismatchNotificationError = false;
   {
     const [{ data: auth }, { roles }, { employeeId }] = await Promise.all([
       supabase.auth.getUser(),
@@ -278,9 +284,9 @@ export async function POST(request: NextRequest) {
     if (!auth.user || !employeeId) return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
 
     const { data: shift } = await supabase.from("shifts")
-      .select("id, store_id, opened_by_employee_id, status")
+      .select("id, store_id, opened_by_employee_id, status, shift_date, schedules(planned_end_at), stores(timezone)")
       .eq("id", shiftId)
-      .maybeSingle<{ id: string; store_id: string; opened_by_employee_id: string | null; status: string }>();
+      .maybeSingle<{ id: string; store_id: string; opened_by_employee_id: string | null; status: string; shift_date: string; schedules: { planned_end_at: string } | null; stores: { timezone: string | null } | null }>();
     if (!shift || (shift.opened_by_employee_id !== employeeId && !hasAnyRole(roles, [...MANAGE_ROLES, "manager"]))) {
       return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
     }
@@ -289,6 +295,18 @@ export async function POST(request: NextRequest) {
     }
     if (shift.status !== "opened" && shift.status !== "correction_required") {
       return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
+    }
+
+    let allowOverdueOverride = false;
+    if (overdueOverrideRequested) {
+      const allowedStores = await getAccessibleStores(supabase);
+      allowOverdueOverride = !hideCash
+        && hasAnyRole(roles, ["store_manager", "super_admin"])
+        && allowedStores.some((store) => store.id === shift.store_id)
+        && isShiftOverdue(shift);
+      if (!allowOverdueOverride) {
+        return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
+      }
     }
 
     const denominationIdsForCount = payload.p_cash_counts.map((row) => row.denomination_id);
@@ -315,25 +333,29 @@ export async function POST(request: NextRequest) {
       ? (previousCount ? Number(previousCount.counted_amount) : null)
       : countedAmount;
     if (expectedCashAmount !== null && Number(expectedCashAmount.toFixed(2)) !== Number(payload.p_actual_cash_amount.toFixed(2))) {
-      const [{ data: store }, { data: employee }] = await Promise.all([
-        supabase.from("stores").select("name").eq("id", shift.store_id).maybeSingle<{ name: string }>(),
-        supabase.from("employees").select("full_name").eq("id", employeeId).maybeSingle<{ full_name: string }>(),
-      ]);
-      const detail = `По купюрнику: ${expectedCashAmount.toLocaleString("ru-RU")} руб.; указано: ${payload.p_actual_cash_amount.toLocaleString("ru-RU")} руб.`;
-      const { error: notificationError } = await supabase.rpc("send_store_managers_notification", {
-        p_store_id: shift.store_id,
-        p_event_type: "cash_balance_mismatch",
-        p_title: "Расхождение наличных при закрытии смены",
-        p_body: `${store?.name ?? "Магазин"}. ${employee?.full_name ?? "Менеджер"}. ${detail} Смена не закрыта.`,
-        p_related_entity_type: "shift",
-        p_related_entity_id: shift.id,
-      });
-      return NextResponse.redirect(closeUrl(
-        request,
-        formData,
-        notificationError ? "cash-balance-mismatch-notify-error" : "cash-balance-mismatch",
-        notificationError ? `${detail} Уведомление управляющим не отправилось: ${notificationError.message}` : detail,
-      ), 303);
+      if (allowOverdueOverride) {
+        mismatchDetail = `По купюрнику: ${expectedCashAmount.toLocaleString("ru-RU")} руб.; по Z-отчёту: ${payload.p_actual_cash_amount.toLocaleString("ru-RU")} руб.`;
+      } else {
+        const [{ data: store }, { data: employee }] = await Promise.all([
+          supabase.from("stores").select("name").eq("id", shift.store_id).maybeSingle<{ name: string }>(),
+          supabase.from("employees").select("full_name").eq("id", employeeId).maybeSingle<{ full_name: string }>(),
+        ]);
+        const detail = `По купюрнику: ${expectedCashAmount.toLocaleString("ru-RU")} руб.; указано: ${payload.p_actual_cash_amount.toLocaleString("ru-RU")} руб.`;
+        const { error: notificationError } = await supabase.rpc("send_store_managers_notification", {
+          p_store_id: shift.store_id,
+          p_event_type: "cash_balance_mismatch",
+          p_title: "Расхождение наличных при закрытии смены",
+          p_body: `${store?.name ?? "Магазин"}. ${employee?.full_name ?? "Менеджер"}. ${detail} Смена не закрыта.`,
+          p_related_entity_type: "shift",
+          p_related_entity_id: shift.id,
+        });
+        return NextResponse.redirect(closeUrl(
+          request,
+          formData,
+          notificationError ? "cash-balance-mismatch-notify-error" : "cash-balance-mismatch",
+          notificationError ? `${detail} Уведомление управляющим не отправилось: ${notificationError.message}` : detail,
+        ), 303);
+      }
     }
 
     if (!hideCash) {
@@ -359,6 +381,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(new URL("/shifts?message=shift-closed", request.url), 303);
     }
     return NextResponse.redirect(closeUrl(request, formData, "close-error", error.message), 303);
+  }
+
+  if (mismatchDetail) {
+    const { data: shiftInfo } = await supabase.from("shifts")
+      .select("store_id, stores(name), closed_by_employee_id")
+      .eq("id", shiftId)
+      .maybeSingle<{ store_id: string; stores: { name: string } | null; closed_by_employee_id: string | null }>();
+    if (shiftInfo) {
+      const { data: closingEmployee } = await supabase.from("employees")
+        .select("full_name")
+        .eq("id", shiftInfo.closed_by_employee_id ?? "")
+        .maybeSingle<{ full_name: string }>();
+      const { error: notificationError } = await supabase.rpc("send_store_managers_notification", {
+        p_store_id: shiftInfo.store_id,
+        p_event_type: "cash_balance_mismatch",
+        p_title: "Расхождение при закрытии просроченной смены",
+        p_body: `${shiftInfo.stores?.name ?? "Магазин"}. ${closingEmployee?.full_name ?? "Управляющий"}. ${mismatchDetail} Смена закрыта за сотрудника.`,
+        p_related_entity_type: "shift",
+        p_related_entity_id: shiftId,
+      });
+      mismatchNotificationError = Boolean(notificationError);
+      if (!notificationError) {
+        await dispatchPushNotificationsFromEvent(supabase, {
+          eventType: "cash_balance_mismatch",
+          relatedEntityType: "shift",
+          relatedEntityId: shiftId,
+        }).catch(() => null);
+      }
+    } else mismatchNotificationError = true;
   }
 
   try {
@@ -394,7 +445,12 @@ export async function POST(request: NextRequest) {
     relatedEntityId: shiftId,
   }).catch(() => null);
 
-  return NextResponse.redirect(new URL("/shifts?message=shift-closed", request.url), 303);
+  const successMessage = mismatchDetail
+    ? (mismatchNotificationError ? "shift-closed-with-mismatch-notify-error" : "shift-closed-with-mismatch")
+    : "shift-closed";
+  const successUrl = new URL(`/shifts?message=${successMessage}`, request.url);
+  if (mismatchDetail) successUrl.searchParams.set("detail", mismatchDetail);
+  return NextResponse.redirect(successUrl, 303);
 }
 
 

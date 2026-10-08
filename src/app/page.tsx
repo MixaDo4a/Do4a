@@ -26,6 +26,7 @@ import { redirectInvalidSession } from "@/lib/supabase/errors";
 import { scheduleStatusBadgeClass, scheduleStatusLabel } from "@/lib/schedule-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatStoreDateTime, storeTimeZone } from "@/lib/timezone";
+import { isShiftOverdue } from "@/lib/shift-overdue";
 
 type ProfileRow = {
   employee_id: string | null;
@@ -97,6 +98,7 @@ type ShiftPreview = {
   opened_at: string;
   opened_by_employee_id: string;
   stores: { name: string; timezone: string | null } | null;
+  schedules: { planned_end_at: string } | null;
 };
 
 const managementRoles = ["manager", "store_manager", "super_admin", "developer"];
@@ -401,16 +403,16 @@ export default async function HomePage() {
       : managementView
         ? supabase
             .from("shifts")
-            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name, timezone)")
+            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name, timezone), schedules(planned_end_at)")
             .in("store_id", accessibleStoreIds)
             .in("status", ["opened", "correction_required"])
-            .order("shift_date", { ascending: false })
-            .limit(8)
+            .order("shift_date", { ascending: true })
+            .limit(500)
             .returns<ShiftPreview[]>()
       : profile?.employee_id
         ? supabase
             .from("shifts")
-            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name, timezone)")
+            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name, timezone), schedules(planned_end_at)")
             .eq("opened_by_employee_id", profile.employee_id)
             .in("status", ["opened", "correction_required"])
             .order("shift_date", { ascending: false })
@@ -471,6 +473,8 @@ export default async function HomePage() {
   }
 
   const shifts = (shiftsResult.data ?? []) as ShiftPreview[];
+  const overdueShifts = managementView ? shifts.filter((shift) => isShiftOverdue(shift)) : [];
+  const currentShifts = managementView ? shifts.filter((shift) => !isShiftOverdue(shift)) : shifts;
   const tasks = (tasksResult.data ?? []) as TaskPreview[];
   // Manager view already uses the personal task query for the main task block.
   const personalTasks = (managerOnlyView ? tasksResult.data ?? [] : personalTasksResult.data ?? []) as TaskPreview[];
@@ -722,11 +726,24 @@ export default async function HomePage() {
           </>
         ) : managementView ? (
           <>
+            {overdueShifts.length > 0 ? <section className="mt-6 ui-panel p-4">
+              <SectionHeader icon={ReceiptText} title="Незакрытые смены" />
+              <div className="mt-4 grid gap-3">
+                {overdueShifts.map((shift) => <Link
+                  key={shift.id}
+                  className="block rounded-md border border-brand/50 bg-surface p-4 transition-colors hover:border-brand"
+                  href={`/shifts/close?shiftId=${shift.id}&overdue=1`}
+                >
+                  <p className="font-medium">{shift.stores?.name ?? "Магазин"} · {new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(new Date(`${shift.shift_date}T00:00:00Z`))}</p>
+                  <p className="mt-1 text-sm text-muted">{employeeNameById.get(shift.opened_by_employee_id) ?? "Сотрудник"} · Закрыть смену</p>
+                </Link>)}
+              </div>
+            </section> : null}
             <section className="mt-6 ui-panel p-4" data-tour="home-shift">
               <SectionHeader icon={ShieldCheck} title="Текущая смена" action="Архив" href="/admin/closed-shifts" />
               <div className="mt-4 grid gap-3">
-                {shifts.length > 0 ? (
-                  shifts.map((shift) => (
+                {currentShifts.length > 0 ? (
+                  currentShifts.map((shift) => (
                     <div key={shift.id} className="rounded-md border border-line bg-surface p-4">
                       <p className="font-medium">{shift.stores?.name ?? "Магазин"} · {new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: storeTimeZone(shift.stores?.timezone) }).format(new Date(shift.opened_at))}</p>
                       <p className="mt-1 text-sm text-muted">{employeeNameById.get(shift.opened_by_employee_id) ?? "Менеджер"}</p>
@@ -761,7 +778,7 @@ export default async function HomePage() {
               <SectionHeader icon={CalendarDays} title="Распорядок дня" action="Архив" href="/routine" />
               <div className="mt-3 grid gap-3">
                 {routineStores.map((store) => {
-                  const shift = shifts.find((item) => item.store_id === store.id);
+                  const shift = currentShifts.find((item) => item.store_id === store.id);
                   return (
                     <div key={store.id} className="ui-panel p-4">
                       <div className="flex items-center justify-between gap-3">

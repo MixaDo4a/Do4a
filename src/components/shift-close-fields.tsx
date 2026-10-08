@@ -22,6 +22,7 @@ type Props = {
   selectedShiftId: string;
   params: Record<string, string | undefined>;
   coinsByStore: Record<string, string>;
+  lockShift?: boolean;
 };
 
 const cashFields = [
@@ -52,7 +53,7 @@ function formatShiftOption(shift: ShiftCloseOption) {
   ].filter(Boolean).join(" · ");
 }
 
-export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, coinsByStore }: Props) {
+export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, coinsByStore, lockShift = false }: Props) {
   const [shiftId, setShiftId] = useState(selectedShiftId);
   const [advanceAmount, setAdvanceAmount] = useState(params.advance_amount ?? "");
   const [recipientId, setRecipientId] = useState(params.advance_employee_id ?? "");
@@ -70,6 +71,7 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
           <select
             className="h-11 ui-panel px-3 outline-none focus:border-brand"
             name="shift_id"
+            disabled={lockShift}
             onChange={(event) => {
               setShiftId(event.target.value);
               setRecipientId("");
@@ -83,6 +85,7 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
               <option key={shift.id} value={shift.id}>{formatShiftOption(shift)}</option>
             ))}
           </select>
+          {lockShift ? <input name="shift_id" type="hidden" value={shiftId} /> : null}
         </label>
       </section>
 

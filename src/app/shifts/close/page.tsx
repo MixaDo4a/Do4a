@@ -5,6 +5,8 @@ import { PhotoFileInput } from "@/components/photo-file-input";
 import { SectionHeader } from "@/components/section-header";
 import { ShiftCloseFields, ShiftCloseSubmitButton } from "@/components/shift-close-fields";
 import { getCurrentEmployeeId, getCurrentRoleCodes } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
+import { isShiftOverdue } from "@/lib/shift-overdue";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type CloseShiftPageProps = {
@@ -70,7 +72,11 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
   const { roles } = await getCurrentRoleCodes();
   const { employeeId } = await getCurrentEmployeeId();
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  const overdueMode = params.overdue === "1";
+  const canOverride = roles.some((role) => ["store_manager", "super_admin"].includes(role));
+  if (overdueMode && (!canOverride || !shiftId)) redirect("/shifts");
   const compactClose = managerOnly && hideCash === "1";
+  const allowedStoreIds = overdueMode ? (await getAccessibleStores(supabase)).map((store) => store.id) : [];
 
   const [denominationsResult, shiftsResult] = await Promise.all([
     supabase
@@ -85,6 +91,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
         .select("id, shift_date, store_id, stores(id, name, city), shift_participants(participant_role, employees(full_name))")
         .in("status", ["opened", "correction_required"])
         .order("shift_date", { ascending: false });
+      if (overdueMode) query = query.eq("id", shiftId!).in("store_id", allowedStoreIds.length ? allowedStoreIds : ["00000000-0000-0000-0000-000000000000"]);
       if (managerOnly && employeeId) query = query.eq("opened_by_employee_id", employeeId);
       return query.returns<ShiftOption[]>();
     })(),
@@ -96,6 +103,16 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
 
   if (shiftsResult.error) {
     throw new Error(shiftsResult.error.message);
+  }
+
+  if (overdueMode) {
+    const selected = shiftsResult.data[0];
+    if (!selected) redirect("/shifts");
+    const { data: deadline } = await supabase.from("shifts")
+      .select("shift_date, schedules(planned_end_at), stores(timezone)")
+      .eq("id", selected.id)
+      .single<{ shift_date: string; schedules: { planned_end_at: string } | null; stores: { timezone: string | null } | null }>();
+    if (!deadline || !isShiftOverdue(deadline)) redirect("/shifts");
   }
 
   const selectedShiftId = shiftId ?? shiftsResult.data[0]?.id ?? "";
@@ -138,6 +155,10 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
         ) : null}
 
         <form action="/shifts/close/submit" className="mt-4 grid gap-4" encType="multipart/form-data" method="post">
+          {overdueMode ? <>
+            <input name="overdue_override" type="hidden" value="1" />
+            <p className="ui-panel p-3 text-sm text-ink">Вы закрываете просроченную смену за сотрудника. При расхождении с покупюрником смена будет закрыта, а управляющие получат уведомление.</p>
+          </> : null}
           {compactClose ? <input name="hide_cash" type="hidden" value="1" /> : null}
           <ShiftCloseFields
             coinsByStore={coinsByStore}
@@ -145,6 +166,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
             params={params}
             selectedShiftId={selectedShiftId}
             shifts={shiftsResult.data}
+            lockShift={overdueMode}
           />
 
           {!compactClose ? <section className="ui-panel p-4">
