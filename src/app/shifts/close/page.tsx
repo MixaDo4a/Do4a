@@ -13,12 +13,6 @@ type CloseShiftPageProps = {
   searchParams: Promise<Record<string, string | undefined>>;
 };
 
-type Denomination = {
-  id: string;
-  value: number;
-  kind: "banknote" | "coin" | "bag";
-};
-
 type ShiftOption = {
   id: string;
   shift_date: string;
@@ -30,34 +24,26 @@ type ShiftOption = {
   }[];
 };
 
-type StoreCashCount = { store_id: string; created_at: string; denominations: { coins_amount?: unknown } | null };
+type StoreCashCount = { store_id: string; counted_amount: number | string };
 
 const messages: Record<string, string> = {
   "shift-required": "Выберите смену.",
   "photo-required": "Смена не может быть закрыта: добавьте фото Z-отчёта.",
   "cash-comment-required": "Смена не может быть закрыта: укажите комментарий к инкассации.",
-  "cash-counts-required": "Смена не может быть закрыта: заполните покупюрник полностью.",
-  "cash-count-save-error": "Не удалось сохранить пересчёт наличности с мелочью. Смена не закрыта; проверьте доступ и повторите попытку.",
+  "cash-counts-required": "Смена не закрыта: сначала сохраните пересчёт в покупюрнике.",
+  "cash-count-save-error": "Не удалось получить последний покупюрник. Смена не закрыта; повторите попытку.",
   "actual-cash-required": "Укажите фактическую сумму наличных в кассе.",
-  "cash-balance-mismatch": "Наличные в кассе не совпадают с последней суммой по покупюрнику. Смена не закрыта, управляющие уведомлены.",
-  "cash-balance-mismatch-notify-error": "Наличные в кассе не совпадают с покупюрником. Смена не закрыта, но уведомить управляющих не удалось.",
+  "cash-balance-mismatch": "Сумма наличных в кассе и сумма в покупюрнике не равна. Смена не закрыта, управляющие уведомлены.",
+  "cash-balance-mismatch-notify-error": "Сумма наличных в кассе и сумма в покупюрнике не равна. Смена не закрыта, но уведомить управляющих не удалось.",
   "advance-recipient-required": "Выберите менеджера, которому выдан аванс.",
   "number-error": "Проверьте числовые поля: суммы должны быть в допустимом диапазоне.",
   "close-error": "Не удалось закрыть смену. Проверьте данные или права доступа.",
   "photo-error": "Смена закрыта, но фото отчёта не сохранилось.",
 };
 
-const COUNT_INPUT_MAX = "999999";
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    maximumFractionDigits: value < 1 ? 2 : 0,
-  }).format(value);
-}
-
 export default async function CloseShiftPage({ searchParams }: CloseShiftPageProps) {
   const params = await searchParams;
-  const { message, shiftId, detail, hideCash } = params;
+  const { message, shiftId, detail } = params;
   const messageText = message ? messages[message] : null;
 
   const supabase = await createSupabaseServerClient();
@@ -71,37 +57,21 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
 
   const { roles } = await getCurrentRoleCodes();
   const { employeeId } = await getCurrentEmployeeId();
-  const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
   const overdueMode = params.overdue === "1";
   const canOverride = roles.some((role) => ["store_manager", "super_admin"].includes(role));
   if (overdueMode && (!canOverride || !shiftId)) redirect("/shifts");
-  const compactClose = overdueMode || (managerOnly && hideCash === "1");
   const allowedStoreIds = overdueMode ? (await getAccessibleStores(supabase)).map((store) => store.id) : [];
 
-  const [denominationsResult, shiftsResult] = await Promise.all([
-    compactClose
-      ? Promise.resolve({ data: [] as Denomination[], error: null })
-      : supabase
-          .from("cash_denominations")
-          .select("id, value, kind")
-          .eq("is_active", true)
-          .order("value", { ascending: false })
-          .returns<Denomination[]>(),
-    (() => {
+  const shiftsResult = await (() => {
       let query = supabase
         .from("shifts")
         .select("id, shift_date, store_id, stores(id, name, city), shift_participants(participant_role, employees(full_name))")
         .in("status", ["opened", "correction_required"])
         .order("shift_date", { ascending: false });
       if (overdueMode) query = query.eq("id", shiftId!).in("store_id", allowedStoreIds.length ? allowedStoreIds : ["00000000-0000-0000-0000-000000000000"]);
-      if (managerOnly && employeeId) query = query.eq("opened_by_employee_id", employeeId);
+      if (roles.includes("manager") && !canOverride && employeeId) query = query.eq("opened_by_employee_id", employeeId);
       return query.returns<ShiftOption[]>();
-    })(),
-  ]);
-
-  if (denominationsResult.error) {
-    throw new Error(denominationsResult.error.message);
-  }
+    })();
 
   if (shiftsResult.error) {
     throw new Error(shiftsResult.error.message);
@@ -118,20 +88,21 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
   }
 
   const selectedShiftId = shiftId ?? shiftsResult.data[0]?.id ?? "";
-  const storeIds = compactClose ? [] : [...new Set(shiftsResult.data.map((shift) => shift.store_id))];
+  const storeIds = [...new Set(shiftsResult.data.map((shift) => shift.store_id))];
   const cashCountResults = await Promise.all(storeIds.map((storeId) => supabase.from("store_cash_counts")
-    .select("store_id, created_at, denominations")
+    .select("store_id, counted_amount")
     .eq("store_id", storeId)
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(1)
     .maybeSingle<StoreCashCount>()));
   const cashCountError = cashCountResults.find((result) => result.error)?.error;
   if (cashCountError) throw new Error(cashCountError.message);
-  const coinsByStore: Record<string, string> = {};
+  const latestCashByStore: Record<string, number> = {};
   for (const { data: cashCount } of cashCountResults) {
     if (!cashCount) continue;
-    const amount = Number(cashCount.denominations?.coins_amount ?? 0);
-    if (Number.isFinite(amount) && amount >= 0) coinsByStore[cashCount.store_id] = String(amount);
+    const amount = Number(cashCount.counted_amount);
+    if (Number.isFinite(amount) && amount >= 0) latestCashByStore[cashCount.store_id] = amount;
   }
   const cityShiftPairs = new Map<string, string>();
   for (const shift of shiftsResult.data) {
@@ -159,42 +130,16 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
         <form action="/shifts/close/submit" className="mt-4 grid gap-4" encType="multipart/form-data" method="post">
           {overdueMode ? <>
             <input name="overdue_override" type="hidden" value="1" />
-            <p className="ui-panel p-3 text-sm text-ink">Вы закрываете просроченную смену за сотрудника. Сумма Z-отчёта сравнивается с последним сохранённым пересчётом. При расхождении смена закроется, а управляющие получат уведомление.</p>
+            <p className="ui-panel p-3 text-sm text-ink">Вы закрываете просроченную смену за сотрудника. Сумма наличных по Z-отчёту должна совпасть с последним покупюрником. При расхождении смена не закроется, управляющие получат уведомление.</p>
           </> : null}
-          {compactClose ? <input name="hide_cash" type="hidden" value="1" /> : null}
           <ShiftCloseFields
-            coinsByStore={coinsByStore}
+            latestCashByStore={latestCashByStore}
             managersByCity={managersByCity}
             params={params}
             selectedShiftId={selectedShiftId}
             shifts={shiftsResult.data}
             lockShift={overdueMode}
-            hideCount={compactClose}
           />
-
-          {!compactClose ? <section className="ui-panel p-4">
-            <h2 className="text-base font-semibold">Покупюрник</h2>
-            <div className="mt-4 grid gap-2">
-              {denominationsResult.data.filter((denomination) => denomination.value >= 1 && denomination.value !== 3).map((denomination) => (
-                <label key={denomination.id} className="grid grid-cols-[72px_1fr_96px] items-center gap-2 text-sm">
-                  <span>{formatMoney(denomination.value)}</span>
-                  <input
-                    name={`denomination_${denomination.value}`}
-                    className="h-10 rounded-md border border-line px-3 outline-none focus:border-brand"
-                    defaultValue={params[`denomination_${denomination.value}`] ?? ""}
-                    inputMode="numeric"
-                    max={COUNT_INPUT_MAX}
-                    min="0"
-                    required
-                    step="1"
-                    type="number"
-                  />
-                  <input name={`denomination_id_${denomination.value}`} type="hidden" value={denomination.id} />
-                  <span className="text-right text-muted">шт.</span>
-                </label>
-              ))}
-            </div>
-          </section> : null}
 
           <section className="ui-panel p-4">
             <h2 className="text-base font-semibold">Отчёт ККМ</h2>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Save } from "lucide-react";
+import Link from "next/link";
 
 type ShiftCloseOption = {
   id: string;
@@ -21,9 +22,8 @@ type Props = {
   managersByCity: Record<string, ManagerOption[]>;
   selectedShiftId: string;
   params: Record<string, string | undefined>;
-  coinsByStore: Record<string, string>;
+  latestCashByStore: Record<string, number>;
   lockShift?: boolean;
-  hideCount?: boolean;
 };
 
 const cashFields = [
@@ -54,12 +54,18 @@ function formatShiftOption(shift: ShiftCloseOption) {
   ].filter(Boolean).join(" · ");
 }
 
-export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, coinsByStore, lockShift = false, hideCount = false }: Props) {
+export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, latestCashByStore, lockShift = false }: Props) {
   const [shiftId, setShiftId] = useState(selectedShiftId);
   const [advanceAmount, setAdvanceAmount] = useState(params.advance_amount ?? "");
+  const [actualCashAmount, setActualCashAmount] = useState(params.actual_cash_amount ?? "");
   const [recipientId, setRecipientId] = useState(params.advance_employee_id ?? "");
   const selectedShift = shifts.find((shift) => shift.id === shiftId);
-  const [coinsAmount, setCoinsAmount] = useState(params.coins_amount ?? coinsByStore[selectedShift?.store_id ?? ""] ?? "0");
+  const latestCash = latestCashByStore[selectedShift?.store_id ?? ""];
+  const enteredCash = Number(actualCashAmount.replace(",", "."));
+  const cashMismatch = actualCashAmount.trim() !== ""
+    && latestCash !== undefined
+    && Number.isFinite(enteredCash)
+    && Math.round(enteredCash * 100) !== Math.round(latestCash * 100);
   const cityManagers = managersByCity[cityKey(selectedShift?.stores?.city)] ?? [];
   const requiresRecipient = Number(advanceAmount.replace(",", ".")) > 0;
 
@@ -76,8 +82,6 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
             onChange={(event) => {
               setShiftId(event.target.value);
               setRecipientId("");
-              const nextShift = shifts.find((shift) => shift.id === event.target.value);
-              setCoinsAmount(coinsByStore[nextShift?.store_id ?? ""] ?? "0");
             }}
             required
             value={shiftId}
@@ -92,6 +96,11 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
 
       <section className="ui-panel p-4">
         <h2 className="text-base font-semibold">Касса</h2>
+        <div className="mt-4 rounded-md border border-line bg-surface p-3 text-sm">
+          <span className="text-muted">Последний покупюрник</span>
+          <p className="mt-1 text-lg font-semibold">{latestCash === undefined ? "Нет сохранённого пересчёта" : `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(latestCash)} руб.`}</p>
+          {latestCash === undefined && selectedShift ? <Link className="mt-2 inline-block font-semibold text-brand" href={`/shifts/recount?storeId=${selectedShift.store_id}&shiftId=${selectedShift.id}`}>Открыть пересчёт</Link> : null}
+        </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {cashFields.map(([name, label]) => {
             const isCount = name === "receipt_count" || name === "items_sold_count";
@@ -100,7 +109,9 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
                 <span className="text-muted">{label}</span>
                 <input
                   className="h-11 ui-panel px-3 outline-none focus:border-brand"
-                  defaultValue={params[name] ?? ""}
+                  {...(name === "actual_cash_amount"
+                    ? { value: actualCashAmount, onChange: (event: React.ChangeEvent<HTMLInputElement>) => setActualCashAmount(event.target.value) }
+                    : { defaultValue: params[name] ?? "" })}
                   inputMode={isCount ? "numeric" : "decimal"}
                   max={isCount ? COUNT_INPUT_MAX : MONEY_INPUT_MAX}
                   min="0"
@@ -110,9 +121,10 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
                   type="number"
                 />
                 {name === "actual_cash_amount" ? (
-          <span className="text-xs text-muted">{lockShift
-                    ? "Укажите сумму из Z-отчёта. Расхождение с последним пересчётом будет зафиксировано."
-                    : "Укажите наличную сумму из Z-отчёта; она должна совпадать с итогом покупюрника."}</span>
+                  <>
+                    <span className="text-xs text-muted">Укажите сумму наличных по Z-отчёту. Она должна совпасть с последним покупюрником.</span>
+                    {cashMismatch ? <span className="text-xs font-semibold text-danger">Суммы не равны. Закрыть смену не получится.</span> : null}
+                  </>
                 ) : null}
               </label>
             );
@@ -132,21 +144,6 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
             />
           </label>
         </div>
-        {!hideCount ? <label className="mt-3 grid gap-1 text-sm">
-          <span className="text-muted">Мелочь в мешках</span>
-          <input
-            className="h-11 ui-panel px-3 outline-none focus:border-brand"
-            inputMode="decimal"
-            max={MONEY_INPUT_MAX}
-            min="0"
-            name="coins_amount"
-            onChange={(event) => setCoinsAmount(event.target.value)}
-            step="0.01"
-            type="number"
-            value={coinsAmount}
-          />
-          <span className="text-xs text-muted">Сумма сохранится за магазином и будет учтена в следующем пересчёте.</span>
-        </label> : null}
         {requiresRecipient ? (
           <label className="mt-3 grid gap-1 text-sm">
             <span className="text-muted">Кому выдать аванс</span>
