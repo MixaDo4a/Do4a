@@ -109,7 +109,9 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
                   type="number"
                 />
                 {name === "actual_cash_amount" ? (
-                  <span className="text-xs text-muted">Укажите наличную сумму из Z-отчёта; она должна совпадать с итогом покупюрника.</span>
+                  <span className="text-xs text-muted">{lockShift
+                    ? "Укажите сумму из Z-отчёта. Если она отличается от покупюрника, расхождение будет зафиксировано."
+                    : "Укажите наличную сумму из Z-отчёта; она должна совпадать с итогом покупюрника."}</span>
                 ) : null}
               </label>
             );
