@@ -15,6 +15,7 @@ type ChecklistItemRow = {
   id: string;
   score: number;
   comment: string | null;
+  title_snapshot: string | null;
   checklist_items: { id: string; title: string; sort_order: number } | null;
   checklist_submission_item_files: { file_id: string; files: { id: string; path: string; bucket: string } | null }[];
 };
@@ -71,7 +72,7 @@ export default async function ChecklistViewPage({ params }: PageProps) {
   const { data, error } = await supabase
     .from("checklist_submissions")
     .select(
-      "id, store_id, submitted_at, average_score, salary_per_shift_amount, comment, stores(name, city), employees!checklist_submissions_employee_id_fkey(id, full_name), auditor:employees!checklist_submissions_auditor_employee_id_fkey(full_name), checklist_submission_items(id, score, comment, checklist_items(id, title, sort_order), checklist_submission_item_files(file_id, files(id, path, bucket)))",
+      "id, store_id, submitted_at, average_score, salary_per_shift_amount, comment, stores(name, city), employees!checklist_submissions_employee_id_fkey(id, full_name), auditor:employees!checklist_submissions_auditor_employee_id_fkey(full_name), checklist_submission_items(id, score, comment, title_snapshot, checklist_items(id, title, sort_order), checklist_submission_item_files(file_id, files(id, path, bucket)))",
     )
     .eq("id", id)
     .single<ChecklistRow>();
@@ -146,7 +147,7 @@ export default async function ChecklistViewPage({ params }: PageProps) {
             return (
               <article key={item.id} className="ui-panel p-4">
                 <p className="font-semibold">
-                  {cleanText(titleByItemId.get(item.checklist_items?.id ?? "") || item.checklist_items?.title, "Пункт чек-листа")}
+                  {cleanText(item.title_snapshot || titleByItemId.get(item.checklist_items?.id ?? "") || item.checklist_items?.title, "Пункт чек-листа")}
                 </p>
                 <p className="mt-1 text-sm text-muted">Оценка: {item.score}/10</p>
                 {item.comment ? <p className="mt-3 rounded-md bg-surface p-3 text-sm">{item.comment}</p> : null}

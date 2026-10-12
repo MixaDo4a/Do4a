@@ -11,7 +11,17 @@ type Item = {
   id: string;
   title: string;
   sort_order: number;
+  store_id: string | null;
+  is_active: boolean;
   checklist_item_weights: { employee_status: "padawan" | "experienced"; weight_amount: number }[];
+};
+type StoreSetting = {
+  store_id: string;
+  item_id: string;
+  is_enabled: boolean;
+  custom_title: string | null;
+  weight_padawan: number;
+  weight_experienced: number;
 };
 export type ChecklistDraft = {
   template_id: string;
@@ -32,6 +42,7 @@ export function ChecklistForm({
   stores,
   employees,
   items,
+  settings,
   drafts,
   canSubmit,
 }: {
@@ -40,6 +51,7 @@ export function ChecklistForm({
   stores: Store[];
   employees: Employee[];
   items: Item[];
+  settings: StoreSetting[];
   drafts: ChecklistDraft[];
   canSubmit: boolean;
 }) {
@@ -51,20 +63,32 @@ export function ChecklistForm({
     [drafts],
   );
   const initialDraft = drafts[0];
+  const [selectedStoreId, setSelectedStoreId] = useState(initialDraft?.store_id ?? stores[0]?.id ?? "");
+  const settingsByItem = useMemo(
+    () => new Map(settings.filter((setting) => setting.store_id === selectedStoreId).map((setting) => [setting.item_id, setting])),
+    [settings, selectedStoreId],
+  );
+  const visibleItems = items.filter((item) => item.is_active
+    && (!item.store_id || item.store_id === selectedStoreId)
+    && settingsByItem.get(item.id)?.is_enabled !== false);
 
   function readPayload() {
     const form = formRef.current;
     if (!form) return null;
     const data = new FormData(form);
+    const storeId = String(data.get("store_id") ?? "");
+    const storeSettings = new Map(settings.filter((setting) => setting.store_id === storeId).map((setting) => [setting.item_id, setting]));
     const scores: Record<string, number> = {};
     const comments: Record<string, string> = {};
-    for (const item of items) {
+    for (const item of items.filter((item) => item.is_active
+      && (!item.store_id || item.store_id === storeId)
+      && storeSettings.get(item.id)?.is_enabled !== false)) {
       const score = Number(data.get(`score_${item.id}`) ?? 10);
       scores[item.id] = Number.isFinite(score) ? score : 10;
       comments[item.id] = String(data.get(`comment_${item.id}`) ?? "");
     }
     return {
-      storeId: String(data.get("store_id") ?? ""),
+      storeId,
       employeeId: String(data.get("employee_id") ?? ""),
       payload: { scores, comments, comment: String(data.get("comment") ?? "") },
     };
@@ -112,13 +136,17 @@ export function ChecklistForm({
       const form = formRef.current;
       const store = form?.elements.namedItem("store_id") as HTMLSelectElement | null;
       const employee = form?.elements.namedItem("employee_id") as HTMLSelectElement | null;
-      if (store && employee) window.setTimeout(() => hydrateDraft(store.value, employee.value), 0);
+      if (store && employee) {
+        if (target.name === "store_id") setSelectedStoreId(store.value);
+        window.setTimeout(() => hydrateDraft(store.value, employee.value), 0);
+      }
     }
     scheduleSave();
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    if (!canSubmit) event.preventDefault();
+    if (!canSubmit || visibleItems.length === 0) event.preventDefault();
+    else if (timerRef.current) window.clearTimeout(timerRef.current);
   }
 
   return (
@@ -152,17 +180,18 @@ export function ChecklistForm({
       <section className="ui-panel p-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold">{templateName}</h2>
-          <span className="text-sm text-muted">{items.length} пунктов</span>
+          <span className="text-sm text-muted">{visibleItems.length} пунктов</span>
         </div>
         <div className="mt-4 grid gap-3">
-          {items.map((item) => {
-            const experiencedWeight = item.checklist_item_weights.find((weight) => weight.employee_status === "experienced")?.weight_amount ?? 0;
-            const padawanWeight = item.checklist_item_weights.find((weight) => weight.employee_status === "padawan")?.weight_amount ?? 0;
+          {visibleItems.map((item) => {
+            const setting = settingsByItem.get(item.id);
+            const experiencedWeight = setting?.weight_experienced ?? item.checklist_item_weights.find((weight) => weight.employee_status === "experienced")?.weight_amount ?? 0;
+            const padawanWeight = setting?.weight_padawan ?? item.checklist_item_weights.find((weight) => weight.employee_status === "padawan")?.weight_amount ?? 0;
             const score = initialDraft?.payload.scores?.[item.id] ?? 10;
             const comment = initialDraft?.payload.comments?.[item.id] ?? "";
             return (
               <fieldset key={item.id} className="rounded-md border border-line p-3">
-                <div className="flex items-start justify-between gap-3"><legend className="font-medium">{cleanText(item.title, "Пункт чек-листа")}</legend><span className="shrink-0 text-xs text-muted">{money(experiencedWeight)} / {money(padawanWeight)} руб.</span></div>
+                <div className="flex items-start justify-between gap-3"><legend className="font-medium">{cleanText(setting?.custom_title || item.title, "Пункт чек-листа")}</legend><span className="shrink-0 text-xs text-muted">{money(experiencedWeight)} / {money(padawanWeight)} руб.</span></div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-[140px_1fr]">
                   <label className="grid gap-1 text-sm"><span className="text-muted">Оценка</span><input className="h-11 rounded-md border border-line px-3 outline-none focus:border-brand" defaultValue={score} inputMode="numeric" max={10} min={1} name={`score_${item.id}`} type="number" /></label>
                   <label className="grid gap-1 text-sm"><span className="text-muted">Комментарий</span><input className="h-11 rounded-md border border-line px-3 outline-none focus:border-brand" defaultValue={comment} name={`comment_${item.id}`} placeholder="Необязательно" /></label>
@@ -176,7 +205,7 @@ export function ChecklistForm({
 
       <section className="ui-panel p-4"><label className="grid gap-1 text-sm"><span className="text-muted">Комментарий к проверке</span><textarea className="min-h-24 ui-panel px-3 py-2 outline-none focus:border-brand" defaultValue={initialDraft?.payload.comment ?? ""} name="comment" /></label></section>
       <p className="text-xs text-muted">Оценки и комментарии сохраняются автоматически. Фото прикрепляются при итоговом сохранении чек-листа.</p>
-      <button className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!canSubmit}><Save size={18} /> Сохранить чек-лист</button>
+      <button className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!canSubmit || visibleItems.length === 0}><Save size={18} /> Сохранить чек-лист</button>
     </form>
   );
 }

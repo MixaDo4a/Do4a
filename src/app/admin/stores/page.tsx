@@ -1,4 +1,4 @@
-﻿import { ClipboardList, Settings, Store, StoreIcon } from "lucide-react";
+﻿import { ClipboardList, Plus, Settings, Store, StoreIcon, Trash2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
@@ -24,6 +24,7 @@ type TemplateItemRow = {
   id: string;
   title: string;
   sort_order: number;
+  store_id: string | null;
   checklist_item_weights: {
     employee_status: "padawan" | "experienced";
     weight_amount: number;
@@ -53,6 +54,8 @@ const pageMessages: Record<string, string> = {
   "store-updated": "Магазин обновлён.",
   "store-archived": "Магазин скрыт.",
   "store-restored": "Магазин восстановлен.",
+  "checklist-item-added": "Пункт добавлен в чек-лист магазина.",
+  "checklist-item-removed": "Пункт исключён из новых проверок. Его можно вернуть, включив снова.",
 };
 
 function money(value: number) {
@@ -92,7 +95,7 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
       : Promise.resolve({ data: [] as StoreRow[], error: null }),
     supabase
       .from("checklist_templates")
-      .select("id, name, checklist_items(id, title, sort_order, checklist_item_weights(employee_status, weight_amount))")
+      .select("id, name, checklist_items(id, title, sort_order, store_id, checklist_item_weights(employee_status, weight_amount))")
       .eq("is_active", true)
       .order("version", { ascending: false })
       .limit(1)
@@ -130,6 +133,7 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
   }
 
   return (
+    <>
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-5xl">
         <SectionHeader icon={Settings} title="Управление" showBack />
@@ -228,12 +232,11 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
                       )}
                     </div>
 
-                    {canEditAdvanced ? (
-                      <section className="ui-panel p-3">
+                    <section className="ui-panel p-3">
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <p className="font-semibold">Настройка чек-листа магазина</p>
-                            <p className="text-xs text-muted">Можно переименовывать пункты и менять их стоимость для Падавана и Бывалого.</p>
+                            <p className="text-xs text-muted">Изменения действуют только для этого магазина. Удалённые пункты остаются в архиве проверок.</p>
                           </div>
                           <ClipboardList className="h-4 w-4 text-brand" />
                         </div>
@@ -244,7 +247,7 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
                           </p>
                         ) : (
                           <div className="mt-3 grid max-h-96 gap-3 overflow-y-auto pr-1">
-                            {checklistItems.map((item) => {
+                            {checklistItems.filter((item) => !item.store_id || item.store_id === storeItem.id).map((item) => {
                               const setting = storeSettings.get(item.id);
                               const experiencedDefault =
                                 item.checklist_item_weights.find((weight) => weight.employee_status === "experienced")
@@ -268,6 +271,15 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
                                     />
                                     <span>{cleanText(item.title, "Название пункта")}</span>
                                   </label>
+                                  <button
+                                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-danger"
+                                    formNoValidate
+                                    name="checklist_remove_item_id"
+                                    type="submit"
+                                    value={item.id}
+                                  >
+                                    <Trash2 size={14} /> Удалить из чек-листа
+                                  </button>
 
                                   <label className="mt-3 grid gap-1 text-sm">
                                     <span className="text-muted">Название пункта</span>
@@ -308,8 +320,17 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
                             })}
                           </div>
                         )}
-                      </section>
-                    ) : null}
+                        {template ? (
+                          <div className="mt-4 grid gap-2 border-t border-line pt-4">
+                            <p className="flex items-center gap-2 font-semibold"><Plus size={16} /> Новый пункт</p>
+                            <input className="h-10 rounded-md border border-line px-3" maxLength={200} name="new_checklist_title" placeholder="Название пункта" />
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <label className="grid gap-1 text-sm"><span className="text-muted">Падаван, руб.</span><input className="h-10 rounded-md border border-line px-3" min={0} name="new_checklist_padawan" step="0.01" type="number" /></label>
+                              <label className="grid gap-1 text-sm"><span className="text-muted">Бывалый, руб.</span><input className="h-10 rounded-md border border-line px-3" min={0} name="new_checklist_experienced" step="0.01" type="number" /></label>
+                            </div>
+                          </div>
+                        ) : null}
+                    </section>
 
                     <button className="h-10 rounded-md bg-brand px-4 font-semibold text-white">Сохранить магазин</button>
                   </form>
@@ -335,8 +356,9 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
           </div>
         </section>
       </div>
-      <BottomNav />
     </main>
+    <BottomNav />
+    </>
   );
 }
 

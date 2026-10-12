@@ -33,10 +33,9 @@ function moneyValue(raw: string) {
   return value;
 }
 
-function hasAdvancedFields(formData: FormData) {
+function hasChecklistFields(formData: FormData) {
   return [...formData.keys()].some(
     (key) =>
-      key === "sales_share_percent" ||
       key.startsWith("checklist_title_") ||
       key.startsWith("checklist_enabled_") ||
       key.startsWith("checklist_padawan_") ||
@@ -55,7 +54,11 @@ export async function POST(request: NextRequest) {
   const timezone = value(formData, "timezone") || DEFAULT_TIME_ZONE;
   const status = value(formData, "status");
   const salesSharePercentRaw = value(formData, "sales_share_percent");
-  const includeAdvanced = hasAdvancedFields(formData);
+  const includeChecklist = hasChecklistFields(formData);
+  const removeChecklistItemId = value(formData, "checklist_remove_item_id");
+  const newChecklistTitle = value(formData, "new_checklist_title");
+  const newPadawanRaw = value(formData, "new_checklist_padawan");
+  const newExperiencedRaw = value(formData, "new_checklist_experienced");
 
   if (!storeId || !city || !name || !status || !STORE_TIME_ZONES.some((zone) => zone.value === timezone)) {
     return NextResponse.redirect(adminUrl(request, "admin-required"), 303);
@@ -94,13 +97,60 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Скрывать магазины может только разработчик."), 303);
   }
 
-  if (includeAdvanced && !canEditAdvanced) {
-    return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав для изменения расширенных настроек магазина."), 303);
+  if (formData.has("sales_share_percent") && !canEditAdvanced) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Недостаточно прав для изменения процента от продаж."), 303);
+  }
+
+  if (removeChecklistItemId) {
+    const [{ data: template }, { data: item }, { data: existingSetting }] = await Promise.all([
+      supabase.from("checklist_templates").select("id").eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle<{ id: string }>(),
+      supabase.from("checklist_items").select("id, template_id, store_id, checklist_item_weights(employee_status, weight_amount)").eq("id", removeChecklistItemId).maybeSingle<{ id: string; template_id: string; store_id: string | null; checklist_item_weights: { employee_status: string; weight_amount: number }[] }>(),
+      supabase.from("store_checklist_item_settings").select("custom_title, weight_padawan, weight_experienced").eq("store_id", storeId).eq("item_id", removeChecklistItemId).maybeSingle<{ custom_title: string | null; weight_padawan: number; weight_experienced: number }>(),
+    ]);
+    if (!template || !item || item.template_id !== template.id || (item.store_id && item.store_id !== storeId)) {
+      return NextResponse.redirect(adminUrl(request, "admin-error", "Пункт не принадлежит чек-листу этого магазина."), 303);
+    }
+    const { error } = await supabase.from("store_checklist_item_settings").upsert({
+      store_id: storeId,
+      item_id: item.id,
+      is_enabled: false,
+      custom_title: existingSetting?.custom_title ?? null,
+      weight_padawan: existingSetting?.weight_padawan ?? item.checklist_item_weights.find((weight) => weight.employee_status === "padawan")?.weight_amount ?? 0,
+      weight_experienced: existingSetting?.weight_experienced ?? item.checklist_item_weights.find((weight) => weight.employee_status === "experienced")?.weight_amount ?? 0,
+      created_by: user.id,
+      updated_by: user.id,
+    }, { onConflict: "store_id,item_id" });
+    return NextResponse.redirect(error ? adminUrl(request, "admin-error", error.message) : adminUrl(request, "checklist-item-removed"), 303);
+  }
+
+  if (newChecklistTitle || newPadawanRaw || newExperiencedRaw) {
+    try {
+      const padawan = moneyValue(newPadawanRaw);
+      const experienced = moneyValue(newExperiencedRaw);
+      if (!newChecklistTitle || newChecklistTitle.length > 200 || padawan === null || experienced === null
+        || padawan < 0 || experienced < 0 || padawan > 999999999999.99 || experienced > 999999999999.99) {
+        throw new Error("Invalid checklist item");
+      }
+    } catch {
+      return NextResponse.redirect(adminUrl(request, "admin-error", "Укажите название и стоимость нового пункта для обеих должностей."), 303);
+    }
   }
 
   const salesSharePercent = salesSharePercentRaw ? moneyValue(salesSharePercentRaw) : null;
   if (salesSharePercent !== null && (salesSharePercent < 0 || salesSharePercent > 100)) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Процент должен быть от 0 до 100."), 303);
+  }
+
+  if (includeChecklist) {
+    try {
+      for (const [key, raw] of formData.entries()) {
+        if (!key.startsWith("checklist_padawan_") && !key.startsWith("checklist_experienced_")) continue;
+        const amount = moneyValue(String(raw));
+        if (amount !== null && amount < 0) throw new Error("Invalid checklist amount");
+      }
+    } catch {
+      return NextResponse.redirect(adminUrl(request, "admin-error", "Стоимость пункта должна быть неотрицательным числом."), 303);
+    }
   }
 
   const { error: storeError } = await supabase
@@ -123,15 +173,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", storeError.message), 303);
   }
 
-  if (includeAdvanced && canEditAdvanced) {
+  if (includeChecklist) {
     const [templateResult, settingsResult] = await Promise.all([
       supabase
         .from("checklist_templates")
-        .select("id, checklist_items(id, checklist_item_weights(employee_status, weight_amount))")
+        .select("id, checklist_items(id, store_id, checklist_item_weights(employee_status, weight_amount))")
         .eq("is_active", true)
         .order("version", { ascending: false })
         .limit(1)
-        .returns<{ id: string; checklist_items: { id: string; checklist_item_weights: { employee_status: "padawan" | "experienced"; weight_amount: number }[] }[] }[]>(),
+        .returns<{ id: string; checklist_items: { id: string; store_id: string | null; checklist_item_weights: { employee_status: "padawan" | "experienced"; weight_amount: number }[] }[] }[]>(),
       supabase
         .from("store_checklist_item_settings")
         .select("item_id, is_enabled, custom_title, weight_padawan, weight_experienced")
@@ -148,7 +198,7 @@ export async function POST(request: NextRequest) {
     }
 
     const template = templateResult.data[0];
-    const items = template?.checklist_items ?? [];
+    const items = (template?.checklist_items ?? []).filter((item) => !item.store_id || item.store_id === storeId);
     const existingByItem = new Map(settingsResult.data.map((row) => [row.item_id, row]));
 
     const rows = items.map((item) => {
@@ -178,6 +228,23 @@ export async function POST(request: NextRequest) {
     if (settingsWriteError) {
       return NextResponse.redirect(adminUrl(request, "admin-error", settingsWriteError.message), 303);
     }
+  }
+
+  if (newChecklistTitle) {
+    const { data: template, error: templateError } = await supabase.from("checklist_templates")
+      .select("id").eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle<{ id: string }>();
+    if (templateError || !template) {
+      return NextResponse.redirect(adminUrl(request, "admin-error", "Активный шаблон чек-листа не найден."), 303);
+    }
+    const { error: addError } = await supabase.rpc("add_store_checklist_item", {
+      p_store_id: storeId,
+      p_template_id: template.id,
+      p_title: newChecklistTitle,
+      p_weight_padawan: moneyValue(newPadawanRaw),
+      p_weight_experienced: moneyValue(newExperiencedRaw),
+    });
+    if (addError) return NextResponse.redirect(adminUrl(request, "admin-error", addError.message), 303);
+    return NextResponse.redirect(adminUrl(request, "checklist-item-added"), 303);
   }
 
   return NextResponse.redirect(adminUrl(request, "store-updated"), 303);

@@ -137,17 +137,18 @@ export async function POST(request: NextRequest) {
   const [itemsResult, settingsResult] = await Promise.all([
     supabase
       .from("checklist_items")
-      .select("id, checklist_item_weights(employee_status, weight_amount)")
+      .select("id, title, store_id, checklist_item_weights(employee_status, weight_amount)")
       .eq("template_id", templateId)
       .eq("is_active", true),
     supabase
       .from("store_checklist_item_settings")
-      .select("item_id, is_enabled, weight_padawan, weight_experienced")
+      .select("item_id, is_enabled, custom_title, weight_padawan, weight_experienced")
       .eq("store_id", storeId)
       .returns<
         {
           item_id: string;
           is_enabled: boolean;
+          custom_title: string | null;
           weight_padawan: number;
           weight_experienced: number;
         }[]
@@ -165,6 +166,7 @@ export async function POST(request: NextRequest) {
 
   let rows: {
     item_id: string;
+    title_snapshot: string;
     score: number;
     weight_amount_snapshot: number;
     result_amount: number;
@@ -174,6 +176,7 @@ export async function POST(request: NextRequest) {
   try {
     rows = items
       .filter((item) => {
+        if (item.store_id && item.store_id !== storeId) return false;
         const setting = settingsByItem.get(item.id);
         return setting ? setting.is_enabled : true;
       })
@@ -207,12 +210,14 @@ export async function POST(request: NextRequest) {
 
         return {
           item_id: item.id,
+          title_snapshot: storeSetting?.custom_title || item.title,
           score,
           weight_amount_snapshot: weightAmount,
           result_amount: resultAmount,
           comment: String(formData.get(`comment_${item.id}`) ?? "").trim() || null,
         };
       });
+    if (rows.length === 0) throw new Error("No checklist items for this store");
   } catch {
     return NextResponse.redirect(new URL("/checklists/new?message=save-error", request.url), 303);
   }
