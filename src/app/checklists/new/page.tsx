@@ -50,6 +50,7 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
   if (settingsResult.error) throw new Error(settingsResult.error.message);
 
   const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
+  const currentEmployeeId = profilesResult.data.find((profile) => profile.id === user.id)?.employee_id;
   const eligibleProfileIds = new Set(userRolesResult.data
     .filter((row) => ["manager", "store_manager"].includes(roleCodeFromRelation(row.roles) ?? ""))
     .map((row) => row.profile_id));
@@ -58,7 +59,8 @@ export default async function NewChecklistPage({ searchParams }: PageProps) {
     .map((row) => row.profile_id));
   const today = new Date().toISOString().slice(0, 10);
   const eligibleEmployees = employeesResult.data
-    .filter((employee) => eligibleProfileIds.has(profileIdByEmployeeId.get(employee.id) ?? ""))
+    .filter((employee) => eligibleProfileIds.has(profileIdByEmployeeId.get(employee.id) ?? "")
+      && !(roles.includes("store_manager") && employee.id === currentEmployeeId))
     .map((employee) => ({
       ...employee,
       roleLabel: storeManagerProfileIds.has(profileIdByEmployeeId.get(employee.id) ?? "") ? "Управляющий" : "Менеджер",

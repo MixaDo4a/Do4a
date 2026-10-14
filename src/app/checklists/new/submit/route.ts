@@ -117,6 +117,9 @@ export async function POST(request: NextRequest) {
   if (auditorError || !auditorProfile?.employee_id) {
     return NextResponse.redirect(new URL("/checklists/new?message=access-error", request.url), 303);
   }
+  if (roles.includes("store_manager") && employeeId === auditorProfile.employee_id) {
+    return NextResponse.redirect(new URL("/checklists/new?message=employee-error", request.url), 303);
+  }
 
   const accessibleStores = await getAccessibleStores(supabase);
   if (!accessibleStores.some((store) => store.id === storeId && store.status !== "archived")) {
