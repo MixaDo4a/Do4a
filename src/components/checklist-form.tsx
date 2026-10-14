@@ -6,7 +6,7 @@ import { PhotoFileInput } from "@/components/photo-file-input";
 import { cleanText, employeeName } from "@/lib/display";
 
 type Store = { id: string; name: string; city: string };
-type Employee = { id: string; full_name: string; employee_status: "padawan" | "experienced" };
+type Employee = { id: string; full_name: string; employee_status: "padawan" | "experienced"; roleLabel: string; storeIds: string[] };
 type Item = {
   id: string;
   title: string;
@@ -62,8 +62,12 @@ export function ChecklistForm({
     () => new Map(drafts.map((draft) => [`${draft.store_id}:${draft.employee_id}`, draft])),
     [drafts],
   );
-  const initialDraft = drafts[0];
+  const initialDraft = drafts.find((draft) => stores.some((store) => store.id === draft.store_id)
+    && employees.some((employee) => employee.id === draft.employee_id && employee.storeIds.includes(draft.store_id)));
   const [selectedStoreId, setSelectedStoreId] = useState(initialDraft?.store_id ?? stores[0]?.id ?? "");
+  const availableEmployees = employees.filter((employee) => employee.storeIds.includes(selectedStoreId));
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(initialDraft?.employee_id
+    ?? employees.find((employee) => employee.storeIds.includes(stores[0]?.id ?? ""))?.id ?? "");
   const settingsByItem = useMemo(
     () => new Map(settings.filter((setting) => setting.store_id === selectedStoreId).map((setting) => [setting.item_id, setting])),
     [settings, selectedStoreId],
@@ -137,15 +141,20 @@ export function ChecklistForm({
       const store = form?.elements.namedItem("store_id") as HTMLSelectElement | null;
       const employee = form?.elements.namedItem("employee_id") as HTMLSelectElement | null;
       if (store && employee) {
+        const nextEmployeeId = target.name === "store_id"
+          ? (employees.find((candidate) => candidate.storeIds.includes(store.value) && candidate.id === employee.value)
+            ?? employees.find((candidate) => candidate.storeIds.includes(store.value)))?.id ?? ""
+          : employee.value;
         if (target.name === "store_id") setSelectedStoreId(store.value);
-        window.setTimeout(() => hydrateDraft(store.value, employee.value), 0);
+        setSelectedEmployeeId(nextEmployeeId);
+        window.setTimeout(() => hydrateDraft(store.value, nextEmployeeId), 0);
       }
     }
     scheduleSave();
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    if (!canSubmit || visibleItems.length === 0) event.preventDefault();
+    if (!canSubmit || !selectedEmployeeId || visibleItems.length === 0) event.preventDefault();
     else if (timerRef.current) window.clearTimeout(timerRef.current);
   }
 
@@ -169,12 +178,12 @@ export function ChecklistForm({
           </label>
           <label className="grid gap-1 text-sm">
             <span className="text-muted">Сотрудник</span>
-            <select className="h-11 ui-panel px-3 outline-none focus:border-brand" name="employee_id" defaultValue={initialDraft?.employee_id ?? employees[0]?.id ?? ""}>
-              {employees.map((employee) => <option key={employee.id} value={employee.id}>{employeeName(employee)} · {statusLabels[employee.employee_status]}</option>)}
+            <select className="h-11 ui-panel px-3 outline-none focus:border-brand" name="employee_id" value={selectedEmployeeId} onChange={(event) => setSelectedEmployeeId(event.target.value)}>
+              {availableEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employeeName(employee)} · {employee.roleLabel} · {statusLabels[employee.employee_status]}</option>)}
             </select>
           </label>
         </div>
-        {stores.length === 0 || employees.length === 0 ? <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">Для чек-листа нужен активный магазин и активный менеджер.</p> : null}
+        {availableEmployees.length === 0 ? <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">Для этого магазина нужен активный менеджер или управляющий.</p> : null}
       </section>
 
       <section className="ui-panel p-4">
@@ -205,7 +214,7 @@ export function ChecklistForm({
 
       <section className="ui-panel p-4"><label className="grid gap-1 text-sm"><span className="text-muted">Комментарий к проверке</span><textarea className="min-h-24 ui-panel px-3 py-2 outline-none focus:border-brand" defaultValue={initialDraft?.payload.comment ?? ""} name="comment" /></label></section>
       <p className="text-xs text-muted">Оценки и комментарии сохраняются автоматически. Фото прикрепляются при итоговом сохранении чек-листа.</p>
-      <button className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!canSubmit || visibleItems.length === 0}><Save size={18} /> Сохранить чек-лист</button>
+      <button className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!canSubmit || !selectedEmployeeId || visibleItems.length === 0}><Save size={18} /> Сохранить чек-лист</button>
     </form>
   );
 }

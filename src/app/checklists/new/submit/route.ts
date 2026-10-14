@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { CHECKLIST_ROLES, getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
+import { CHECKLIST_ROLES, getCurrentRoleCodes, hasAnyRole, RoleRelation, roleCodeFromRelation } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
@@ -117,13 +118,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(new URL("/checklists/new?message=access-error", request.url), 303);
   }
 
+  const accessibleStores = await getAccessibleStores(supabase);
+  if (!accessibleStores.some((store) => store.id === storeId && store.status !== "archived")) {
+    return NextResponse.redirect(new URL("/checklists/new?message=access-error", request.url), 303);
+  }
+
   const { data: employee, error: employeeError } = await supabase
     .from("employees")
-    .select("employee_status, full_name")
+    .select("employee_status, full_name, is_active, employee_store_assignments(store_id, valid_from, valid_to)")
     .eq("id", employeeId)
     .single();
 
-  if (employeeError || !employee) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (employeeError || !employee?.is_active || !employee.employee_store_assignments.some((assignment) =>
+    assignment.store_id === storeId && assignment.valid_from <= today && (!assignment.valid_to || assignment.valid_to >= today))) {
+    return NextResponse.redirect(new URL("/checklists/new?message=employee-error", request.url), 303);
+  }
+
+  const { data: targetProfiles, error: profileError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("employee_id", employeeId);
+  if (profileError || !targetProfiles?.length) {
+    return NextResponse.redirect(new URL("/checklists/new?message=employee-error", request.url), 303);
+  }
+  const { data: targetRoles, error: targetRolesError } = await supabase
+    .from("user_roles")
+    .select("roles(code)")
+    .in("profile_id", targetProfiles.map((profile) => profile.id))
+    .is("revoked_at", null)
+    .returns<{ roles: RoleRelation }[]>();
+  if (targetRolesError || !targetRoles?.some((row) => ["manager", "store_manager"].includes(roleCodeFromRelation(row.roles) ?? ""))) {
     return NextResponse.redirect(new URL("/checklists/new?message=employee-error", request.url), 303);
   }
 

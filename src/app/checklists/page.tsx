@@ -166,9 +166,9 @@ export default async function ChecklistsArchivePage({ searchParams }: PageProps)
             </label>
 
             <label className="grid gap-1 text-sm">
-              <span className="text-muted">Менеджер</span>
+              <span className="text-muted">Сотрудник</span>
               <select className="h-11 ui-panel px-3" name="employee_id" defaultValue={params.employee_id ?? ""}>
-                <option value="">Все менеджеры</option>
+                <option value="">Все сотрудники</option>
                 {employeesResult.data.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.full_name}
