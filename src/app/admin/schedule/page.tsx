@@ -2,8 +2,8 @@ import { CalendarPlus } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
+import { ScheduleEditorTable } from "@/components/schedule-editor-table";
 import { SectionHeader } from "@/components/section-header";
-import { ScheduleStatusSelect } from "@/components/schedule-status-select";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
@@ -12,7 +12,7 @@ import { getScheduleEmployeeIds } from "@/lib/schedule-employees";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
-  searchParams: Promise<{ month?: string; storeId?: string }>;
+  searchParams: Promise<{ month?: string; storeId?: string; message?: string; detail?: string }>;
 };
 
 type StoreRow = {
@@ -79,7 +79,7 @@ function assignmentIsActive(assignment: EmployeeRow["employee_store_assignments"
 }
 
 export default async function AdminSchedulePage({ searchParams }: PageProps) {
-  const { month, storeId: selectedStoreParam } = await searchParams;
+  const { month, storeId: selectedStoreParam, message, detail } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -118,7 +118,7 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
   const selectedMonth = monthStart(month);
   const selectedMonthEnd = monthEnd(selectedMonth);
 
-  const [employeesResult, schedulesResult, scheduleEmployeeIds] = await Promise.all([
+  const [employeesResult, schedulesResult, layoutResult, scheduleEmployeeIds] = await Promise.all([
     supabase
       .from("employees")
       .select("id, full_name, employee_store_assignments(store_id, is_primary, valid_from, valid_to)")
@@ -135,21 +135,36 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
           .order("shift_date", { ascending: true })
           .returns<ScheduleRow[]>()
       : Promise.resolve({ data: [] as ScheduleRow[], error: null }),
+    selectedStoreId
+      ? supabase
+          .from("schedule_editor_layouts")
+          .select("employee_ids")
+          .eq("store_id", selectedStoreId)
+          .eq("month_start", selectedMonth)
+          .maybeSingle<{ employee_ids: (string | null)[] }>()
+      : Promise.resolve({ data: null, error: null }),
     getScheduleEmployeeIds(supabase),
   ]);
 
   if (employeesResult.error) throw new Error(employeesResult.error.message);
   if (schedulesResult.error) throw new Error(schedulesResult.error.message);
+  if (layoutResult.error) throw new Error(layoutResult.error.message);
 
   const today = new Date().toISOString().slice(0, 10);
   const selectedStoreEmployees = employeesResult.data.filter((employee) =>
     scheduleEmployeeIds.has(employee.id)
       && employee.employee_store_assignments.some((assignment) => assignment.store_id === selectedStoreId && assignmentIsActive(assignment, today)),
   );
-  const scheduleRows = Array.from({ length: 8 }, (_, index) => ({
-    key: `row_${index}`,
-    employee: selectedStoreEmployees[index] ?? null,
-  }));
+  const eligibleIds = new Set(selectedStoreEmployees.map((employee) => employee.id));
+  const savedEmployeeIds = new Set(schedulesResult.data.map((schedule) => schedule.employee_id));
+  const initialIds = layoutResult.data?.employee_ids ?? selectedStoreEmployees
+    .filter((employee) => savedEmployeeIds.has(employee.id))
+    .slice(0, 8)
+    .map((employee) => employee.id);
+  const initialEmployeeIds = Array.from({ length: 8 }, (_, index) => {
+    const id = initialIds[index];
+    return id && eligibleIds.has(id) ? id : null;
+  });
   const scheduleDates: ScheduleDate[] = [];
   for (let day = 1; day <= new Date(`${selectedMonthEnd}T00:00:00Z`).getUTCDate(); day += 1) {
     const current = new Date(`${selectedMonth.slice(0, 7)}-${String(day).padStart(2, "0")}T00:00:00Z`);
@@ -162,9 +177,9 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
     });
   }
 
-  const storeSchedule = new Map<string, ScheduleRow>();
+  const savedStatuses: Record<string, Record<string, string>> = {};
   schedulesResult.data.forEach((schedule) => {
-    storeSchedule.set(`${schedule.employee_id}_${schedule.shift_date}`, schedule);
+    (savedStatuses[schedule.employee_id] ??= {})[schedule.shift_date] = schedule.status;
   });
 
   return (
@@ -173,6 +188,9 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
         <SectionHeader icon={CalendarPlus} title="Редактирование графика" showBack />
 
         <section className="mt-4 ui-panel p-4 sm:p-5">
+        {message === "schedule-created" && <p className="mt-4 ui-panel p-4 text-sm text-ink">График сохранён.</p>}
+        {(message === "schedule-error" || message === "admin-error") && <p className="mt-4 ui-panel p-4 text-sm text-red-400">{detail || "Не удалось сохранить график."}</p>}
+
           <form className="grid gap-3 sm:grid-cols-[220px_minmax(260px,1fr)_auto]" method="get">
             <input className="h-12 rounded-md border border-line px-4" name="month" type="month" defaultValue={selectedMonth.slice(0, 7)} />
             <select className="h-12 rounded-md border border-line px-4" name="storeId" defaultValue={selectedStoreId}>
@@ -190,55 +208,19 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
               У вас нет доступных активных магазинов для редактирования графика.
             </p>
           ) : (
-            <form action="/admin/schedules/bulk-save" className="mt-5" method="post">
+            <form action={`/admin/schedules/bulk-save?month=${selectedMonth.slice(0, 7)}&storeId=${selectedStoreId}`} className="mt-5" method="post">
               <input name="month" type="hidden" value={selectedMonth.slice(0, 7)} />
               <input name="storeId" type="hidden" value={selectedStoreId} />
               <p className="mb-4 text-sm text-muted">
                 {monthLabel(selectedMonth.slice(0, 7))}. В строках доступны только менеджеры и управляющие выбранного магазина.
               </p>
 
-              <div className="schedule-editor-frame">
-                <div className="schedule-editor-scroll">
-                  <table className="schedule-editor-table">
-                    <thead>
-                      <tr>
-                        <th className="schedule-editor-sticky schedule-editor-employee-head">Сотрудник</th>
-                        {scheduleDates.map((cell) => (
-                          <th key={cell.date} className={cell.isWeekend ? "schedule-editor-day schedule-editor-weekend" : "schedule-editor-day"}>
-                            <span>{cell.dayName}</span>
-                            <strong>{cell.label}</strong>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scheduleRows.map((row) => (
-                        <tr key={row.key}>
-                          <td className="schedule-editor-sticky schedule-editor-employee-cell">
-                            <select name={`employee_${row.key}`} defaultValue={row.employee?.id ?? ""}>
-                              <option value="">—</option>
-                              {selectedStoreEmployees.map((candidate) => (
-                                <option key={candidate.id} value={candidate.id}>
-                                  {employeeName(candidate)}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          {scheduleDates.map((cell) => {
-                            const selectedEmployeeId = row.employee?.id ?? "";
-                            const schedule = selectedEmployeeId ? storeSchedule.get(`${selectedEmployeeId}_${cell.date}`) : null;
-                            return (
-                              <td key={cell.date} className="schedule-editor-cell">
-                                <ScheduleStatusSelect name={`cell_${row.key}_${cell.date}`} defaultValue={schedule?.status ?? ""} />
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <ScheduleEditorTable
+                dates={scheduleDates}
+                employees={selectedStoreEmployees.map((employee) => ({ id: employee.id, name: employeeName(employee) }))}
+                initialEmployeeIds={initialEmployeeIds}
+                initialStatuses={savedStatuses}
+              />
 
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted">

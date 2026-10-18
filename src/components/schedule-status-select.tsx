@@ -1,23 +1,21 @@
 "use client";
 
-import { useState } from "react";
 import { SCHEDULE_STATUS_OPTIONS } from "@/lib/schedule-status";
 
 type ScheduleStatusSelectProps = {
   name: string;
-  defaultValue?: string | null;
+  value: string;
+  onValueChange: (value: string) => void;
 };
 
-export function ScheduleStatusSelect({ name, defaultValue }: ScheduleStatusSelectProps) {
-  const [value, setValue] = useState(defaultValue ?? "");
-
+export function ScheduleStatusSelect({ name, value, onValueChange }: ScheduleStatusSelectProps) {
   return (
     <select
       aria-label="Статус смены"
       className="schedule-status-select"
       data-status={value || "empty"}
       name={name}
-      onChange={(event) => setValue(event.target.value)}
+      onChange={(event) => onValueChange(event.target.value)}
       value={value}
     >
       <option value="">—</option>

@@ -20,7 +20,11 @@ type AssignmentRow = {
 };
 
 function adminUrl(request: NextRequest, message: string, detail?: string) {
-  const url = appRedirectUrl(request, "/admin");
+  const url = appRedirectUrl(request, "/admin/schedule");
+  const month = request.nextUrl.searchParams.get("month");
+  const storeId = request.nextUrl.searchParams.get("storeId");
+  if (month && /^\d{4}-\d{2}$/.test(month)) url.searchParams.set("month", month);
+  if (storeId) url.searchParams.set("storeId", storeId);
   url.searchParams.set("message", message);
   if (detail) url.searchParams.set("detail", detail);
   return url;
@@ -83,6 +87,7 @@ export async function POST(request: NextRequest) {
   }
 
   const employeeRows = new Map<string, string>();
+  const layoutEmployeeIds = Array.from({ length: 8 }, (_, index) => value(formData, `employee_row_${index}`) || null);
   for (const [key, rawValue] of formData.entries()) {
     if (!key.startsWith("employee_")) continue;
     const rowKey = parseRowKey(key);
@@ -92,6 +97,9 @@ export async function POST(request: NextRequest) {
   }
 
   const employeeIds = [...new Set(employeeRows.values())];
+  if (employeeRows.size !== employeeIds.length) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Один сотрудник не может занимать несколько строк."), 303);
+  }
   const scheduleEmployeeIds = await getScheduleEmployeeIds(supabase);
   if (employeeIds.some((employeeId) => !scheduleEmployeeIds.has(employeeId))) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "В график можно добавлять только менеджеров и управляющих."), 303);
@@ -177,6 +185,17 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       return NextResponse.redirect(adminUrl(request, "admin-error", insertError.message), 303);
     }
+  }
+
+  const { error: layoutError } = await supabase.from("schedule_editor_layouts").upsert({
+    store_id: storeId,
+    month_start: start,
+    employee_ids: layoutEmployeeIds,
+    updated_by: user.id,
+    updated_at: new Date().toISOString(),
+  });
+  if (layoutError) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", layoutError.message), 303);
   }
 
   const changedEmployees = new Map<string, { employeeId: string; changes: number }>();
