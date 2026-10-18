@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, OPEN_SHIFT_ROLES } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
@@ -49,6 +50,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(openUrl(request, "open-error", "Недостаточно прав для открытия смены."), 303);
   }
 
+  const accessibleStores = await getAccessibleStores(supabase);
+  if (!accessibleStores.some((store) => store.id === storeId && store.status !== "archived")) {
+    return NextResponse.redirect(openUrl(request, "open-error", "Магазин недоступен."), 303);
+  }
+
+  const { data: openShift, error: openShiftError } = await supabase.from("shifts")
+    .select("id")
+    .eq("store_id", storeId)
+    .in("status", ["opened", "correction_required"])
+    .limit(1)
+    .maybeSingle();
+  if (openShiftError) return NextResponse.redirect(openUrl(request, "open-error", openShiftError.message), 303);
+  if (openShift) return NextResponse.redirect(openUrl(request, "store-busy"), 303);
+
   const { employeeId: currentEmployeeId } = await getCurrentEmployeeId();
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
   if (managerOnly && (!currentEmployeeId || primaryEmployeeId !== currentEmployeeId)) {
@@ -87,6 +102,9 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (shiftError || !shift) {
+    if (shiftError?.code === "23505" && shiftError.message.includes("Store already has an open shift")) {
+      return NextResponse.redirect(openUrl(request, "store-busy"), 303);
+    }
     const detail = shiftError?.code === "23505" ? "У сотрудника уже есть открытая смена." : shiftError?.message;
     return NextResponse.redirect(openUrl(request, "open-error", detail), 303);
   }

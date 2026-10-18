@@ -20,6 +20,7 @@ type EmployeeRow = {
 const messages: Record<string, string> = {
   required: "Выберите магазин и основного продавца.",
   "same-seller": "Основной и второй продавец должны быть разными сотрудниками.",
+  "store-busy": "В этом магазине уже есть открытая смена. Сначала закройте её.",
   "open-error": "Не удалось открыть смену.",
   opened: "Смена открыта.",
 };
@@ -49,7 +50,7 @@ export default async function OpenShiftPage({ searchParams }: PageProps) {
   }
 
   const [accessibleStores, employeesResult] = await Promise.all([
-    getAccessibleStores(),
+    getAccessibleStores(supabase),
     supabase
       .from("employees")
       .select("id, full_name, primary_store_id")
@@ -62,13 +63,22 @@ export default async function OpenShiftPage({ searchParams }: PageProps) {
     throw new Error(employeesResult.error.message);
   }
 
+  const activeStores = accessibleStores.filter((store) => store.status !== "archived");
+  const { data: openShifts, error: openShiftsError } = activeStores.length > 0
+    ? await supabase.from("shifts").select("store_id").in("store_id", activeStores.map((store) => store.id))
+        .in("status", ["opened", "correction_required"]).returns<{ store_id: string }[]>()
+    : { data: [] as { store_id: string }[], error: null };
+  if (openShiftsError) throw new Error(openShiftsError.message);
+  const busyStoreIds = new Set(openShifts.map((shift) => shift.store_id));
+  const availableStores = activeStores.filter((store) => !busyStoreIds.has(store.id));
+
   const employees = employeesResult.data.map((employee) => ({
     ...employee,
     full_name: employeeName(employee),
   }));
-  const storeIds = new Set(accessibleStores.map((store) => store.id));
+  const storeIds = new Set(availableStores.map((store) => store.id));
   const filteredEmployees = employees.filter((employee) => employee.primary_store_id ? storeIds.has(employee.primary_store_id) : true);
-  const canOpen = accessibleStores.length > 0 && filteredEmployees.length > 0;
+  const canOpen = availableStores.length > 0 && filteredEmployees.length > 0;
   const shiftDate = todayIso();
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
   const currentEmployee = filteredEmployees.find((employee) => employee.id === currentEmployeeId);
@@ -92,7 +102,7 @@ export default async function OpenShiftPage({ searchParams }: PageProps) {
               <label className="grid gap-1 text-sm">
                 <span className="text-muted">Магазин</span>
                   <select className="h-11 rounded-md border border-line px-3" name="store_id">
-                  {accessibleStores.map((store) => (
+                  {availableStores.map((store) => (
                     <option key={store.id} value={store.id}>
                       {store.name}, {store.city}
                     </option>
@@ -145,6 +155,12 @@ export default async function OpenShiftPage({ searchParams }: PageProps) {
               </p>
             </div>
           </section>
+
+          {busyStoreIds.size > 0 ? (
+            <p className="ui-panel p-3 text-sm text-muted">
+              Уже открыты: {activeStores.filter((store) => busyStoreIds.has(store.id)).map((store) => store.name).join(", ")}.
+            </p>
+          ) : null}
 
           {!canOpen ? (
             <p className="rounded-md bg-white p-3 text-sm text-muted shadow-soft">

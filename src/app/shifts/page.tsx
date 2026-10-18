@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
 import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, OPEN_SHIFT_ROLES } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -80,22 +81,7 @@ export default async function ShiftsPage({ searchParams }: ShiftsPageProps) {
   const dateTo = params.dateTo || defaultDate;
   const usesDefaultDateRange = !params.dateFrom && !params.dateTo;
 
-  const storesResult = employeeId
-    ? await supabase
-        .from("employee_store_assignments")
-        .select("stores(id, name)")
-        .eq("employee_id", employeeId)
-        .or(`valid_to.is.null,valid_to.gte.${dateFrom}`)
-        .returns<{ stores: StoreOption | StoreOption[] | null }[]>()
-    : { data: [], error: null };
-
-  if (storesResult.error) {
-    throw new Error(storesResult.error.message);
-  }
-
-  const storeOptions = (storesResult.data ?? [])
-    .map((row) => (Array.isArray(row.stores) ? row.stores[0] : row.stores))
-    .filter((store): store is StoreOption => Boolean(store));
+  const storeOptions: StoreOption[] = employeeId ? await getAccessibleStores(supabase) : [];
   const selectedStoreId = params.storeId || "";
 
   const shiftSelect =
@@ -115,17 +101,17 @@ export default async function ShiftsPage({ searchParams }: ShiftsPageProps) {
     .lte("shift_date", dateTo)
     .order("shift_date", { ascending: true });
 
-  if (selectedStoreId) {
+  if (selectedStoreId && storeOptions.some((store) => store.id === selectedStoreId)) {
     openShiftsQuery = openShiftsQuery.eq("store_id", selectedStoreId);
     datedShiftsQuery = datedShiftsQuery.eq("store_id", selectedStoreId);
-  } else if (storeOptions.length > 0) {
+  } else {
     openShiftsQuery = openShiftsQuery.in(
       "store_id",
-      storeOptions.map((store) => store.id),
+      storeOptions.length > 0 ? storeOptions.map((store) => store.id) : ["00000000-0000-0000-0000-000000000000"],
     );
     datedShiftsQuery = datedShiftsQuery.in(
       "store_id",
-      storeOptions.map((store) => store.id),
+      storeOptions.length > 0 ? storeOptions.map((store) => store.id) : ["00000000-0000-0000-0000-000000000000"],
     );
   }
 

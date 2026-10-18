@@ -283,6 +283,12 @@ export async function POST(request: NextRequest) {
     if (!shift || (shift.opened_by_employee_id !== employeeId && !hasAnyRole(roles, [...MANAGE_ROLES, "manager"]))) {
       return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
     }
+    if (roles.includes("store_manager") && shift.opened_by_employee_id !== employeeId) {
+      const allowedStores = await getAccessibleStores(supabase);
+      if (!allowedStores.some((store) => store.id === shift.store_id)) {
+        return NextResponse.redirect(closeUrl(request, formData, "close-error"), 303);
+      }
+    }
     if (shift.status === "closed" || shift.status === "auto_closed") {
       return NextResponse.redirect(new URL("/shifts?message=shift-closed", request.url), 303);
     }
