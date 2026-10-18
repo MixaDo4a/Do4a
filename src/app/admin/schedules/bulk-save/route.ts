@@ -2,6 +2,7 @@
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
+import { getScheduleEmployeeIds } from "@/lib/schedule-employees";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
@@ -91,6 +92,10 @@ export async function POST(request: NextRequest) {
   }
 
   const employeeIds = [...new Set(employeeRows.values())];
+  const scheduleEmployeeIds = await getScheduleEmployeeIds(supabase);
+  if (employeeIds.some((employeeId) => !scheduleEmployeeIds.has(employeeId))) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "В график можно добавлять только менеджеров и управляющих."), 303);
+  }
   if (employeeIds.length > 0) {
     const today = new Date().toISOString().slice(0, 10);
     const { data: assignments, error: assignmentsError } = await supabase
@@ -115,13 +120,17 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data: existingSchedules, error: existingError } = await supabase
-    .from("schedules")
-    .select("id, employee_id, shift_date, status")
-    .eq("store_id", storeId)
-    .gte("shift_date", start)
-    .lte("shift_date", end)
-    .returns<ExistingScheduleRow[]>();
+  const visibleEmployeeIds = [...scheduleEmployeeIds];
+  const { data: existingSchedules, error: existingError } = visibleEmployeeIds.length > 0
+    ? await supabase
+        .from("schedules")
+        .select("id, employee_id, shift_date, status")
+        .eq("store_id", storeId)
+        .in("employee_id", visibleEmployeeIds)
+        .gte("shift_date", start)
+        .lte("shift_date", end)
+        .returns<ExistingScheduleRow[]>()
+    : { data: [] as ExistingScheduleRow[], error: null };
 
   if (existingError) {
     return NextResponse.redirect(adminUrl(request, "admin-error", existingError.message), 303);
@@ -156,7 +165,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { error: deleteError } = await supabase.from("schedules").delete().eq("store_id", storeId).gte("shift_date", start).lte("shift_date", end);
+  const { error: deleteError } = visibleEmployeeIds.length > 0
+    ? await supabase.from("schedules").delete().eq("store_id", storeId).in("employee_id", visibleEmployeeIds).gte("shift_date", start).lte("shift_date", end)
+    : { error: null };
   if (deleteError) {
     return NextResponse.redirect(adminUrl(request, "admin-error", deleteError.message), 303);
   }

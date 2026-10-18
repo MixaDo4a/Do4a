@@ -5,6 +5,7 @@ import { ScheduleReadonlyTable } from "@/components/schedule-readonly-table";
 import { SectionHeader } from "@/components/section-header";
 import { RoleRelation, roleCodeFromRelation } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
+import { getScheduleEmployeeIds } from "@/lib/schedule-employees";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -109,7 +110,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
             .returns<ScheduleRow[]>()
         : Promise.resolve({ data: [] as ScheduleRow[], error: null });
 
-  const scheduleResult = await scheduleQuery;
+  const [scheduleResult, scheduleEmployeeIds] = await Promise.all([scheduleQuery, getScheduleEmployeeIds(supabase)]);
   if (scheduleResult.error) throw new Error(scheduleResult.error.message);
 
   const scheduleDates = Array.from({ length: new Date(`${selectedMonthEnd}T00:00:00Z`).getUTCDate() }, (_, index) => {
@@ -130,6 +131,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   >();
 
   for (const row of scheduleResult.data) {
+    if (!scheduleEmployeeIds.has(row.employee_id)) continue;
     const storeKey = row.stores?.id ?? row.store_id;
     const employeeId = row.employee_id;
     const storeGroup = scheduleGroups.get(storeKey) ?? { store: row.stores, rows: new Map() };

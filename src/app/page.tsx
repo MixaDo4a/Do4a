@@ -24,6 +24,7 @@ import { getAccessibleStores } from "@/lib/auth/stores";
 import { notificationCutoffIso } from "@/lib/notification-retention";
 import { redirectInvalidSession } from "@/lib/supabase/errors";
 import { scheduleStatusBadgeClass, scheduleStatusLabel } from "@/lib/schedule-status";
+import { getScheduleEmployeeIds } from "@/lib/schedule-employees";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatStoreDateTime, storeTimeZone } from "@/lib/timezone";
 import { isShiftOverdue } from "@/lib/shift-overdue";
@@ -394,6 +395,7 @@ export default async function HomePage() {
     employeesLookupResult,
     cashCountsResult,
     schedulePreviewResult,
+    scheduleEmployeeIds,
   ] = (await Promise.all([
     auditorOnly || supportOnlyView
       ? Promise.resolve({
@@ -437,6 +439,7 @@ export default async function HomePage() {
     employeesLookupQuery,
     cashCountsQuery,
     schedulePreviewQuery,
+    getScheduleEmployeeIds(supabase),
   ])) as [
     HomeQueryResult<ShiftPreview[]>,
     HomeQueryResult<TaskPreview[]>,
@@ -448,6 +451,7 @@ export default async function HomePage() {
     HomeQueryResult<EmployeeLookupRow[]>,
     HomeQueryResult<CashCountPreview[]>,
     HomeQueryResult<SchedulePreview[]>,
+    Set<string>,
   ];
 
   if (shiftsResult.error) {
@@ -497,7 +501,7 @@ export default async function HomePage() {
     throw new Error(schedulePreviewResult.error.message);
   }
 
-  const schedulePreview = schedulePreviewResult.data ?? [];
+  const schedulePreview = (schedulePreviewResult.data ?? []).filter((row) => scheduleEmployeeIds.has(row.employee_id));
   const todayIso = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);

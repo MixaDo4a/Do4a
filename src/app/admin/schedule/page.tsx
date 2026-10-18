@@ -8,6 +8,7 @@ import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles"
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { employeeName } from "@/lib/display";
 import { SCHEDULE_STATUS_OPTIONS } from "@/lib/schedule-status";
+import { getScheduleEmployeeIds } from "@/lib/schedule-employees";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -117,7 +118,7 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
   const selectedMonth = monthStart(month);
   const selectedMonthEnd = monthEnd(selectedMonth);
 
-  const [employeesResult, schedulesResult] = await Promise.all([
+  const [employeesResult, schedulesResult, scheduleEmployeeIds] = await Promise.all([
     supabase
       .from("employees")
       .select("id, full_name, employee_store_assignments(store_id, is_primary, valid_from, valid_to)")
@@ -134,6 +135,7 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
           .order("shift_date", { ascending: true })
           .returns<ScheduleRow[]>()
       : Promise.resolve({ data: [] as ScheduleRow[], error: null }),
+    getScheduleEmployeeIds(supabase),
   ]);
 
   if (employeesResult.error) throw new Error(employeesResult.error.message);
@@ -141,7 +143,8 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
 
   const today = new Date().toISOString().slice(0, 10);
   const selectedStoreEmployees = employeesResult.data.filter((employee) =>
-    employee.employee_store_assignments.some((assignment) => assignment.store_id === selectedStoreId && assignmentIsActive(assignment, today)),
+    scheduleEmployeeIds.has(employee.id)
+      && employee.employee_store_assignments.some((assignment) => assignment.store_id === selectedStoreId && assignmentIsActive(assignment, today)),
   );
   const scheduleRows = Array.from({ length: 8 }, (_, index) => ({
     key: `row_${index}`,
@@ -191,7 +194,7 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
               <input name="month" type="hidden" value={selectedMonth.slice(0, 7)} />
               <input name="storeId" type="hidden" value={selectedStoreId} />
               <p className="mb-4 text-sm text-muted">
-                {monthLabel(selectedMonth.slice(0, 7))}. В строках доступны только сотрудники выбранного магазина.
+                {monthLabel(selectedMonth.slice(0, 7))}. В строках доступны только менеджеры и управляющие выбранного магазина.
               </p>
 
               <div className="schedule-editor-frame">
