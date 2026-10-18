@@ -501,7 +501,9 @@ export default async function HomePage() {
     throw new Error(schedulePreviewResult.error.message);
   }
 
-  const schedulePreview = (schedulePreviewResult.data ?? []).filter((row) => scheduleEmployeeIds.has(row.employee_id));
+  const schedulePreview = (schedulePreviewResult.data ?? []).filter(
+    (row) => scheduleEmployeeIds.has(row.employee_id) && employeeNameById.has(row.employee_id),
+  );
   const todayIso = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);

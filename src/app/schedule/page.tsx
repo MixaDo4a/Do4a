@@ -131,7 +131,7 @@ export default async function SchedulePage({ searchParams }: PageProps) {
   >();
 
   for (const row of scheduleResult.data) {
-    if (!scheduleEmployeeIds.has(row.employee_id)) continue;
+    if (!scheduleEmployeeIds.has(row.employee_id) || !employeeNameById.has(row.employee_id)) continue;
     const storeKey = row.stores?.id ?? row.store_id;
     const employeeId = row.employee_id;
     const storeGroup = scheduleGroups.get(storeKey) ?? { store: row.stores, rows: new Map() };
