@@ -1,8 +1,10 @@
 ﻿import { Settings, UserPlus } from "lucide-react";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { EmployeeRoleStatusFields } from "@/components/employee-role-status-fields";
+import { EmployeeSearchList } from "@/components/employee-search-list";
 import { SectionHeader } from "@/components/section-header";
 import { getTaskQualityPeriod, summarizeTaskQuality, type PersonalTaskDeadline } from "@/lib/task-quality";
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
@@ -144,8 +146,11 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
           </div>
         ) : null}
 
-        <section className="mt-4 ui-panel p-4">
-          <SectionHeader icon={UserPlus} title="Создать сотрудника" />
+        <details className="group mt-4 ui-panel p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold">
+            <span className="inline-flex items-center gap-3"><UserPlus className="text-brand" size={20} />Создать сотрудника</span>
+            <ChevronDown aria-hidden="true" className="shrink-0 transition-transform group-open:rotate-180" size={20} />
+          </summary>
           <form action="/admin/employees/create" className="mt-4 grid gap-2" method="post">
             <input className="h-10 rounded-md border border-line px-3" name="full_name" placeholder="Имя" required />
             <input className="h-10 rounded-md border border-line px-3" name="phone" placeholder="Телефон" required />
@@ -178,11 +183,11 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
             </label>
             <button className="h-10 rounded-md bg-brand px-4 font-semibold text-white">Создать сотрудника</button>
           </form>
-        </section>
+        </details>
 
         <section className="mt-4 ui-panel p-4">
           <SectionHeader icon={UserPlus} title="Все сотрудники" />
-          <div className="mt-4 grid gap-3">
+          <EmployeeSearchList employees={employees.map((employee) => ({ id: employee.id, name: employeeName(employee) }))}>
             {employees.map((employee) => (
               <details key={employee.id} className="rounded-md border border-line bg-surface p-3 text-sm">
                 <summary className="cursor-pointer list-none font-semibold">
@@ -267,7 +272,7 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
                 ) : null}
               </details>
             ))}
-          </div>
+          </EmployeeSearchList>
         </section>
       </div>
       <BottomNav />
