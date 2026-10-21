@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
   const { employeeId } = await getCurrentEmployeeId();
   const { roles } = await getCurrentRoleCodes();
-  const canManageTasks = hasAnyRole(roles, MANAGE_ROLES);
+  const canManageTasks = hasAnyRole(roles, ["developer", "super_admin"]);
   const { data: task, error: readError } = await supabase
     .from("tasks")
     .select("id, assignee_employee_id, store_id")
@@ -45,32 +46,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(tasksUrl(request, "task-error", readError?.message ?? "Задача не найдена."), 303);
   }
 
-  if (!canManageTasks && task.assignee_employee_id !== employeeId) {
+  const canAccessStore = (await getAccessibleStores(supabase)).some((store) => store.id === task.store_id);
+  if (!canManageTasks && task.assignee_employee_id !== employeeId && !canAccessStore) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Недостаточно прав для изменения задачи."), 303);
   }
 
-  const { data, error: taskError } = await supabase
-    .from("tasks")
-    .update({ status: "overdue" })
-    .eq("id", taskId)
-    .select("id")
-    .maybeSingle();
+  const { data, error: taskError } = await supabase.rpc("set_store_task_status", {
+    p_task_id: taskId,
+    p_status: "overdue",
+    p_comment: comment,
+  }).single<{ id: string }>();
 
   if (taskError || !data) {
     return NextResponse.redirect(
       tasksUrl(request, "task-error", taskError?.message ?? "Задача не найдена или уже обработана."),
       303,
     );
-  }
-
-  const { error: commentError } = await supabase.from("task_comments").insert({
-    task_id: taskId,
-    author_profile_id: user.id,
-    body: comment,
-  });
-
-  if (commentError) {
-    return NextResponse.redirect(tasksUrl(request, "task-error", commentError.message), 303);
   }
 
   const [{ data: storeRow }, { data: employeeRow }] = await Promise.all([

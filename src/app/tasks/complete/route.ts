@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
 
   const { employeeId } = await getCurrentEmployeeId();
   const { roles } = await getCurrentRoleCodes();
-  const canManageTasks = hasAnyRole(roles, MANAGE_ROLES);
+  const canManageTasks = hasAnyRole(roles, ["developer", "super_admin"]);
   const { data: task, error: readError } = await supabase
     .from("tasks")
     .select("id, assignee_employee_id, store_id, title, created_by")
@@ -40,16 +41,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(tasksUrl(request, "task-error", readError?.message ?? "Задача не найдена."), 303);
   }
 
-  if (!canManageTasks && task.assignee_employee_id !== employeeId) {
+  const canAccessStore = (await getAccessibleStores(supabase)).some((store) => store.id === task.store_id);
+  if (!canManageTasks && task.assignee_employee_id !== employeeId && !canAccessStore) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Недостаточно прав для изменения задачи."), 303);
   }
 
-  const { data, error } = await supabase
-    .from("tasks")
-    .update({ status: "done", completed_at: new Date().toISOString(), completed_by: user.id })
-    .eq("id", taskId)
-    .select("id, created_by")
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("set_store_task_status", {
+    p_task_id: taskId,
+    p_status: "done",
+  }).single<{ id: string; created_by: string | null }>();
 
   if (error || !data) {
     return NextResponse.redirect(tasksUrl(request, "task-error", error?.message ?? "Задача не найдена или уже обработана."), 303);

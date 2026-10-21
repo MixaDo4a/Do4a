@@ -69,7 +69,7 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
   const accessibleStores = await getAccessibleStores(supabase);
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
   const managerOnly = roles.includes("manager") && !hasAnyRole(roles, MANAGE_ROLES);
-  const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || managerOnly;
+  const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || managerOnly || accessibleStoreIds.length > 0;
 
   let query = supabase
     .from("tasks")
@@ -80,9 +80,7 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
     .order("created_at", { ascending: false });
 
   if (!canSeeAllTasks && employeeId) {
-    query = managerOnly
-      ? query.or(`assignee_employee_id.eq.${employeeId},assignee_employee_id.is.null`)
-      : query.eq("assignee_employee_id", employeeId);
+    query = query.eq("assignee_employee_id", employeeId);
   }
 
   if (storeId) {

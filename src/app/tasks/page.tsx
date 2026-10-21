@@ -117,9 +117,9 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const canCreateTask = hasAnyRole(roles, TASK_CREATOR_ROLES);
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !hasAnyRole(roles, MANAGE_ROLES);
-  const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || warehouseManagerOnly || managerOnly;
   const accessibleStores = await getAccessibleStores(supabase);
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
+  const canSeeAllTasks = hasAnyRole(roles, MANAGE_ROLES) || warehouseManagerOnly || managerOnly || accessibleStoreIds.length > 0;
   const [tasksResult, employeesResult, profilesResult, userRolesResult] = await Promise.all([
     canSeeAllTasks
       ? (() => {
@@ -150,11 +150,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
           return query;
         })()
       : employeeId
-        ? managerOnly
-          ? buildTasksQuery(supabase)
-              .in("store_id", accessibleStoreIds)
-              .or(`assignee_employee_id.eq.${employeeId},assignee_employee_id.is.null`)
-          : buildTasksQuery(supabase).eq("assignee_employee_id", employeeId)
+        ? buildTasksQuery(supabase).eq("assignee_employee_id", employeeId)
         : Promise.resolve({ data: [] as TaskRow[], error: null }),
     supabase
       .from("employees")
