@@ -74,6 +74,7 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
   }
 
   const canCreateOrders = roles.some((role) => ["buyer", "super_admin", "developer"].includes(role));
+  const canCreatePromotions = roles.some((role) => ["store_manager", "buyer", "super_admin", "developer"].includes(role));
   const canUpdateOrders = roles.some((role) => PROCUREMENT_MANAGE_ROLES.includes(role));
   const stores = await getAccessibleStores();
   const storeIds = stores.map((store) => store.id);
@@ -118,8 +119,9 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
           </div>
         ) : null}
 
-        {canCreateOrders ? (
-          <section className="mt-4 grid gap-4 lg:grid-cols-2">
+        {canCreateOrders || canCreatePromotions ? (
+          <section className={`mt-4 grid gap-4${canCreateOrders && canCreatePromotions ? " lg:grid-cols-2" : ""}`}>
+            {canCreateOrders ? (
             <form action="/procurement/orders/create" className="ui-panel p-4" encType="multipart/form-data" method="post">
               <h2 className="inline-flex items-center gap-2 font-semibold">
                 <Truck className="text-brand" size={18} /> Новый заказ
@@ -148,7 +150,9 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
                 </button>
               </div>
             </form>
+            ) : null}
 
+            {canCreatePromotions ? (
             <form action="/procurement/promotions/create" className="ui-panel p-4" method="post">
               <h2 className="inline-flex items-center gap-2 font-semibold">
                 <PackageSearch className="text-brand" size={18} /> Акция поставщика
@@ -179,6 +183,7 @@ export default async function ProcurementPage({ searchParams }: PageProps) {
                 </button>
               </div>
             </form>
+            ) : null}
           </section>
         ) : null}
 

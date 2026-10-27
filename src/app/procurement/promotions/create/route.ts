@@ -4,7 +4,7 @@ import { getAccessibleStores } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const CREATE_ROLES = ["buyer", "super_admin", "developer"];
+const CREATE_ROLES = ["store_manager", "buyer", "super_admin", "developer"];
 
 type StoreRow = {
   id: string;
