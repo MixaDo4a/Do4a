@@ -58,6 +58,7 @@ type ShiftDetails = {
   store_id: string;
   shift_date: string;
   status: string;
+  is_erroneous: boolean;
   opened_at: string;
   closed_at: string | null;
   stores: { name: string; timezone: string | null } | null;
@@ -175,6 +176,7 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
         store_id,
         shift_date,
         status,
+        is_erroneous,
         opened_at,
         closed_at,
         stores(name, timezone),
@@ -289,6 +291,8 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
             {report ? <Metric label="Наличные по Z-отчёту" value={`${formatMoney(report.actual_cash_amount)} руб.`} /> : null}
           </div>
         </section>
+
+        {shift.is_erroneous ? <p className="mt-4 rounded-md border border-danger/40 bg-danger/10 p-3 text-sm font-semibold text-danger">Ошибочная смена. Она сохранена в архиве, но исключена из зарплаты, выручки и показателей.</p> : null}
 
         <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
           <h2 className="flex items-center gap-2 text-base font-semibold">

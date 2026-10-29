@@ -40,6 +40,7 @@ function closeUrl(request: NextRequest, formData: FormData, message: string, det
     "actual_cash_amount",
     "advance_amount",
     "advance_employee_id",
+    "mark_erroneous",
   ];
   keysToPreserve.forEach((key) => {
     const value = String(formData.get(key) ?? "").trim();
@@ -221,6 +222,7 @@ export async function POST(request: NextRequest) {
     p_advance_employee_id: string | null;
     p_cash_counts: { denomination_id: string; quantity: number }[];
     p_actual_cash_amount: number;
+    p_mark_erroneous: boolean;
   };
   try {
     const cashCollectionAmount = numeric(formData, "cash_collection_amount");
@@ -257,6 +259,7 @@ export async function POST(request: NextRequest) {
       p_advance_employee_id: advanceRecipientEmployeeId,
       p_cash_counts: [],
       p_actual_cash_amount: actualCashAmount,
+      p_mark_erroneous: formData.get("mark_erroneous") === "1",
     };
   } catch {
     return NextResponse.redirect(
@@ -345,7 +348,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { error } = await supabase.rpc("close_shift_with_advance_recipient", payload);
+  const { error } = await supabase.rpc("close_shift_with_erroneous_flag", payload);
   if (error) {
     if (error.message.includes("Shift cannot be closed from status closed")) {
       return NextResponse.redirect(new URL("/shifts?message=shift-closed", request.url), 303);
@@ -406,7 +409,9 @@ export async function POST(request: NextRequest) {
     relatedEntityId: shiftId,
   }).catch(() => null);
 
-  const successMessage = managerMismatchDetail
+  const successMessage = payload.p_mark_erroneous
+    ? "shift-closed-erroneous"
+    : managerMismatchDetail
     ? (mismatchNotificationError ? "shift-closed-with-mismatch-notify-error" : "shift-closed-with-mismatch")
     : "shift-closed";
   const successUrl = new URL(`/shifts?message=${successMessage}`, request.url);

@@ -16,6 +16,7 @@ type ShiftRow = {
   shift_date: string;
   status: string;
   closed_at: string | null;
+  is_erroneous: boolean;
   stores: { id: string; name: string; city: string } | null;
   shift_participants: {
     participant_role: string;
@@ -85,7 +86,7 @@ export default async function AdminClosedShiftsPage({ searchParams }: PageProps)
 
   const query = supabase
     .from("shifts")
-    .select("id, shift_date, status, closed_at, stores(id, name, city), shift_participants(participant_role, employees(full_name))")
+    .select("id, shift_date, status, closed_at, is_erroneous, stores(id, name, city), shift_participants(participant_role, employees(full_name))")
     .gte("shift_date", selectedMonth)
     .lte("shift_date", selectedMonthEnd)
     .in("store_id", accessibleStoreIds)
@@ -149,6 +150,7 @@ export default async function AdminClosedShiftsPage({ searchParams }: PageProps)
                     <p className="mt-1 text-sm text-muted">
                       {formatDate(shift.shift_date)} · {shift.status === "auto_closed" ? "Автозакрыта" : "Закрыта"}
                     </p>
+                    {shift.is_erroneous ? <p className="mt-2 text-sm font-semibold text-danger">Ошибочная · не учитывается в зарплате и показателях</p> : null}
                   </div>
                   <span className="rounded-full bg-brand/15 px-3 py-1 text-xs font-semibold text-brand">{formatDateTime(shift.closed_at)}</span>
                 </div>

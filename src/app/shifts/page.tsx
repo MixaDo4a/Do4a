@@ -11,6 +11,7 @@ type ShiftRow = {
   id: string;
   shift_date: string;
   status: string;
+  is_erroneous: boolean;
   stores: { name: string } | null;
   shift_participants: {
     participant_role: "primary_seller" | "secondary_seller";
@@ -43,6 +44,7 @@ const participantLabels: Record<string, string> = {
 
 const messageLabels: Record<string, string> = {
   "shift-closed": "Смена закрыта, зарплата пересчитана.",
+  "shift-closed-erroneous": "Смена закрыта как ошибочная и исключена из зарплаты и показателей.",
   "shift-closed-with-mismatch": "Смена закрыта управляющим, но наличные по Z-отчёту не совпали с покупюрником. Управляющие уведомлены.",
   "shift-closed-with-mismatch-notify-error": "Смена закрыта управляющим с расхождением наличных, но уведомление не отправилось. Сообщите управляющим вручную.",
   "shift-closed-payroll-error": "Смена закрыта, но зарплату не удалось пересчитать автоматически.",
@@ -85,7 +87,7 @@ export default async function ShiftsPage({ searchParams }: ShiftsPageProps) {
   const selectedStoreId = params.storeId || "";
 
   const shiftSelect =
-    "id, shift_date, status, stores(name), shift_participants(participant_role, employees(id, full_name))";
+    "id, shift_date, status, is_erroneous, stores(name), shift_participants(participant_role, employees(id, full_name))";
 
   let openShiftsQuery = supabase
     .from("shifts")
@@ -218,6 +220,8 @@ export default async function ShiftsPage({ searchParams }: ShiftsPageProps) {
                     {statusLabels[shift.status] ?? shift.status}
                   </span>
                 </div>
+
+                {shift.is_erroneous ? <p className="mt-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">Ошибочная смена · исключена из расчётов и показателей</p> : null}
 
                 <div className="mt-3 grid gap-2">
                   {shift.shift_participants.map((participant) => (

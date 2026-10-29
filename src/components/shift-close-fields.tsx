@@ -23,6 +23,7 @@ type Props = {
   selectedShiftId: string;
   params: Record<string, string | undefined>;
   latestCashByStore: Record<string, number>;
+  allowErroneous?: boolean;
   lockShift?: boolean;
   allowMismatch?: boolean;
 };
@@ -55,7 +56,7 @@ function formatShiftOption(shift: ShiftCloseOption) {
   ].filter(Boolean).join(" · ");
 }
 
-export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, latestCashByStore, lockShift = false, allowMismatch = false }: Props) {
+export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, params, latestCashByStore, allowErroneous = false, lockShift = false, allowMismatch = false }: Props) {
   const [shiftId, setShiftId] = useState(selectedShiftId);
   const [advanceAmount, setAdvanceAmount] = useState(params.advance_amount ?? "");
   const [actualCashAmount, setActualCashAmount] = useState(params.actual_cash_amount ?? "");
@@ -94,6 +95,22 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
           {lockShift ? <input name="shift_id" type="hidden" value={shiftId} /> : null}
         </label>
       </section>
+
+      {allowErroneous ? (
+        <label className="ui-panel flex items-start gap-3 p-4 text-sm">
+          <input
+            className="mt-0.5 size-4 accent-brand"
+            defaultChecked={params.mark_erroneous === "1"}
+            name="mark_erroneous"
+            type="checkbox"
+            value="1"
+          />
+          <span>
+            <span className="block font-semibold">Ошибочная смена</span>
+            <span className="mt-1 block text-muted">Смена останется в архиве, но не попадёт в зарплату, выручку и показатели.</span>
+          </span>
+        </label>
+      ) : null}
 
       <section className="ui-panel p-4">
         <h2 className="text-base font-semibold">Касса</h2>

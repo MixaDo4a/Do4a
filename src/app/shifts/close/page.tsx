@@ -60,6 +60,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
   const { employeeId } = await getCurrentEmployeeId();
   const overdueMode = params.overdue === "1";
   const canOverride = roles.some((role) => ["store_manager", "super_admin"].includes(role));
+  const canMarkErroneous = roles.some((role) => ["manager", "store_manager", "super_admin", "developer"].includes(role));
   if (overdueMode && (!canOverride || !shiftId)) redirect("/shifts");
   const allowedStoreIds = overdueMode ? (await getAccessibleStores(supabase)).map((store) => store.id) : [];
 
@@ -134,6 +135,7 @@ export default async function CloseShiftPage({ searchParams }: CloseShiftPagePro
             <p className="ui-panel p-3 text-sm text-ink">Вы закрываете просроченную смену за сотрудника. При расхождении с последним покупюрником смена закроется, а управляющие получат уведомление.</p>
           </> : null}
           <ShiftCloseFields
+            allowErroneous={canMarkErroneous}
             latestCashByStore={latestCashByStore}
             managersByCity={managersByCity}
             params={params}

@@ -31,7 +31,7 @@ type ParticipantRow = {
   shift_work_times: Relation<{ paid_hours: number | string | null; confirmed_at: string | null }>;
 };
 type ShiftRow = {
-  id: string; store_id: string; shift_date: string;
+  id: string; store_id: string; shift_date: string; is_erroneous: boolean;
   stores: Relation<StoreRow>;
   shift_closing_reports: Relation<ReportRow>;
   shift_participants: ParticipantRow[];
@@ -133,8 +133,8 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
   const [employeesResult, storesResult, shiftsResult, checklistsResult, ratesResult, plansResult, tasksResult] = await Promise.all([
     supabase.from("employees").select("id, full_name, created_at, hired_at, terminated_at, is_active").order("full_name").returns<EmployeeRow[]>(),
     supabase.from("stores").select("id, name, timezone, workday_start_time, workday_end_time").eq("status", "active").returns<StoreRow[]>(),
-    supabase.from("shifts").select(`id, store_id, shift_date, stores!inner(id, name, timezone, workday_start_time, workday_end_time), shift_closing_reports(net_revenue, receipt_count, items_sold_count), shift_participants(employee_id, participant_role, employees(id, full_name), shift_work_times(paid_hours, confirmed_at))`)
-      .eq("status", "closed").gte("shift_date", periodStart).lt("shift_date", nextMonth).returns<ShiftRow[]>(),
+    supabase.from("shifts").select(`id, store_id, shift_date, is_erroneous, stores!inner(id, name, timezone, workday_start_time, workday_end_time), shift_closing_reports(net_revenue, receipt_count, items_sold_count), shift_participants(employee_id, participant_role, employees(id, full_name), shift_work_times(paid_hours, confirmed_at))`)
+      .eq("status", "closed").eq("is_erroneous", false).gte("shift_date", periodStart).lt("shift_date", nextMonth).returns<ShiftRow[]>(),
     supabase.from("checklist_submissions").select("employee_id, store_id, average_score").eq("period_month", periodStart).returns<ChecklistRow[]>(),
     supabase.from("academy_pay_rates").select("id, level, effective_from, hourly_rate, base_commission_percent, plan_commission_percent").lte("effective_from", periodStart).order("effective_from", { ascending: false }).order("id", { ascending: false }).returns<RateRow[]>(),
     supabase.from("store_sales_plans").select("store_id, sales_plan_amount, average_check_target, check_depth_target").eq("period_start", periodStart).eq("period_end", new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10)).returns<PlanRow[]>(),
