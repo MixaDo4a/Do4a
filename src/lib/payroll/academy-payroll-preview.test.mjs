@@ -27,7 +27,6 @@ const employee = (id, overrides = {}) => ({
   checklistScores: [],
   tasks: [],
   acceptedPackageAmount: 0,
-  manualKpiAwardAmount: 0,
   advances: 0,
   deductions: 0,
   signedAdjustments: 0,
@@ -173,6 +172,32 @@ test("compares KPI targets after rounding actual values to two decimals", () => 
   assert.equal(result.stores.urban.checkDepth, 1_242 / 888);
   assert.equal(result.stores.urban.achievedCheckDepth, true);
   assert.equal(result.stores.urban.goalAward, 5_000);
+});
+
+test("pays only configured commercial KPI goals: 2000 for one and 5000 for both", () => {
+  const partial = store("partial", {
+    netRevenue: 1_000,
+    receiptCount: 10,
+    itemsSoldCount: 20,
+    averageCheckTarget: 100,
+    checkDepthTarget: null,
+  });
+  const both = store("both", {
+    netRevenue: 1_000,
+    receiptCount: 10,
+    itemsSoldCount: 20,
+    averageCheckTarget: 100,
+    checkDepthTarget: 2,
+  });
+  const none = store("none", {
+    netRevenue: 1_000,
+    receiptCount: 10,
+    itemsSoldCount: 20,
+  });
+  const result = calculateAcademyPayrollPreview([], [partial, both, none], options());
+  assert.equal(result.stores.partial.goalAward, 2_000);
+  assert.equal(result.stores.both.goalAward, 5_000);
+  assert.equal(result.stores.none.goalAward, 0);
 });
 
 test("uses Academy commission rates, half base commission for secondary seller, and no secondary plan uplift", () => {

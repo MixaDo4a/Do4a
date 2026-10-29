@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
+import { resolveCityPayrollMode } from "@/lib/payroll/city-payroll-mode";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const links = [
@@ -18,13 +19,15 @@ function currentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
-export default async function FinancesPage({ searchParams }: { searchParams: Promise<{ form?: string }> }) {
-  const { form } = await searchParams;
+export default async function FinancesPage({ searchParams }: { searchParams: Promise<{ form?: string; message?: string }> }) {
+  const { form, message } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { roles } = await getCurrentRoleCodes(supabase, user);
   if (!hasAnyRole(roles, [...MANAGE_ROLES, "auditor"])) redirect("/");
+  const month = currentMonth();
+  const academyMonth = month < "2026-11" ? "2026-11" : month;
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
   const { data: employees } = accessibleStoreIds.length > 0
@@ -45,8 +48,17 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
         .order("period_start", { ascending: false })
         .limit(12)
     : { data: [] };
+  const { data: academyPackages } = hasAnyRole(roles, [...MANAGE_ROLES, "developer"])
+    ? await supabase.from("academy_payroll_packages")
+        .select("id, employee_id, period_month, amount, status, reason, employees(full_name)")
+        .eq("period_month", `${academyMonth}-01`).order("created_at", { ascending: false })
+    : { data: [] };
   const planByStoreAndMonth = new Map((plans ?? []).map((plan: { store_id: string; period_start: string; sales_plan_amount: number | string }) => [`${plan.store_id}_${plan.period_start}`, plan]));
-  const month = currentMonth();
+  const canManagePayrollModes = hasAnyRole(roles, ["super_admin"]);
+  const { data: payrollModes } = canManagePayrollModes
+    ? await supabase.from("city_payroll_modes").select("city, effective_from, calculation_mode, reason, created_at").lte("effective_from", `${month}-01`).order("effective_from", { ascending: false }).order("created_at", { ascending: false })
+    : { data: [] };
+  const cities = [...new Set(accessibleStores.map((store) => store.city).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -75,6 +87,28 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
               </div>
             </Link>
           ) : null}
+          {canManagePayrollModes ? (
+            <Link className="ui-panel p-4 transition hover:border-brand/60" href="/finances?form=payroll-mode">
+              <div className="flex items-center gap-3">
+                <Settings2 className="text-brand" size={22} />
+                <div>
+                  <p className="font-semibold">Система начисления по городам</p>
+                  <p className="mt-1 text-sm text-muted">Выбор старой формулы или Академии с месяца</p>
+                </div>
+              </div>
+            </Link>
+          ) : null}
+          {hasAnyRole(roles, [...MANAGE_ROLES, "developer"]) ? (
+            <Link className="ui-panel p-4 transition hover:border-brand/60" href="/finances?form=academy-packages">
+              <div className="flex items-center gap-3">
+                <Gift className="text-brand" size={22} />
+                <div>
+                  <p className="font-semibold">Пакеты Академии</p>
+                  <p className="mt-1 text-sm text-muted">Назначение и подтверждение наставничества</p>
+                </div>
+              </div>
+            </Link>
+          ) : null}
           {hasAnyRole(roles, ["super_admin", "developer"]) ? (
             <Link className="ui-panel p-4 transition hover:border-brand/60" href="/payroll/academy-preview">
               <div className="flex items-center gap-3">
@@ -87,6 +121,67 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
             </Link>
           ) : null}
         </div>
+
+        {form === "payroll-mode" && canManagePayrollModes ? <section className="mt-6 ui-panel p-4">
+          <h2 className="font-semibold">Система начисления по городам</h2>
+          <p className="mt-1 text-sm text-muted">Новая настройка действует с выбранного месяца. Уже сохранённые расчётки остаются в истории.</p>
+          {message === "saved" ? <p className="mt-3 text-sm text-brand">Настройка сохранена.</p> : null}
+          {message === "error" ? <p className="mt-3 text-sm text-red-400">Не удалось сохранить настройку. Проверьте поля и права доступа.</p> : null}
+          <form action="/finances/payroll-mode/save" className="mt-4 grid gap-3" method="post">
+            <select className="h-11 rounded-md border border-line px-3" name="city" required>
+              <option value="">Выберите город</option>
+              {cities.map((city) => <option key={city} value={city}>{city}</option>)}
+            </select>
+            <input className="h-11 rounded-md border border-line px-3" defaultValue={academyMonth} min="2026-11" name="effective_month" required type="month" />
+            <select className="h-11 rounded-md border border-line px-3" name="calculation_mode" required>
+              <option value="legacy">Старая система без Академии</option>
+              <option value="academy">Система Академии</option>
+            </select>
+            <textarea className="min-h-20 rounded-md border border-line px-3 py-2" name="reason" minLength={4} placeholder="Причина изменения" required />
+            <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить режим</button>
+          </form>
+          <div className="mt-5 grid gap-2 text-sm">
+            {cities.map((city) => {
+              const mode = resolveCityPayrollMode(payrollModes ?? [], city, month);
+              const configuredRow = (payrollModes ?? []).find((row) => row.city === city && row.calculation_mode === mode);
+              return <div className="flex flex-wrap justify-between gap-2 border-t border-line pt-2" key={city}>
+                <span className="font-semibold">{city}</span>
+                <span>{configuredRow ? `${mode === "academy" ? "Академия" : "Старая система"} · с ${configuredRow.effective_from.slice(0, 7)}` : "Старая система · настройки ещё не менялись"}</span>
+              </div>;
+            })}
+          </div>
+        </section> : null}
+
+        {form === "academy-packages" && hasAnyRole(roles, [...MANAGE_ROLES, "developer"]) ? <section className="mt-6 ui-panel p-4">
+          <h2 className="font-semibold">Премия за наставничество</h2>
+          <p className="mt-1 text-sm text-muted">Для уровня LVL7+. Назначение и подтверждение выполняются уполномоченным руководителем; выплата включается в месячный расчёт Академии.</p>
+          {message === "package-saved" ? <p className="mt-3 text-sm text-brand">Премия назначена. Подтвердите её после проверки результата.</p> : null}
+          {message === "package-confirmed" ? <p className="mt-3 text-sm text-brand">Премия подтверждена.</p> : null}
+          {message === "package-ineligible" ? <p className="mt-3 text-sm text-red-400">Назначение доступно сотрудникам уровня LVL7 и выше.</p> : null}
+          {message === "package-error" ? <p className="mt-3 text-sm text-red-400">Не удалось сохранить действие. Проверьте права, город, месяц и отсутствие повторного назначения.</p> : null}
+          <form action="/finances/academy-packages/save" className="mt-4 grid gap-3" method="post">
+            <select className="h-11 rounded-md border border-line px-3" name="employee_id" required>
+              <option value="">Выберите сотрудника</option>
+              {accessibleEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}
+            </select>
+            <input className="h-11 rounded-md border border-line px-3" defaultValue={academyMonth} min="2026-11" name="month" required type="month" />
+            <select className="h-11 rounded-md border border-line px-3" defaultValue="3000" name="amount">
+              <option value="3000">3 000 руб.</option>
+              <option value="5000">5 000 руб.</option>
+            </select>
+            <textarea className="min-h-20 rounded-md border border-line px-3 py-2" name="reason" minLength={4} placeholder="Основание назначения" required />
+            <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Назначить премию</button>
+          </form>
+          <div className="mt-5 grid gap-2">
+            {(academyPackages ?? []).length ? (academyPackages as {
+              id: number; employee_id: string; period_month: string; amount: number | string; status: string; reason: string;
+              employees: { full_name: string } | null;
+            }[]).map((row) => <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3" key={row.id}>
+              <div className="text-sm"><strong>{row.employees?.full_name ?? "Сотрудник"}</strong><span className="ml-2">{Number(row.amount).toLocaleString("ru-RU")} руб.</span><p className="text-muted">{row.reason} · {row.status === "confirmed" ? "подтверждено" : "ожидает подтверждения"}</p></div>
+              {row.status !== "confirmed" ? <form action="/finances/academy-packages/confirm" method="post"><input name="package_id" type="hidden" value={row.id} /><button className="h-9 rounded-md border border-brand/50 px-3 text-sm font-semibold text-brand">Подтвердить</button></form> : null}
+            </div>) : <p className="border-t border-line pt-3 text-sm text-muted">На {academyMonth} назначений нет.</p>}
+          </div>
+        </section> : null}
 
         <form action="/payroll" className="mt-6 flex flex-wrap items-end gap-3" method="get">
           <label className="grid min-w-44 flex-1 gap-1 text-sm">

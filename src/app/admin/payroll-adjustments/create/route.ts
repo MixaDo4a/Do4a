@@ -3,6 +3,7 @@ import { DEDUCTION_ROLES, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "
 import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { applyAcademyPayrollToCalculatedRows } from "@/lib/payroll/academy-payroll-apply.server";
 
 type TargetEmployeeRow = {
   city: string | null;
@@ -111,6 +112,13 @@ export async function POST(request: NextRequest) {
 
   if (recalcError) {
     return NextResponse.redirect(adminUrl(request, "admin-error", recalcError.message, returnTo), 303);
+  }
+
+  try {
+    await applyAcademyPayrollToCalculatedRows(supabase, periodMonth, [employeeId]);
+  } catch (calculationError) {
+    const detail = calculationError instanceof Error ? calculationError.message : "Не удалось применить расчёт Академии.";
+    return NextResponse.redirect(adminUrl(request, "admin-error", detail, returnTo), 303);
   }
 
   return NextResponse.redirect(adminUrl(request, "payroll-adjustment-saved", undefined, returnTo), 303);

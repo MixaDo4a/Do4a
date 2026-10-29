@@ -33,6 +33,7 @@ export type PreviewTask = {
   dueAt: string | null;
   completedAt: string | null;
   status: "open" | "done" | "cancelled";
+  eligibleEmployeeIds?: string[];
 };
 
 export type PreviewStore = {
@@ -54,10 +55,10 @@ export type PreviewEmployee = {
   checklistScores: PreviewChecklistScore[];
   tasks: PreviewTask[];
   acceptedPackageAmount: number;
-  manualKpiAwardAmount: number;
   advances: number;
   deductions: number;
   signedAdjustments: number;
+  eligibilityShiftCount?: number;
 };
 
 export type PreviewOptions = {
@@ -84,7 +85,9 @@ export type EmployeePayrollPreview = {
   commercialKpiBonus: number;
   contestBonus: number;
   acceptedPackages: number;
-  manualKpiAwards: number;
+  shiftPayByStore: Record<string, number>;
+  commissionByStore: Record<string, number>;
+  commissionByShift: Record<string, number>;
   advances: number;
   deductions: number;
   signedAdjustments: number;
@@ -142,7 +145,7 @@ function validateInput(employees: PreviewEmployee[], stores: PreviewStore[], opt
     for (const checklist of employee.checklistScores) {
       if (!Number.isFinite(checklist.score) || checklist.score < 0 || checklist.score > 10) throw new Error("Invalid checklist score");
     }
-    for (const amount of [employee.acceptedPackageAmount, employee.manualKpiAwardAmount, employee.advances, employee.deductions]) {
+    for (const amount of [employee.acceptedPackageAmount, employee.advances, employee.deductions]) {
       assertFiniteNonNegative(amount, "employee award or deduction");
     }
     if (!Number.isFinite(employee.signedAdjustments)) throw new Error("Invalid signed adjustment");
@@ -167,6 +170,7 @@ function creditedTaskEmployees(
 ): string[] {
   if (task.status === "cancelled" || !task.dueLocalDate || !isMonthDate(task.dueLocalDate, periodMonth)) return [];
   if (task.assigneeEmployeeId) return [task.assigneeEmployeeId];
+  if (task.eligibleEmployeeIds) return task.eligibleEmployeeIds;
   return employees
     .filter((employee) => employee.shifts.some((shift) =>
       shift.storeId === task.storeId && shift.shiftDate >= task.createdLocalDate && shift.shiftDate <= task.dueLocalDate!,
@@ -268,6 +272,14 @@ export function calculateAcademyPayrollPreview(
       return sum + hoursForShift(shift) * rate.hourlyRate * qualityCoefficient;
     }, 0);
 
+    const shiftPayByStore: Record<string, number> = {};
+    for (const shift of employee.shifts) {
+      const qualityCoefficient = qualityByStore[shift.storeId] === undefined ? 1 : qualityByStore[shift.storeId] / 10;
+      shiftPayByStore[shift.storeId] = (shiftPayByStore[shift.storeId] ?? 0) + hoursForShift(shift) * rate.hourlyRate * qualityCoefficient;
+    }
+
+    const commissionByStore: Record<string, number> = {};
+    const commissionByShift: Record<string, number> = {};
     const commission = employee.shifts.reduce((sum, shift) => {
       const store = storeById.get(shift.storeId);
       if (!store) throw new Error(`Missing store ${shift.storeId}`);
@@ -277,12 +289,15 @@ export function calculateAcademyPayrollPreview(
         : employee.level >= 5 && planAchieved
           ? rate.planCommissionPercent
           : rate.baseCommissionPercent;
-      return sum + shift.netRevenue * percent / 100;
+      const amount = shift.netRevenue * percent / 100;
+      commissionByStore[shift.storeId] = (commissionByStore[shift.storeId] ?? 0) + amount;
+      commissionByShift[shift.id] = (commissionByShift[shift.id] ?? 0) + amount;
+      return sum + amount;
     }, 0);
 
     const taskCounts = tasksByEmployee.get(employee.id) ?? { total: 0, completed: 0 };
     const taskCompletionPercent = taskCounts.total ? taskCounts.completed / taskCounts.total * 100 : null;
-    const eligibleForMonthlyAwards = shiftCount >= 3;
+    const eligibleForMonthlyAwards = (employee.eligibilityShiftCount ?? shiftCount) >= 3;
     const taskBonus = employee.level >= 3 && eligibleForMonthlyAwards && (taskCounts.total === 0 || taskCounts.completed * 100 >= taskCounts.total * 95)
       ? TASK_BONUS
       : 0;
@@ -304,14 +319,13 @@ export function calculateAcademyPayrollPreview(
 
     const contestBonus = contestBonusByEmployee.get(employee.id) ?? 0;
     const acceptedPackages = employee.acceptedPackageAmount;
-    const manualKpiAwards = employee.manualKpiAwardAmount;
     const total = hourlyPay + commission + taskBonus + checklistBonus + commercialKpiBonus + contestBonus
-      + acceptedPackages + manualKpiAwards - employee.advances - employee.deductions + employee.signedAdjustments;
+      + acceptedPackages - employee.advances - employee.deductions + employee.signedAdjustments;
 
     return {
       employeeId: employee.id,
       name: employee.name,
-      totalShiftCount: shiftCount,
+      totalShiftCount: employee.eligibilityShiftCount ?? shiftCount,
       totalPaidHours: roundMoney(totalPaidHours),
       level: employee.level,
       hourlyPay: roundMoney(hourlyPay),
@@ -325,7 +339,9 @@ export function calculateAcademyPayrollPreview(
       commercialKpiBonus: roundMoney(commercialKpiBonus),
       contestBonus: roundMoney(contestBonus),
       acceptedPackages: roundMoney(acceptedPackages),
-      manualKpiAwards: roundMoney(manualKpiAwards),
+      shiftPayByStore: Object.fromEntries(Object.entries(shiftPayByStore).map(([id, amount]) => [id, roundMoney(amount)])),
+      commissionByStore: Object.fromEntries(Object.entries(commissionByStore).map(([id, amount]) => [id, roundMoney(amount)])),
+      commissionByShift: Object.fromEntries(Object.entries(commissionByShift).map(([id, amount]) => [id, roundMoney(amount)])),
       advances: roundMoney(employee.advances),
       deductions: roundMoney(employee.deductions),
       signedAdjustments: roundMoney(employee.signedAdjustments),

@@ -148,7 +148,7 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
   const warnings: string[] = [];
   if (ratesResult.error && !isOctoberSimulation) warnings.push("Таблица ставок Академии ещё не доступна в Supabase; использована согласованная начальная сетка ставок.");
   if (!ratesResult.error && !ratesResult.data?.length && !isOctoberSimulation) warnings.push("Ставки Академии ещё не заданы в базе; использована согласованная начальная сетка ставок.");
-  if (plansResult.error && !isOctoberSimulation) warnings.push("Цели среднего и длины чека не прочитаны. KPI не включены в итог; требуется настройка целей или ручной расчёт.");
+  if (plansResult.error && !isOctoberSimulation) warnings.push("Цели магазина не удалось прочитать. KPI по недоступным целям не начислены.");
   if (tasksResult.error) warnings.push("Задачи за месяц не удалось загрузить; премия за задачи может быть неполной.");
   const stores = storesResult.data ?? [];
   const monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
@@ -180,9 +180,9 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
     const hasUnknownItemCount = reports.some((report) => report.items_sold_count === null);
     if (!isOctoberSimulation && hasUnknownItemCount) warnings.push(`${store.name}: в закрытиях есть смены без числа товаров; глубина чека помечена как неопределённая.`);
     if (!isOctoberSimulation && plan && (plan.average_check_target == null || plan.check_depth_target == null)) {
-      warnings.push(`${store.name}: KPI-цели заполнены не полностью; ручной расчёт необходим для отсутствующего показателя.`);
+      warnings.push(`${store.name}: незаданные KPI-цели не дают автоматического начисления по соответствующему показателю.`);
     }
-    if (!isOctoberSimulation && !plan) warnings.push(`${store.name}: план продаж и KPI-цели на ${month} не заданы.`);
+    if (!isOctoberSimulation && !plan) warnings.push(`${store.name}: план продаж и KPI-цели на ${month} не заданы; KPI не начисляются автоматически.`);
     return {
       id: store.id,
       workdayHours: hoursBetween(store.workday_start_time, store.workday_end_time),
@@ -242,7 +242,6 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
       .map((row) => ({ storeId: row.store_id, score: Number(row.average_score) })),
     tasks: tasks.filter((task) => task.assigneeEmployeeId === employee.id || !task.assigneeEmployeeId),
     acceptedPackageAmount: isOctoberSimulation ? OCTOBER_PACKAGES[employee.full_name] ?? 0 : 0,
-    manualKpiAwardAmount: 0,
     advances: 0,
     deductions: 0,
     signedAdjustments: 0,
@@ -253,7 +252,7 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
     supabase.from("employee_advances").select("employee_id, amount").eq("period_month", periodStart).returns<{ employee_id: string; amount: number | string }[]>(),
     supabase.from("payroll_product_writeoffs").select("employee_id, amount").eq("period_month", periodStart).returns<{ employee_id: string; amount: number | string }[]>(),
   ]);
-  const [inventoryResult, expirationResult, assignmentsResult, manualKpiResult] = await Promise.all([
+  const [inventoryResult, expirationResult, assignmentsResult] = await Promise.all([
     supabase.from("inventory_loss_allocations").select("employee_id, amount, inventory_periods!inner(period_start, period_end)")
       .lte("inventory_periods.period_start", new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10))
       .gte("inventory_periods.period_end", periodStart).returns<InventoryRow[]>(),
@@ -262,15 +261,12 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
     supabase.from("employee_store_assignments").select("employee_id, store_id, valid_from, valid_to")
       .eq("is_primary", true).lte("valid_from", new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10))
       .or(`valid_to.is.null,valid_to.gte.${periodStart}`).returns<AssignmentRow[]>(),
-    supabase.from("payroll_manual_kpi_awards").select("employee_id, store_id, metric, amount").eq("period_month", periodStart)
-      .returns<{ employee_id: string; store_id: string; metric: "average_check" | "check_depth"; amount: number | string }[]>(),
   ]);
   if (adjustmentsResult.error) warnings.push("Удержания/премии не полностью загружены: " + adjustmentsResult.error.message);
   if (advancesResult.error) warnings.push("Авансы не загружены: " + advancesResult.error.message);
   if (productsResult.error) warnings.push("Корректировки под зарплату не загружены: " + productsResult.error.message);
   if (inventoryResult.error) warnings.push("Распределение инвентарных потерь не загружено: " + inventoryResult.error.message);
   if (expirationResult.error || assignmentsResult.error) warnings.push("Удержания по просрочке не удалось распределить по основным магазинам сотрудников.");
-  if (manualKpiResult.error) warnings.push("Ручные KPI-корректировки не загружены: " + manualKpiResult.error.message);
   const byEmployee = new Map(previewEmployees.map((employee) => [employee.id, employee]));
   for (const adjustment of adjustmentsResult.data ?? []) {
     const employee = byEmployee.get(adjustment.employee_id);
@@ -306,15 +302,6 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
       if (employee) employee.deductions += share;
     }
   }
-  for (const award of manualKpiResult.data ?? []) {
-    const employee = byEmployee.get(award.employee_id);
-    const target = plansByStore.get(award.store_id);
-    const targetIsMissing = !target || (award.metric === "average_check"
-      ? target.average_check_target == null
-      : target.check_depth_target == null);
-    if (employee && targetIsMissing) employee.manualKpiAwardAmount += Number(award.amount);
-  }
-
   const selectedRates: PreviewRate[] = isOctoberSimulation
     ? [OCTOBER_LEVEL_FOUR]
     : ratesResult.error || !(ratesResult.data?.length)
@@ -372,7 +359,7 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
               <td className="px-3 py-3">{employee.totalShiftCount}</td><td className="px-3 py-3">{employee.totalPaidHours}</td>
               <td className="px-3 py-3">{money(employee.hourlyPay)}</td><td className="px-3 py-3">{money(employee.commission)}</td>
               <td className="px-3 py-3">{money(employee.taskBonus)}</td><td className="px-3 py-3">{money(employee.checklistBonus)}</td>
-              <td className="px-3 py-3">{money(employee.commercialKpiBonus + employee.contestBonus + employee.manualKpiAwards)}</td>
+              <td className="px-3 py-3">{money(employee.commercialKpiBonus + employee.contestBonus)}</td>
               <td className="px-3 py-3">{money(employee.acceptedPackages)}</td><td className="px-3 py-3">−{money(employee.advances + employee.deductions)}</td>
               <td className="px-3 py-3 font-semibold">{money(employee.total)}</td>
             </tr>)}</tbody>

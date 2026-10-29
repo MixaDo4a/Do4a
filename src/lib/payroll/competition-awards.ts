@@ -18,7 +18,7 @@ const DOUBLE_WIN_BONUS_CENTS = 100_000;
 
 function splitPrize(entries: StoreContestEntry[], metric: "average" | "depth"): string[] {
   const scored = entries.filter((entry) =>
-    entry.level >= 3
+    entry.level >= 5
     && entry.confirmedShiftCount >= 3
     && entry.receiptCount > 0
     && (metric !== "depth" || entry.itemsSoldCount !== null),

@@ -41,14 +41,14 @@ test("ties split each metric's 1000 ruble pool and leave remainder kopeks unallo
   assert.equal([...result.awardsCents.values()].reduce((sum, amount) => sum + amount, 0), 199_998);
 });
 
-test("LVL3-4 can win but their shares are not transferred to other winners", () => {
+test("LVL3-4 employees are not eligible to compete", () => {
   const result = calculateStoreContestAwards([
     entry("lvl4", { level: 4, netRevenueCents: 200_000, itemsSoldCount: 30 }),
     entry("lvl5", { itemsSoldCount: 40 }),
   ]);
-  assert.deepEqual(result.averageCheckWinners, ["lvl4"]);
-  assert.deepEqual(result.checkDepthWinners, ["lvl5"]);
-  assert.equal(result.awardsCents.get("lvl5"), 100_000);
+  assert.deepEqual(result.averageCheckWinners, []);
+  assert.deepEqual(result.checkDepthWinners, []);
+  assert.equal(result.awardsCents.size, 0);
 });
 
 test("a unique winner of both metrics gets the additional 1000 ruble double-win award", () => {

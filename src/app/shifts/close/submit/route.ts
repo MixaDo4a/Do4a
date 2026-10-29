@@ -4,6 +4,7 @@ import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { isShiftOverdue } from "@/lib/shift-overdue";
+import { applyAcademyPayrollToCalculatedRows } from "@/lib/payroll/academy-payroll-apply.server";
 
 const MONEY_MAX = 999_999_999_999.99;
 const COUNT_MAX = 999_999;
@@ -105,13 +106,14 @@ async function recalculateShiftPayroll(
 ) {
   const { data: shift, error: shiftError } = await supabase
     .from("shifts")
-    .select("shift_date, opened_by_employee_id")
+    .select("shift_date, opened_by_employee_id, shift_participants(employee_id)")
     .eq("id", shiftId)
     .maybeSingle();
   if (shiftError) throw new Error(shiftError.message);
   if (!shift?.shift_date || !shift.opened_by_employee_id) return;
 
-  const employeeIds = new Set([shift.opened_by_employee_id, advanceRecipientEmployeeId].filter((id): id is string => Boolean(id)));
+  const participants = (shift.shift_participants ?? []) as { employee_id: string }[];
+  const employeeIds = new Set([shift.opened_by_employee_id, advanceRecipientEmployeeId, ...participants.map((row) => row.employee_id)].filter((id): id is string => Boolean(id)));
   for (const employeeId of employeeIds) {
     const { error } = await supabase.rpc("calculate_employee_payroll_period", {
       p_employee_id: employeeId,
@@ -119,6 +121,7 @@ async function recalculateShiftPayroll(
     });
     if (error) throw new Error(error.message);
   }
+  await applyAcademyPayrollToCalculatedRows(supabase, `${shift.shift_date.slice(0, 7)}-01`, [...employeeIds]);
 }
 
 async function notifyShiftClosed(

@@ -29,8 +29,36 @@ type PayrollEntry = {
   inventory_loss_amount: number;
   product_writeoff_amount: number;
   total_payout_amount: number;
+  calculation_snapshot: Record<string, unknown> | null;
   employees: { full_name: string; is_active: boolean } | null;
 };
+
+type AcademyPayrollBreakdown = {
+  level: number;
+  paidHours: number;
+  hourlyPay: number;
+  commission: number;
+  taskBonus: number;
+  checklistBonus: number;
+  commercialKpiBonus: number;
+  contestBonus: number;
+  networkPackage: number;
+  mentorshipPackage: number;
+  commissionByShift: Record<string, number>;
+};
+
+function academyBreakdown(snapshot: Record<string, unknown> | null): AcademyPayrollBreakdown | null {
+  const value = snapshot?.academy_payroll;
+  if (!value || typeof value !== "object") return null;
+  return value as AcademyPayrollBreakdown;
+}
+
+function legacyPlanBonus(snapshot: Record<string, unknown> | null): number | null {
+  const value = snapshot?.legacy_city_payroll;
+  if (!value || typeof value !== "object") return null;
+  const amount = (value as { planBonus?: unknown }).planBonus;
+  return typeof amount === "number" ? amount : null;
+}
 
 type PayrollAdjustment = {
   id: string;
@@ -142,7 +170,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
     ? supabase
         .from("payroll_entries")
         .select(
-          "id, employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, total_payout_amount, employees(full_name, is_active)",
+          "id, employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, total_payout_amount, calculation_snapshot, employees(full_name, is_active)",
         )
         .eq("payroll_period_id", payrollPeriod.id)
     : null;
@@ -322,6 +350,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
             visibleEntries.map((entry) => {
               const adjustmentTotals = adjustmentTotalsByEmployee.get(entry.employee_id) ?? emptyAdjustmentTotals();
               const displayedPayout = Number(entry.total_payout_amount) - adjustmentTotals.advance;
+              const academy = academyBreakdown(entry.calculation_snapshot);
 
               return (
               <Link
@@ -341,9 +370,10 @@ export default async function PayrollPage({ searchParams }: PageProps) {
 
                 <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
                   <span>Продажи: {money(entry.sales_pay_amount)}</span>
-                  <span>План: {money(entry.plan_bonus_amount)}</span>
+                  <span>План и премии: {money(entry.plan_bonus_amount)}</span>
                   <span>Оклад за смену: {money(entry.checklist_salary_per_shift)}</span>
                   <span>Оклад: {money(entry.base_salary_amount)}</span>
+                  {academy ? <span className="sm:col-span-2 text-muted">Академия LVL{academy.level}: {academy.paidHours.toLocaleString("ru-RU")} ч · часовая часть {money(academy.hourlyPay)} · комиссия {money(academy.commission)} · задачи {money(academy.taskBonus)} · чек-лист {money(academy.checklistBonus)} · KPI {money(academy.commercialKpiBonus)} · конкурс {money(academy.contestBonus)} · наставничество {money(academy.mentorshipPackage)} · работа сети {money(academy.networkPackage)}</span> : null}
                   <span>Премии: +{money(adjustmentTotals.bonus)}</span>
                   <span>Штрафы: -{money(adjustmentTotals.fine)}</span>
                   <span>Авансы: -{money(adjustmentTotals.advance)}</span>
@@ -379,6 +409,25 @@ export default async function PayrollPage({ searchParams }: PageProps) {
             </div>
 
             <div className="mt-6 grid gap-4">
+              {academyBreakdown(selectedEntry.calculation_snapshot) ? (() => {
+                const academy = academyBreakdown(selectedEntry.calculation_snapshot)!;
+                const legacyPlan = legacyPlanBonus(selectedEntry.calculation_snapshot);
+                return <div>
+                  <h3 className="font-semibold">Расчёт по системе Академии</h3>
+                  <div className="mt-2 grid gap-2 text-sm">
+                    <p className="flex justify-between border-b border-line pb-2"><span>Уровень и подтверждённое время</span><span>LVL{academy.level} · {academy.paidHours.toLocaleString("ru-RU")} ч</span></p>
+                    <p className="flex justify-between border-b border-line pb-2"><span>Почасовая часть</span><span>+{money(academy.hourlyPay)}</span></p>
+                    <p className="flex justify-between border-b border-line pb-2"><span>Комиссия</span><span>+{money(academy.commission)}</span></p>
+                    <p className="flex justify-between border-b border-line pb-2"><span>Премия за задачи</span><span>+{money(academy.taskBonus)}</span></p>
+                    <p className="flex justify-between border-b border-line pb-2"><span>Премия за чек-лист</span><span>+{money(academy.checklistBonus)}</span></p>
+                    <p className="flex justify-between border-b border-line pb-2"><span>Коммерческие KPI</span><span>+{money(academy.commercialKpiBonus)}</span></p>
+                    <p className="flex justify-between border-b border-line pb-2"><span>Конкурс</span><span>+{money(academy.contestBonus)}</span></p>
+                    <p className="flex justify-between border-b border-line pb-2"><span>Наставничество</span><span>+{money(academy.mentorshipPackage)}</span></p>
+                    <p className="flex justify-between border-b border-line pb-2"><span>Работа сети</span><span>+{money(academy.networkPackage)}</span></p>
+                    {legacyPlan !== null ? <p className="flex justify-between border-b border-line pb-2"><span>План по старой системе</span><span>+{money(legacyPlan)}</span></p> : null}
+                  </div>
+                </div>;
+              })() : null}
               <div>
                 <h3 className="font-semibold">Начисления по сменам</h3>
                 <div className="mt-2 grid gap-2">
@@ -386,9 +435,9 @@ export default async function PayrollPage({ searchParams }: PageProps) {
                     <div key={row.shift_id} className="rounded-md border border-line p-3 text-sm">
                       <div className="flex flex-wrap justify-between gap-2 font-semibold">
                         <span>{row.shifts?.shift_date ?? "Дата не указана"} · {row.shifts?.stores?.name ?? "Магазин"}</span>
-                        <span>+{money(row.sales_pay_amount)}</span>
+                        <span>+{money(academyBreakdown(selectedEntry.calculation_snapshot)?.commissionByShift[row.shift_id] ?? row.sales_pay_amount)}</span>
                       </div>
-                      <p className="mt-1 text-muted">Продажи: {money(row.gross_revenue)} · Процент: {Number(row.sales_percent).toLocaleString("ru-RU")} %</p>
+                      <p className="mt-1 text-muted">Продажи: {money(row.gross_revenue)} · {academyBreakdown(selectedEntry.calculation_snapshot)?.commissionByShift[row.shift_id] !== undefined ? "Комиссия Академии" : `Процент: ${Number(row.sales_percent).toLocaleString("ru-RU")} %`}</p>
                     </div>
                   ))}
                 </div>

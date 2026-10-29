@@ -1,0 +1,64 @@
+create table public.academy_checklist_monthly_alerts (
+  period_month date not null check (extract(day from period_month) = 1),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  notified_at timestamptz not null default now(),
+  primary key (period_month, store_id)
+);
+
+alter table public.academy_checklist_monthly_alerts enable row level security;
+revoke all on public.academy_checklist_monthly_alerts from public, anon, authenticated;
+
+create or replace function public.notify_missing_academy_checklists(p_period_month date)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_start date := date_trunc('month', p_period_month)::date;
+  v_next date := (date_trunc('month', p_period_month) + interval '1 month')::date;
+  v_store record;
+  v_count integer := 0;
+begin
+  if current_setting('request.jwt.claim.role', true) is distinct from 'service_role' then
+    raise exception 'Service role is required';
+  end if;
+
+  for v_store in
+    select s.id, s.name
+    from public.stores s
+    where s.city is not null
+      and app_private.payroll_mode_for_city(s.city, v_start) = 'academy'
+      and v_next <= (now() at time zone coalesce(s.timezone, 'Asia/Vladivostok'))::date
+      and exists (
+        select 1 from public.shifts sh
+        where sh.store_id = s.id and sh.status in ('closed', 'auto_closed')
+          and coalesce(sh.is_erroneous, false) = false
+          and sh.shift_date >= v_start and sh.shift_date < v_next
+      )
+      and not exists (
+        select 1 from public.checklist_submissions cs
+        where cs.store_id = s.id and cs.period_month = v_start
+      )
+  loop
+    insert into public.academy_checklist_monthly_alerts (period_month, store_id)
+    values (v_start, v_store.id)
+    on conflict (period_month, store_id) do nothing;
+    if found then
+      perform app_private.notify_store_managers(
+        v_store.id,
+        'academy_checklist_missing',
+        'Нет чек-листов за месяц',
+        format('В магазине %s за %s нет проведённых проверок. Сотрудникам сохранена премия за пропуск проверок компанией.', v_store.name, to_char(v_start, 'YYYY-MM')),
+        'store',
+        v_store.id
+      );
+      v_count := v_count + 1;
+    end if;
+  end loop;
+  return v_count;
+end;
+$$;
+
+revoke all on function public.notify_missing_academy_checklists(date) from public, anon, authenticated;
+grant execute on function public.notify_missing_academy_checklists(date) to service_role;

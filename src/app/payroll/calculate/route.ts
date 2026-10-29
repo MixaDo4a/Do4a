@@ -1,6 +1,7 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { applyAcademyPayrollToCalculatedRows } from "@/lib/payroll/academy-payroll-apply.server";
 
 function payrollUrl(request: NextRequest, message: string, periodMonth?: string, detail?: string) {
   const url = new URL("/payroll", request.url);
@@ -50,6 +51,13 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.redirect(payrollUrl(request, "calculate-error", periodMonth, error.message), 303);
+  }
+
+  try {
+    await applyAcademyPayrollToCalculatedRows(supabase, `${periodMonth}-01`);
+  } catch (calculationError) {
+    const detail = calculationError instanceof Error ? calculationError.message : "Не удалось применить расчёт Академии.";
+    return NextResponse.redirect(payrollUrl(request, "calculate-error", periodMonth, detail), 303);
   }
 
   return NextResponse.redirect(payrollUrl(request, "calculated", periodMonth), 303);
