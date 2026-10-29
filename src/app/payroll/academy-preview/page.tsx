@@ -334,8 +334,9 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
     hourSource: isOctoberSimulation ? "october_store_schedule" : "confirmed_only",
     rates: selectedRates,
   });
-  const grandTotal = result.employees.reduce((sum, employee) => sum + employee.total, 0);
-  const missingChecklists = result.employees.filter((employee) => employee.checklistMissing && employee.totalShiftCount >= 3);
+  const displayedEmployees = result.employees.filter((employee) => !isOctoberSimulation || employee.totalShiftCount > 0);
+  const grandTotal = displayedEmployees.reduce((sum, employee) => sum + employee.total, 0);
+  const missingChecklists = displayedEmployees.filter((employee) => employee.checklistMissing && employee.totalShiftCount >= 3);
   const contestHasConfirmedHours = result.employees.some((employee) => employee.contestBonus > 0);
   if (!contestHasConfirmedHours) warnings.push("Конкурсные выплаты не начислены: в месяце нет подтверждённых личных часов, необходимых для допуска.");
 
@@ -358,7 +359,7 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
         {warnings.length ? <section className="mt-4 ui-panel p-4"><h2 className="font-semibold">Требует внимания</h2><ul className="mt-2 grid gap-2 text-sm text-muted">{[...new Set(warnings)].map((warning) => <li key={warning}>{warning}</li>)}</ul></section> : null}
         <section className="mt-4 grid gap-3 sm:grid-cols-3">
           <div className="ui-panel p-4"><p className="text-sm text-muted">Предварительно к выплате</p><p className="mt-1 text-xl font-semibold">{money(grandTotal)}</p></div>
-          <div className="ui-panel p-4"><p className="text-sm text-muted">Сотрудники</p><p className="mt-1 text-xl font-semibold">{result.employees.length}</p></div>
+          <div className="ui-panel p-4"><p className="text-sm text-muted">Сотрудники</p><p className="mt-1 text-xl font-semibold">{displayedEmployees.length}</p></div>
           <div className="ui-panel p-4"><p className="text-sm text-muted">Без чек-листа</p><p className="mt-1 text-xl font-semibold">{missingChecklists.length}</p></div>
         </section>
         {missingChecklists.length ? <section className="mt-4 ui-panel p-4"><h2 className="font-semibold">Нет чек-листов за месяц</h2><p className="mt-1 text-sm text-muted">По правилу компании премия включена. Список адресатов для месячного уведомления:</p><p className="mt-2 text-sm">{missingChecklists.map((employee) => employee.name).join(", ")}</p><p className="mt-2 text-xs text-muted">Автоматическая отправка уведомления пока не подключена.</p></section> : null}
@@ -366,7 +367,7 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
         <div className="mt-6 overflow-x-auto rounded-md border border-line">
           <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
             <thead className="bg-panel text-muted"><tr>{["Сотрудник / LVL", "Смены", "Часы", "Почасовая часть", "Комиссия", "Задачи", "Чек-лист", "KPI", "Пакеты", "Авансы и удержания", "Итого"].map((heading) => <th className="px-3 py-3 font-semibold" key={heading}>{heading}</th>)}</tr></thead>
-            <tbody>{result.employees.filter((employee) => !isOctoberSimulation || employee.totalShiftCount > 0).map((employee) => <tr className="border-t border-line" key={employee.employeeId}>
+            <tbody>{displayedEmployees.map((employee) => <tr className="border-t border-line" key={employee.employeeId}>
               <td className="px-3 py-3 font-semibold">{employee.name}<span className="block text-xs font-normal text-muted">LVL{employee.level}{employee.checklistMissing ? " · нет чек-листа" : ""}</span></td>
               <td className="px-3 py-3">{employee.totalShiftCount}</td><td className="px-3 py-3">{employee.totalPaidHours}</td>
               <td className="px-3 py-3">{money(employee.hourlyPay)}</td><td className="px-3 py-3">{money(employee.commission)}</td>
