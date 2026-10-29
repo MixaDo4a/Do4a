@@ -20,7 +20,8 @@ function numeric(formData: FormData, key: string, max = MONEY_MAX) {
 
 function integer(formData: FormData, key: string) {
   const value = numeric(formData, key, COUNT_MAX);
-  return value === null ? null : Math.trunc(value);
+  if (value !== null && !Number.isInteger(value)) throw new Error(`Invalid integer: ${key}`);
+  return value;
 }
 
 function closeUrl(request: NextRequest, formData: FormData, message: string, detail?: string) {
@@ -213,7 +214,7 @@ export async function POST(request: NextRequest) {
     p_cash_returns: number;
     p_card_returns: number;
     p_receipt_count: number;
-    p_items_sold_count: number | null;
+    p_items_sold_count: number;
     p_cash_collection_amount: number | null;
     p_cash_collection_comment: string | null;
     p_advance_amount: number | null;
@@ -226,6 +227,11 @@ export async function POST(request: NextRequest) {
     const actualCashAmount = numeric(formData, "actual_cash_amount");
     if (actualCashAmount === null) {
       return NextResponse.redirect(closeUrl(request, formData, "actual-cash-required"), 303);
+    }
+    const receiptCount = integer(formData, "receipt_count");
+    const itemsSoldCount = integer(formData, "items_sold_count");
+    if (receiptCount === null || itemsSoldCount === null) {
+      return NextResponse.redirect(closeUrl(request, formData, "shift-counts-required"), 303);
     }
     const advanceAmount = numeric(formData, "advance_amount");
     const advanceRecipientEmployeeId = String(formData.get("advance_employee_id") ?? "").trim() || null;
@@ -243,8 +249,8 @@ export async function POST(request: NextRequest) {
       p_card_revenue: numeric(formData, "card_revenue") ?? 0,
       p_cash_returns: numeric(formData, "cash_returns") ?? 0,
       p_card_returns: numeric(formData, "card_returns") ?? 0,
-      p_receipt_count: integer(formData, "receipt_count") ?? 0,
-      p_items_sold_count: integer(formData, "items_sold_count"),
+      p_receipt_count: receiptCount,
+      p_items_sold_count: itemsSoldCount,
       p_cash_collection_amount: cashCollectionAmount,
       p_cash_collection_comment: cashCollectionComment || null,
       p_advance_amount: advanceAmount,

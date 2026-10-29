@@ -117,7 +117,7 @@ export function ShiftCloseFields({ shifts, managersByCity, selectedShiftId, para
                   max={isCount ? COUNT_INPUT_MAX : MONEY_INPUT_MAX}
                   min="0"
                   name={name}
-                  required={name === "actual_cash_amount"}
+                  required={name === "actual_cash_amount" || isCount}
                   step={isCount ? "1" : "0.01"}
                   type="number"
                 />
