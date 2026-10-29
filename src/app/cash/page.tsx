@@ -23,6 +23,7 @@ type MovementRow = {
 
 type CashCountRow = {
   store_id: string;
+  shift_id: string | null;
   cash_amount: number | string;
   created_at: string;
 };
@@ -95,7 +96,7 @@ export default async function CashPage({ searchParams }: PageProps) {
     storeIds.length > 0
       ? supabase
           .from("store_cash_counts")
-          .select("store_id, cash_amount, created_at")
+          .select("store_id, shift_id, cash_amount, created_at")
           .in("store_id", storeIds)
           .order("created_at", { ascending: false })
           .limit(150)
@@ -126,6 +127,7 @@ export default async function CashPage({ searchParams }: PageProps) {
     if (!balancesByStore.has(store.id)) {
       balancesByStore.set(store.id, {
         storeId: store.id,
+        lastShiftId: "",
         storeName: store.name,
         city: store.city,
         lastClosedAt: null,
@@ -138,14 +140,15 @@ export default async function CashPage({ searchParams }: PageProps) {
   }
   for (const [storeId, balance] of balancesByStore) {
     const cashCount = latestCashCountByStore.get(storeId);
-    if (!cashCount || (balance.lastClosedAt && cashCount.created_at < balance.lastClosedAt)) {
+    const belongsToLatestShift = Boolean(balance.lastShiftId && cashCount?.shift_id === balance.lastShiftId);
+    if (!cashCount || (!belongsToLatestShift && balance.lastClosedAt && cashCount.created_at < balance.lastClosedAt)) {
       continue;
     }
     const cashAmount = Number(cashCount.cash_amount);
     balancesByStore.set(storeId, {
       ...balance,
       latestReportTotal: cashAmount,
-      balance: cashAmount,
+      balance: Math.max(cashAmount - (belongsToLatestShift ? balance.totalCollectionAmount : 0), 0),
     });
   }
   const balances = stores.map((store) => balancesByStore.get(store.id)).filter((balance): balance is NonNullable<typeof balance> => Boolean(balance));

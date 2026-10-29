@@ -8,6 +8,7 @@ export type ShiftCashReportRow = {
 };
 
 export type StoreCashShiftRow = {
+  id: string;
   store_id: string;
   closed_at: string | null;
   shift_date: string;
@@ -35,6 +36,7 @@ export function buildStoreCashBalances(rows: StoreCashShiftRow[]) {
     string,
     {
       storeId: string;
+      lastShiftId: string;
       storeName: string;
       city: string;
       lastClosedAt: string | null;
@@ -56,6 +58,7 @@ export function buildStoreCashBalances(rows: StoreCashShiftRow[]) {
 
     balanceByStore.set(row.store_id, {
       storeId: row.store_id,
+      lastShiftId: row.id,
       storeName: row.stores?.name ?? "Магазин",
       city: row.stores?.city ?? "",
       lastClosedAt: row.closed_at,
