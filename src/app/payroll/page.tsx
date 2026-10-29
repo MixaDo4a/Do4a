@@ -288,6 +288,11 @@ export default async function PayrollPage({ searchParams }: PageProps) {
           filters={{ city: selectedCity, storeId: selectedStoreId, employeeId: selectedFilterEmployeeId }}
           month={month}
         />
+        {hasAnyRole(roles, ["super_admin", "developer"]) ? (
+          <Link className="mt-3 inline-flex h-10 items-center rounded-md border border-brand/40 px-3 text-sm font-semibold text-brand" href={`/payroll/academy-preview?period=${month}`}>
+            Предварительный расчёт Академии
+          </Link>
+        ) : null}
 
         {!managerOnly ? (
           <PayrollFilters

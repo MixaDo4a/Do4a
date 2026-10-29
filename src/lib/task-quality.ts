@@ -38,3 +38,8 @@ export function missedTaskDeadlines<T extends PersonalTaskDeadline>(tasks: T[]):
     return new Date(task.completed_at).getTime() > new Date(task.due_at).getTime();
   });
 }
+
+export function qualifiesForMonthlyTaskBonus(tasks: PersonalTaskDeadline[]): boolean {
+  const { onTimeCount, totalCount } = summarizeTaskQuality(tasks);
+  return totalCount === 0 || onTimeCount * 100 >= totalCount * 95;
+}

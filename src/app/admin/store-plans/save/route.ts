@@ -20,13 +20,19 @@ export async function POST(request: NextRequest) {
   const storeId = value(formData, "store_id");
   const month = value(formData, "month");
   const amountRaw = value(formData, "sales_plan_amount");
+  const averageCheckRaw = value(formData, "average_check_target");
+  const checkDepthRaw = value(formData, "check_depth_target");
 
   if (!storeId || !/^\d{4}-\d{2}$/.test(month) || !amountRaw) {
     return NextResponse.redirect(adminUrl(request, "admin-required"), 303);
   }
 
   const salesPlanAmount = Number(amountRaw.replace(",", "."));
-  if (!Number.isFinite(salesPlanAmount) || salesPlanAmount < 0) {
+  const averageCheckTarget = averageCheckRaw ? Number(averageCheckRaw.replace(",", ".")) : null;
+  const checkDepthTarget = checkDepthRaw ? Number(checkDepthRaw.replace(",", ".")) : null;
+  if (!Number.isFinite(salesPlanAmount) || salesPlanAmount < 0
+    || (averageCheckTarget !== null && (!Number.isFinite(averageCheckTarget) || averageCheckTarget <= 0))
+    || (checkDepthTarget !== null && (!Number.isFinite(checkDepthTarget) || checkDepthTarget <= 0))) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Некорректная сумма плана."), 303);
   }
 
@@ -53,12 +59,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Можно сохранять план только по доступным магазинам."), 303);
   }
 
+  const { data: existingPlan, error: existingError } = await supabase
+    .from("store_sales_plans")
+    .select("average_check_target, check_depth_target")
+    .eq("store_id", storeId)
+    .eq("period_start", periodStart)
+    .eq("period_end", periodEnd)
+    .maybeSingle();
+  if (existingError) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Не удалось прочитать текущие цели магазина."), 303);
+  }
+
   const { error } = await supabase.from("store_sales_plans").upsert(
     {
       store_id: storeId,
       period_start: periodStart,
       period_end: periodEnd,
       sales_plan_amount: salesPlanAmount,
+      average_check_target: averageCheckTarget ?? existingPlan?.average_check_target ?? null,
+      check_depth_target: checkDepthTarget ?? existingPlan?.check_depth_target ?? null,
       created_by: user.id,
       updated_by: user.id,
     },

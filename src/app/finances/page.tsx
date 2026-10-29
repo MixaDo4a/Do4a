@@ -1,4 +1,4 @@
-import { Banknote, ClipboardList, Gift, LayoutList, WalletCards } from "lucide-react";
+import { Banknote, ClipboardList, Gift, LayoutList, Settings2, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
@@ -23,7 +23,7 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { roles } = await getCurrentRoleCodes();
+  const { roles } = await getCurrentRoleCodes(supabase, user);
   if (!hasAnyRole(roles, [...MANAGE_ROLES, "auditor"])) redirect("/");
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
@@ -40,7 +40,7 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
   const { data: plans } = accessibleStoreIds.length > 0
     ? await supabase
         .from("store_sales_plans")
-        .select("id, store_id, period_start, period_end, sales_plan_amount")
+        .select("id, store_id, period_start, period_end, sales_plan_amount, average_check_target, check_depth_target")
         .in("store_id", accessibleStoreIds)
         .order("period_start", { ascending: false })
         .limit(12)
@@ -64,6 +64,28 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
               </div>
             </Link>
           ))}
+          {hasAnyRole(roles, ["super_admin", "developer"]) ? (
+            <Link className="ui-panel p-4 transition hover:border-brand/60" href="/finances/rates">
+              <div className="flex items-center gap-3">
+                <Settings2 className="text-brand" size={22} />
+                <div>
+                  <p className="font-semibold">Ставки по уровням</p>
+                  <p className="mt-1 text-sm text-muted">Часовая ставка и проценты продаж</p>
+                </div>
+              </div>
+            </Link>
+          ) : null}
+          {hasAnyRole(roles, ["super_admin", "developer"]) ? (
+            <Link className="ui-panel p-4 transition hover:border-brand/60" href="/payroll/academy-preview">
+              <div className="flex items-center gap-3">
+                <WalletCards className="text-brand" size={22} />
+                <div>
+                  <p className="font-semibold">Предварительный расчёт Академии</p>
+                  <p className="mt-1 text-sm text-muted">Проверка новой формулы без изменения ведомости</p>
+                </div>
+              </div>
+            </Link>
+          ) : null}
         </div>
 
         <form action="/payroll" className="mt-6 flex flex-wrap items-end gap-3" method="get">
@@ -85,12 +107,23 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
               </select>
               <input className="h-11 rounded-md border border-line px-3" defaultValue={month} name="month" required type="month" />
               <input className="h-11 rounded-md border border-line px-3" min="0" name="sales_plan_amount" placeholder="Сумма плана" required step="0.01" type="number" />
+              <input className="h-11 rounded-md border border-line px-3" min="0.01" name="average_check_target" placeholder="Цель среднего чека" step="0.01" type="number" />
+              <input className="h-11 rounded-md border border-line px-3" min="0.01" name="check_depth_target" placeholder="Цель длины чека" step="0.01" type="number" />
               <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить план</button>
             </form>
             <div className="mt-4 grid gap-2 text-sm">
               {accessibleStores.map((store) => {
-                const plan = planByStoreAndMonth.get(`${store.id}_${month}-01`) as { sales_plan_amount?: number | string } | undefined;
-                return <p key={store.id} className="flex justify-between gap-3 border-t border-line pt-2"><span>{store.name}</span><span className="font-semibold">{plan ? `${Number(plan.sales_plan_amount).toLocaleString("ru-RU")} руб.` : "Не задан"}</span></p>;
+                const plan = planByStoreAndMonth.get(`${store.id}_${month}-01`) as {
+                  sales_plan_amount?: number | string;
+                  average_check_target?: number | string | null;
+                  check_depth_target?: number | string | null;
+                } | undefined;
+                return <div className="flex flex-wrap justify-between gap-2 border-t border-line pt-2" key={store.id}>
+                  <span>{store.name}</span>
+                  <span className="font-semibold">План: {plan ? `${Number(plan.sales_plan_amount).toLocaleString("ru-RU")} руб.` : "не задан"}</span>
+                  <span>Средний чек: {plan?.average_check_target ?? "—"}</span>
+                  <span>Длина чека: {plan?.check_depth_target ?? "—"}</span>
+                </div>;
               })}
             </div>
           </div>
