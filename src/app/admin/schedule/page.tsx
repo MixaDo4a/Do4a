@@ -183,14 +183,15 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
   });
 
   return (
+    <>
     <main className="app-shell schedule-editor-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div>
         <SectionHeader icon={CalendarPlus} title="Редактирование графика" showBack />
 
-        <section className="mt-4 ui-panel p-4 sm:p-5">
         {message === "schedule-created" && <p className="mt-4 ui-panel p-4 text-sm text-ink">График сохранён.</p>}
         {(message === "schedule-error" || message === "admin-error") && <p className="mt-4 ui-panel p-4 text-sm text-red-400">{detail || "Не удалось сохранить график."}</p>}
 
+        <section className="mt-4 ui-panel p-4 sm:p-5">
           <form className="grid gap-3 sm:grid-cols-[220px_minmax(260px,1fr)_auto]" method="get">
             <input className="h-12 rounded-md border border-line px-4" name="month" type="month" defaultValue={selectedMonth.slice(0, 7)} />
             <select className="h-12 rounded-md border border-line px-4" name="storeId" defaultValue={selectedStoreId}>
@@ -243,7 +244,8 @@ export default async function AdminSchedulePage({ searchParams }: PageProps) {
           )}
         </section>
       </div>
-      <BottomNav />
     </main>
+    <BottomNav />
+    </>
   );
 }

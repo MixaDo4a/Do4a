@@ -3,13 +3,15 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
 import { Metric } from "@/components/metric";
+import { PayrollFilters, type PayrollFilterEmployee } from "@/components/payroll-filters";
 import { PayrollMonthForm } from "@/components/payroll-month-form";
 import { SectionHeader } from "@/components/section-header";
 import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = {
-  searchParams: Promise<{ message?: string; period?: string; detail?: string; employeeId?: string }>;
+  searchParams: Promise<{ message?: string; period?: string; detail?: string; employeeId?: string; city?: string; storeId?: string; filterEmployeeId?: string }>;
 };
 
 type PayrollEntry = {
@@ -38,6 +40,15 @@ type PayrollAdjustment = {
   reason: string;
   created_at: string;
 };
+
+type StoreAssignment = {
+  employee_id: string;
+  store_id: string;
+  valid_from: string;
+  valid_to: string | null;
+};
+
+type EmployeeStoreActivity = { employee_id: string; store_id: string };
 
 type SalesDetail = {
   shift_id: string;
@@ -105,8 +116,8 @@ function emptyAdjustmentTotals(): AdjustmentTotals {
 }
 
 export default async function PayrollPage({ searchParams }: PageProps) {
-  const { message, period, detail, employeeId: requestedEmployeeId } = await searchParams;
-  const month = period?.slice(0, 7) ?? currentMonth();
+  const { message, period, detail, employeeId: requestedEmployeeId, city: requestedCity, storeId: requestedStoreId, filterEmployeeId: requestedFilterEmployeeId } = await searchParams;
+  const month = period && /^\d{4}-(0[1-9]|1[0-2])$/.test(period) ? period : currentMonth();
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -148,7 +159,58 @@ export default async function PayrollPage({ searchParams }: PageProps) {
     throw new Error(error.message);
   }
 
-  const visibleEntries = entries.filter((entry) => entry.employees?.is_active === true);
+  const accessibleStores = managerOnly ? [] : await getAccessibleStores(supabase);
+  const storeById = new Map(accessibleStores.map((store) => [store.id, store]));
+  const employeeIds = entries.map((entry) => entry.employee_id);
+  const [{ data: assignments, error: assignmentsError }, { data: salesStores, error: salesStoresError }, { data: checklistStores, error: checklistStoresError }] = employeeIds.length > 0 && !managerOnly
+    ? await Promise.all([
+        supabase.from("employee_store_assignments").select("employee_id, store_id, valid_from, valid_to").in("employee_id", employeeIds).returns<StoreAssignment[]>(),
+        supabase.from("sales_metrics").select("employee_id, store_id").eq("period_month", monthStart(month)).in("employee_id", employeeIds).returns<EmployeeStoreActivity[]>(),
+        supabase.from("checklist_submissions").select("employee_id, store_id").eq("period_month", monthStart(month)).in("employee_id", employeeIds).returns<EmployeeStoreActivity[]>(),
+      ])
+    : [
+        { data: [] as StoreAssignment[], error: null },
+        { data: [] as EmployeeStoreActivity[], error: null },
+        { data: [] as EmployeeStoreActivity[], error: null },
+      ];
+  if (assignmentsError) throw new Error(assignmentsError.message);
+  if (salesStoresError) throw new Error(salesStoresError.message);
+  if (checklistStoresError) throw new Error(checklistStoresError.message);
+
+  const periodStart = monthStart(month);
+  const periodEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const storeIdsByEmployee = new Map<string, Set<string>>();
+  for (const assignment of assignments) {
+    if (!storeById.has(assignment.store_id) || assignment.valid_from > periodEnd || (assignment.valid_to && assignment.valid_to < periodStart)) continue;
+    const storeIds = storeIdsByEmployee.get(assignment.employee_id) ?? new Set<string>();
+    storeIds.add(assignment.store_id);
+    storeIdsByEmployee.set(assignment.employee_id, storeIds);
+  }
+  for (const activity of [...salesStores, ...checklistStores]) {
+    if (!storeById.has(activity.store_id)) continue;
+    const storeIds = storeIdsByEmployee.get(activity.employee_id) ?? new Set<string>();
+    storeIds.add(activity.store_id);
+    storeIdsByEmployee.set(activity.employee_id, storeIds);
+  }
+
+  const filterEmployees: PayrollFilterEmployee[] = entries.map((entry) => ({
+    id: entry.employee_id,
+    name: entry.employees?.full_name ?? "Сотрудник",
+    storeIds: [...(storeIdsByEmployee.get(entry.employee_id) ?? [])],
+  })).sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  const selectedCity = accessibleStores.some((store) => store.city === requestedCity) ? requestedCity! : "";
+  const requestedStore = storeById.get(requestedStoreId ?? "");
+  const selectedStoreId = requestedStore && (!selectedCity || requestedStore.city === selectedCity) ? requestedStore.id : "";
+  const matchesLocation = (entry: PayrollEntry) => {
+    const assignedStoreIds = storeIdsByEmployee.get(entry.employee_id);
+    if (selectedStoreId) return assignedStoreIds?.has(selectedStoreId) ?? false;
+    if (selectedCity) return [...(assignedStoreIds ?? [])].some((id) => storeById.get(id)?.city === selectedCity);
+    return true;
+  };
+  const selectedFilterEmployeeId = entries.some((entry) => entry.employee_id === requestedFilterEmployeeId && matchesLocation(entry))
+    ? requestedFilterEmployeeId ?? ""
+    : "";
+  const visibleEntries = entries.filter((entry) => matchesLocation(entry) && (!selectedFilterEmployeeId || entry.employee_id === selectedFilterEmployeeId));
   const visibleEmployeeIds = visibleEntries.map((entry) => entry.employee_id);
   const { data: adjustments, error: adjustmentsError } = visibleEmployeeIds.length > 0
     ? await supabase
@@ -221,7 +283,24 @@ export default async function PayrollPage({ searchParams }: PageProps) {
           </p>
         ) : null}
 
-        <PayrollMonthForm month={month} canRecalculate={canRecalculate} />
+        <PayrollMonthForm
+          canRecalculate={canRecalculate}
+          filters={{ city: selectedCity, storeId: selectedStoreId, employeeId: selectedFilterEmployeeId }}
+          month={month}
+        />
+
+        {!managerOnly ? (
+          <PayrollFilters
+            employees={filterEmployees}
+            initialCity={selectedCity}
+            initialEmployeeId={selectedFilterEmployeeId}
+            initialStoreId={selectedStoreId}
+            key={`${month}-${selectedCity}-${selectedStoreId}-${selectedFilterEmployeeId}`}
+            month={month}
+            stores={accessibleStores}
+          />
+        ) : null}
+        {selectedCity || selectedStoreId ? <p className="mt-2 text-xs text-muted">Суммы показаны за весь месяц сотрудника, включая смены в других магазинах.</p> : null}
 
         <section className="mt-4 grid gap-3 sm:grid-cols-3">
           <Metric icon={WalletCards} label="К выплате" value={money(total)} />
@@ -232,7 +311,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
         <section className="mt-6 grid gap-3">
           {visibleEntries.length === 0 ? (
             <div className="ui-panel p-4 text-sm text-muted shadow-soft">
-              За выбранный месяц зарплата еще не рассчитана.
+              {entries.length === 0 ? "За выбранный месяц зарплата еще не рассчитана." : "По выбранным фильтрам начислений нет."}
             </div>
           ) : (
             visibleEntries.map((entry) => {

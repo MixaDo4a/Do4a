@@ -16,7 +16,7 @@ type BottomNavItem = {
 };
 
 const managementRoles = ["manager", "store_manager", "super_admin", "developer"];
-let lastBottomNavPosition: { index: number; itemCount: number } | null = null;
+let lastBottomNavPosition: { index: number; signature: string } | null = null;
 
 const items: BottomNavItem[] = [
   { href: "/", label: "Главная", icon: Home, roles: null, hideForAuditorOnly: false },
@@ -203,8 +203,8 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   );
 
   const activeIndex = useMemo(() => resolveActiveIndex(pathname, visibleItems), [pathname, visibleItems]);
+  const navSignature = visibleItems.map((item) => item.href).join("|");
   const indicatorCircleRef = useRef<HTMLSpanElement>(null);
-  const didMountRef = useRef(false);
   const interruptedTransformRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
@@ -212,18 +212,16 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
     const grid = circle?.closest<HTMLElement>(".bottom-nav-grid");
     const indicator = circle?.parentElement;
     const previousPosition = lastBottomNavPosition;
-    const positionChanged = previousPosition !== null && (
-      previousPosition.index !== activeIndex || previousPosition.itemCount !== visibleItems.length
-    );
-    lastBottomNavPosition = { index: activeIndex, itemCount: visibleItems.length };
+    const positionChanged = previousPosition?.signature === navSignature && previousPosition.index !== activeIndex;
+    const nextPosition = { index: activeIndex, signature: navSignature };
 
     if (!positionChanged || !circle || !grid || !indicator) {
-      didMountRef.current = true;
+      lastBottomNavPosition = nextPosition;
       return;
     }
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      didMountRef.current = true;
+      lastBottomNavPosition = nextPosition;
       return;
     }
 
@@ -235,28 +233,30 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
       animation = circle.animate(
         [
           { transform: startTransform, offset: 0 },
-          { transform: "translateX(-50%) translateY(-25px) scale(1.06)", offset: 0.4 },
-          { transform: "translateX(-50%) translateY(-10px) scale(1.02)", offset: 0.72 },
+          { transform: "translateX(-50%) translateY(-7.3rem) scale(1.08)", offset: 0.42 },
+          { transform: "translateX(-50%) translateY(-2.6rem) scale(1.03)", offset: 0.76 },
           { transform: "translateX(-50%) translateY(0) scale(1)", offset: 1 },
         ],
-        { duration: 400, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+        { duration: 620, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
       );
     };
 
-    if (!didMountRef.current && previousPosition) {
-      const previousX = (previousPosition.index + 0.5) / previousPosition.itemCount;
-      const currentX = (activeIndex + 0.5) / visibleItems.length;
-      indicator.style.left = `calc(100% * ${previousX})`;
-      grid.style.setProperty("--bottom-nav-active-x", `calc(100% * ${previousX})`);
-      frameId = window.requestAnimationFrame(() => {
-        indicator.style.left = `calc(100% * ${currentX})`;
-        grid.style.setProperty("--bottom-nav-active-x", `calc(100% * ${currentX})`);
-        startAnimation();
-      });
-    } else {
+    const previousX = (previousPosition.index + 0.5) / visibleItems.length;
+    const currentX = (activeIndex + 0.5) / visibleItems.length;
+    // Commit the old position before transitioning a freshly mounted navigation bar.
+    indicator.style.transition = "none";
+    grid.style.transition = "none";
+    indicator.style.left = `calc(100% * ${previousX})`;
+    grid.style.setProperty("--bottom-nav-active-x", `calc(100% * ${previousX})`);
+    indicator.getBoundingClientRect();
+    indicator.style.transition = "";
+    grid.style.transition = "";
+    frameId = window.requestAnimationFrame(() => {
+      lastBottomNavPosition = nextPosition;
+      indicator.style.left = `calc(100% * ${currentX})`;
+      grid.style.setProperty("--bottom-nav-active-x", `calc(100% * ${currentX})`);
       startAnimation();
-    }
-    didMountRef.current = true;
+    });
 
     return () => {
       if (frameId !== null) window.cancelAnimationFrame(frameId);
@@ -265,7 +265,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
         animation.cancel();
       }
     };
-  }, [activeIndex, visibleItems.length]);
+  }, [activeIndex, navSignature, visibleItems.length]);
 
   const navGridStyle = {
     gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))`,
@@ -273,7 +273,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   } as CSSProperties;
 
   return (
-    <nav className="bottom-nav-shell px-2 pt-2" data-tour="bottom-nav" style={{ touchAction: "pan-y" }}>
+    <nav className={`bottom-nav-shell pt-2 ${visibleItems.length >= 8 ? "px-5" : "px-2"}`} data-tour="bottom-nav" style={{ touchAction: "pan-y" }}>
       <div
         className="bottom-nav-grid relative mx-auto grid max-w-[390px] gap-0"
         style={navGridStyle}
@@ -294,12 +294,13 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
           return (
             <Link
               key={item.href}
-              className={`bottom-nav-item relative z-10 flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] text-[11px] font-medium transition ${
+              className={`bottom-nav-item relative z-10 flex h-[64px] min-w-0 flex-col items-center justify-center gap-1 rounded-[18px] text-[11px] font-medium transition ${
                 active ? "bottom-nav-item-active text-white" : "text-muted"
               }`}
               data-tour={`nav-${item.href === "/" ? "home" : item.href.slice(1).replaceAll("/", "-")}`}
               aria-current={active ? "page" : undefined}
               style={{ overflow: "visible" }}
+              title={label}
               href={item.href}
               prefetch
             >

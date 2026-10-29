@@ -286,6 +286,7 @@ export default async function AdminRoutinePage({ searchParams }: PageProps) {
   const eveningOutline = eveningTemplate ? formatRoutineOutline(buildRoutineTree(eveningTemplate.day_routine_template_items)) : defaultRoutineOutlineText("evening");
 
   return (
+    <>
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-5xl">
         <SectionHeader icon={CalendarClock} title="Распорядок дня" showBack />
@@ -347,7 +348,8 @@ export default async function AdminRoutinePage({ searchParams }: PageProps) {
           </div>
         ) : null}
       </div>
-      <BottomNav />
     </main>
+    <BottomNav />
+    </>
   );
 }

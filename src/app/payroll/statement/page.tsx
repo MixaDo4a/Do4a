@@ -107,7 +107,7 @@ export default async function PayrollStatementPage({ searchParams }: PageProps) 
 
   const { data: entry, error: entryError } = await entriesQuery.maybeSingle<PayrollEntry>();
   if (entryError) throw new Error(entryError.message);
-  if (!entry || !entry.employees?.is_active) redirect(`/payroll?period=${month}`);
+  if (!entry) redirect(`/payroll?period=${month}`);
 
   const [{ data: adjustments, error: adjustmentsError }, { data: salesDetails, error: salesError }, { data: checklistDetails, error: checklistError }] = await Promise.all([
     supabase

@@ -1,15 +1,21 @@
-import { Banknote, Camera, CalendarDays, ReceiptText, Store, UserRound } from "lucide-react";
+import { Banknote, Camera, CalendarDays, Clock3, ReceiptText, Store, UserRound } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import Image from "next/image";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
+import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { storeTimeZone } from "@/lib/timezone";
 
 type ShiftDetailsPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ work?: string; detail?: string }>;
 };
 
 type Participant = {
+  id: string;
+  employee_id: string;
   participant_role: "primary_seller" | "secondary_seller";
   sales_percent: number;
   employees: { full_name: string } | null;
@@ -49,14 +55,23 @@ type CashReportFile = {
 
 type ShiftDetails = {
   id: string;
+  store_id: string;
   shift_date: string;
   status: string;
   opened_at: string;
   closed_at: string | null;
-  stores: { name: string } | null;
+  stores: { name: string; timezone: string | null } | null;
   shift_participants: Participant[];
   shift_closing_reports: ClosingReport | ClosingReport[] | null;
   cash_report_files: CashReportFile[];
+};
+
+type ShiftWorkTime = {
+  participant_id: string;
+  started_at: string | null;
+  ended_at: string | null;
+  confirmed_at: string | null;
+  paid_hours: number | string | null;
 };
 
 type CashCount = {
@@ -91,7 +106,7 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-function formatDateTime(value: string | null) {
+function formatDateTime(value: string | null, timeZone: string | null | undefined) {
   if (!value) {
     return "Не указано";
   }
@@ -101,7 +116,23 @@ function formatDateTime(value: string | null) {
     month: "long",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: storeTimeZone(timeZone),
   }).format(new Date(value));
+}
+
+function localInputValue(value: string | null, timeZone: string | null | undefined) {
+  if (!value) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: storeTimeZone(timeZone),
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(new Date(value));
+  const part = (type: string) => parts.find((item) => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
 }
 
 function formatMoney(value: number | null | undefined) {
@@ -124,8 +155,9 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps) {
+export default async function ShiftDetailsPage({ params, searchParams }: ShiftDetailsPageProps) {
   const { id } = await params;
+  const { work: workMessage, detail: workDetail } = await searchParams;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -140,12 +172,13 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
     .select(
       `
         id,
+        store_id,
         shift_date,
         status,
         opened_at,
         closed_at,
-        stores(name),
-        shift_participants(participant_role, sales_percent, employees(full_name)),
+        stores(name, timezone),
+        shift_participants(id, employee_id, participant_role, sales_percent, employees(full_name)),
         shift_closing_reports(
           id,
           cash_revenue,
@@ -176,6 +209,26 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
   if (!shift) {
     notFound();
   }
+
+  const participantIds = shift.shift_participants.map((participant) => participant.id);
+  const { data: workTimes, error: workTimesError } = participantIds.length
+    ? await supabase.from("shift_work_times")
+        .select("participant_id, started_at, ended_at, confirmed_at, paid_hours")
+        .in("participant_id", participantIds)
+        .returns<ShiftWorkTime[]>()
+    : { data: [] as ShiftWorkTime[], error: null };
+  if (workTimesError) throw new Error(workTimesError.message);
+  const workByParticipant = new Map((workTimes ?? []).map((work) => [work.participant_id, work]));
+  const [{ employeeId }, { roles }] = await Promise.all([
+    getCurrentEmployeeId(supabase, user),
+    getCurrentRoleCodes(supabase, user),
+  ]);
+  const managerRole = hasAnyRole(roles, ["store_manager", "super_admin", "developer"]);
+  const canCorrectWork = managerRole && (
+    hasAnyRole(roles, ["super_admin", "developer"])
+    || (await getAccessibleStores(supabase)).some((store) => store.id === shift.store_id)
+  );
+  const shiftIsOpen = shift.status === "opened" || shift.status === "correction_required";
 
   const report = single(shift.shift_closing_reports);
   const { data: cashCounts, error: cashCountsError } = report
@@ -215,6 +268,9 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
       <div className="mx-auto max-w-5xl">
         <SectionHeader icon={ReceiptText} title="Отчет смены" showBack />
 
+        {workMessage === "saved" ? <p className="ui-panel mt-4 p-3 text-sm">Время работы сохранено.</p> : null}
+        {workMessage === "error" ? <p className="ui-panel mt-4 p-3 text-sm text-red-400">Не удалось сохранить время работы. {workDetail}</p> : null}
+
         <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -228,8 +284,8 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
             </span>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Metric label="Открыта" value={formatDateTime(shift.opened_at)} />
-            <Metric label="Закрыта" value={formatDateTime(shift.closed_at)} />
+            <Metric label="Открыта" value={formatDateTime(shift.opened_at, shift.stores?.timezone)} />
+            <Metric label="Закрыта" value={formatDateTime(shift.closed_at, shift.stores?.timezone)} />
             {report ? <Metric label="Наличные по Z-отчёту" value={`${formatMoney(report.actual_cash_amount)} руб.`} /> : null}
           </div>
         </section>
@@ -239,18 +295,65 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
             <UserRound size={18} /> Продавцы
           </h2>
           <div className="mt-3 grid gap-2">
-            {shift.shift_participants.map((participant) => (
+            {shift.shift_participants.map((participant) => {
+              const work = workByParticipant.get(participant.id);
+              const isOwnWork = participant.employee_id === employeeId;
+              const canMarkWork = isOwnWork && shiftIsOpen;
+              return (
               <div
-                key={participant.participant_role}
-                className="flex items-center justify-between gap-3 rounded-md bg-surface p-3 text-sm"
+                key={participant.id}
+                className="rounded-md bg-surface p-3 text-sm"
               >
-                <div>
-                  <p className="font-semibold">{participant.employees?.full_name ?? "Сотрудник не указан"}</p>
-                  <p className="text-muted">{participantLabels[participant.participant_role]}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{participant.employees?.full_name ?? "Сотрудник не указан"}</p>
+                    <p className="text-muted">{participantLabels[participant.participant_role]}</p>
+                  </div>
+                  <span className="font-semibold">{Number(participant.sales_percent) * 100}%</span>
                 </div>
-                <span className="font-semibold">{Number(participant.sales_percent) * 100}%</span>
+                {isOwnWork || canCorrectWork ? (
+                  <div className="mt-3 grid gap-1 text-muted">
+                    <p>Начало: {formatDateTime(work?.started_at ?? null, shift.stores?.timezone)}</p>
+                    <p>Окончание: {formatDateTime(work?.ended_at ?? null, shift.stores?.timezone)}</p>
+                    <p className="font-medium text-ink">
+                      {work?.confirmed_at
+                        ? `Подтверждено: ${Number(work.paid_hours ?? 0).toLocaleString("ru-RU")} ч.`
+                        : work?.ended_at ? "Ожидает проверки управляющим" : "Часы не подтверждены"}
+                    </p>
+                  </div>
+                ) : null}
+                {canMarkWork && !work?.ended_at ? (
+                  <form action={`/shifts/${shift.id}/work`} method="post" className="mt-3">
+                    <input type="hidden" name="action" value={work?.started_at ? "end" : "start"} />
+                    <button type="submit" className="inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 font-semibold">
+                      <Clock3 size={16} /> {work?.started_at ? "Закончить работу" : "Начать работу"}
+                    </button>
+                  </form>
+                ) : null}
+                {canCorrectWork ? (
+                  <details className="mt-3 border-t border-line pt-3">
+                    <summary className="cursor-pointer font-medium">Исправить отметки</summary>
+                    <form action={`/shifts/${shift.id}/work`} method="post" className="mt-3 grid gap-3">
+                      <input type="hidden" name="action" value="correct" />
+                      <input type="hidden" name="participant_id" value={participant.id} />
+                      <label className="grid gap-1">Начало работы
+                        <input className="h-11 rounded-md border border-line bg-surface px-3 outline-none focus:border-brand" type="datetime-local" name="started_local" required
+                          defaultValue={localInputValue(work?.started_at ?? (participant.participant_role === "primary_seller" ? shift.opened_at : null), shift.stores?.timezone)} />
+                      </label>
+                      <label className="grid gap-1">Окончание работы
+                        <input className="h-11 rounded-md border border-line bg-surface px-3 outline-none focus:border-brand" type="datetime-local" name="ended_local" required
+                          defaultValue={localInputValue(work?.ended_at ?? shift.closed_at, shift.stores?.timezone)} />
+                      </label>
+                      <label className="grid gap-1">Причина исправления
+                        <input className="h-11 rounded-md border border-line bg-surface px-3 outline-none focus:border-brand" type="text" name="reason" minLength={3} required />
+                      </label>
+                      <button type="submit" className="rounded-md border border-line px-3 py-2 font-semibold">Сохранить время</button>
+                    </form>
+                  </details>
+                ) : null}
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -272,7 +375,7 @@ export default async function ShiftDetailsPage({ params }: ShiftDetailsPageProps
                 <Metric label="Количество товаров" value={report.items_sold_count ? String(report.items_sold_count) : "Не указано"} />
                 <Metric label="Инкассация" value={`${formatMoney(report.cash_collection_amount)} ?`} />
                 <Metric label="Аванс" value={`${formatMoney(report.advance_amount)} ?`} />
-                <Metric label="Отчет заполнен" value={formatDateTime(report.created_at)} />
+                <Metric label="Отчет заполнен" value={formatDateTime(report.created_at, shift.stores?.timezone)} />
               </div>
               {report.cash_collection_comment ? (
                 <div className="mt-3 rounded-md bg-surface p-3 text-sm">

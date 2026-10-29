@@ -107,6 +107,7 @@ export default async function AdminClosedShiftsPage({ searchParams }: PageProps)
   }
 
   return (
+    <>
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-5xl">
         <SectionHeader icon={Archive} title="Закрытые смены" showBack />
@@ -172,7 +173,8 @@ export default async function AdminClosedShiftsPage({ searchParams }: PageProps)
           )}
         </section>
       </div>
-      <BottomNav />
     </main>
+    <BottomNav />
+    </>
   );
 }

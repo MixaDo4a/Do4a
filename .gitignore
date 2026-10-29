@@ -10,3 +10,6 @@ coverage
 .tmp-home/
 tmp/
 supabase/.temp/
+
+.vercel
+.env*

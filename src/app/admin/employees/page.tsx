@@ -136,6 +136,7 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
   const assignableRoleCodes = currentRoleCode ? roleHierarchy.filter((code) => roleRank(code) >= roleRank(currentRoleCode)) : [];
 
   return (
+    <>
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-5xl">
         <SectionHeader icon={Settings} title="Управление" showBack />
@@ -275,8 +276,9 @@ export default async function AdminEmployeesPage({ searchParams }: PageProps) {
           </EmployeeSearchList>
         </section>
       </div>
-      <BottomNav />
     </main>
+    <BottomNav />
+    </>
   );
 }
 

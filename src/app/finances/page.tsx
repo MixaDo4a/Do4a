@@ -66,6 +66,14 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
           ))}
         </div>
 
+        <form action="/payroll" className="mt-6 flex flex-wrap items-end gap-3" method="get">
+          <label className="grid min-w-44 flex-1 gap-1 text-sm">
+            <span className="font-semibold">Начисления зарплаты за месяц</span>
+            <input className="h-11 rounded-md border border-line px-3 outline-none focus:border-brand" defaultValue={month} name="period" required type="month" />
+          </label>
+          <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Показать начисления</button>
+        </form>
+
         {form === "plan" ? <section className="mt-6 ui-panel p-4">
           <div id="store-plan">
             <h2 className="font-semibold">План на магазин</h2>

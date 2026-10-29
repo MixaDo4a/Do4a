@@ -2,6 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Bender";
+  src: url("/fonts/bender-light.otf") format("opentype");
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bender";
+  src: url("/fonts/bender-light.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bender";
+  src: url("/fonts/bender-bold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bender";
+  src: url("/fonts/bender-bold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bender";
+  src: url("/fonts/bender-black.otf") format("opentype");
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bender";
+  src: url("/fonts/bender-italic.otf") format("opentype");
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bender";
+  src: url("/fonts/bender-light-italic.otf") format("opentype");
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bender";
+  src: url("/fonts/bender-bold-italic.otf") format("opentype");
+  font-style: italic;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bender";
+  src: url("/fonts/bender-bold-italic.otf") format("opentype");
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bender";
+  src: url("/fonts/bender-black-italic.otf") format("opentype");
+  font-style: italic;
+  font-weight: 900;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
   background: #050404;
@@ -20,7 +100,7 @@ html {
 body {
   min-height: 100%;
   margin: 0;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Bender", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
   background: #050404;
   color: #f7f2ea;
@@ -62,7 +142,7 @@ select {
   isolation: isolate;
   overflow: visible;
   padding-top: 0.75rem;
-  transition: --bottom-nav-active-x 400ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: --bottom-nav-active-x 620ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .bottom-nav-grid::before {
@@ -215,8 +295,6 @@ option {
   padding: max(4.35rem, calc(env(safe-area-inset-top) + 2.15rem)) 0 6.5rem;
   color: #f7f2ea;
   background: transparent !important;
-  animation: route-shell-fade 220ms ease-out both;
-  will-change: opacity;
 }
 
 .app-shell > div {
@@ -224,6 +302,7 @@ option {
   margin-left: auto;
   margin-right: auto;
   padding-inline: 0.6rem;
+  animation: route-shell-fade 220ms ease-out both;
 }
 
 .schedule-page-shell > div {
@@ -615,7 +694,7 @@ option {
   width: 78px;
   height: 3rem;
   transform: translateX(-50%);
-  transition: left 400ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: left 620ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: left;
 }
 
@@ -650,6 +729,11 @@ option {
 }
 
 .bottom-nav-label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   line-height: 1;
   transition: transform 220ms ease, opacity 220ms ease;
 }
