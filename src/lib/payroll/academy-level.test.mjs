@@ -17,9 +17,9 @@ const zone = "Asia/Vladivostok";
 const resolve = (history, month, createdAt = createdBeforeCutoff) =>
   resolveAcademyPayLevel(history, month, createdAt, zone);
 
-test("legacy employees have a LVL4 payroll floor starting in November", () => {
+test("legacy employees have a LVL3 payroll floor starting in November", () => {
   assert.deepEqual(resolve([], "2026-11-01"), {
-    status: "ready", level: 4, source: "legacy_floor", history: null,
+    status: "ready", level: 3, source: "legacy_floor", history: null,
   });
   assert.equal(resolve([], "2026-10-01").level, 1);
 });
@@ -31,25 +31,25 @@ test("employees created on or after November 1 start at payroll LVL1 without his
 });
 
 test("missing Academy profile still uses the employee creation rule", () => {
-  assert.equal(resolve([], "2026-11-01", createdBeforeCutoff).level, 4);
+  assert.equal(resolve([], "2026-11-01", createdBeforeCutoff).level, 3);
   assert.equal(resolve([], "2026-11-01", createdAtCutoff).level, 1);
 });
 
 test("creation cutoff uses the store time zone", () => {
-  assert.equal(resolveAcademyPayLevel([], "2026-11-01", createdAtCutoff, "Europe/Moscow").level, 4);
+  assert.equal(resolveAcademyPayLevel([], "2026-11-01", createdAtCutoff, "Europe/Moscow").level, 3);
   assert.equal(resolveAcademyPayLevel([], "2026-11-01", createdAtCutoff, zone).level, 1);
 });
 
 test("applies a confirmed level only from its effective month", () => {
   const history = [rank(5, "2026-12-01"), rank(2, "2026-09-01")];
   assert.equal(resolve(history, "2026-10-01").level, 2);
-  assert.equal(resolve(history, "2026-11-01").level, 4);
+  assert.equal(resolve(history, "2026-11-01").level, 3);
   assert.equal(resolve(history, "2026-12-01").level, 5);
 });
 
-test("legacy employees keep LVL4 after a lower Academy rank", () => {
-  const result = resolve([rank(3, "2026-11-01")], "2026-11-01");
-  assert.equal(result.level, 4);
+test("legacy employees keep the LVL3 floor after a lower Academy rank", () => {
+  const result = resolve([rank(2, "2026-11-01")], "2026-11-01");
+  assert.equal(result.level, 3);
   assert.equal(result.source, "legacy_floor");
 });
 

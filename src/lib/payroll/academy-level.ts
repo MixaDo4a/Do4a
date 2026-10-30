@@ -52,7 +52,7 @@ export function resolveAcademyPayLevel(
 
   if (effective.length === 0) {
     return hasLegacyFloor
-      ? { status: "ready", level: 4, source: "legacy_floor", history: null }
+      ? { status: "ready", level: 3, source: "legacy_floor", history: null }
       : { status: "ready", level: 1, source: "default", history: null };
   }
 
@@ -62,8 +62,8 @@ export function resolveAcademyPayLevel(
     return { status: "ambiguous", level: null, source: "none", history: null };
   }
 
-  if (hasLegacyFloor && latest[0].rank < 4) {
-    return { status: "ready", level: 4, source: "legacy_floor", history: latest[0] };
+  if (hasLegacyFloor && latest[0].rank < 3) {
+    return { status: "ready", level: 3, source: "legacy_floor", history: latest[0] };
   }
   return { status: "ready", level: latest[0].rank, source: "history", history: latest[0] };
 }
