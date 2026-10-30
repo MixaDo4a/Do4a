@@ -18,7 +18,13 @@ function value(formData: FormData, key: string) {
 }
 
 function tasksUrl(request: NextRequest, message: string, detail?: string) {
-  const url = new URL("/tasks", request.url);
+  const requestUrl = new URL(request.url);
+  const dashboardReturn = requestUrl.searchParams.get("returnTo") === "dashboard";
+  const url = new URL(dashboardReturn ? "/dashboard" : "/tasks", request.url);
+  const period = requestUrl.searchParams.get("period");
+  if (dashboardReturn && period && /^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
+    url.searchParams.set("period", period);
+  }
   url.searchParams.set("message", message);
 
   if (detail) {

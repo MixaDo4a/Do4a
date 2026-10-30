@@ -4,6 +4,7 @@
   CheckCircle2,
   ClipboardCheck,
   ListTodo,
+  LayoutDashboard,
   LogOut,
   PackageSearch,
   ReceiptText,
@@ -544,6 +545,7 @@ export default async function HomePage() {
     scheduleGroups.set(storeKey, storeGroup);
   }
   const accountName = employeeName(profile?.employees ?? (profile ? { full_name: profile.full_name } : null));
+  const canOpenDashboard = roleCodes.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
 
   return (
     <main className="app-shell min-h-dvh bg-surface text-ink">
@@ -592,6 +594,14 @@ export default async function HomePage() {
               ) : null}
             </Link> : null}
         </header>
+
+        {canOpenDashboard ? (
+          <div className="mx-auto mt-3 hidden w-full max-w-5xl justify-end px-4 lg:flex sm:px-6 lg:px-8">
+            <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-white/10 bg-black/55 px-3 text-xs font-semibold text-white/75 transition hover:border-brand/50 hover:text-white" href="/dashboard">
+              <LayoutDashboard size={15} className="text-brand" /> Операционный дашборд
+            </Link>
+          </div>
+        ) : null}
 
         {!managerOnlyView && !managementView ? <section className="role-switcher-panel mt-4 ui-panel p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
