@@ -106,6 +106,19 @@ body {
   color: #f7f2ea;
 }
 
+.dashboard-font {
+  font-family: Inter, "Segoe UI", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+.dashboard-font [class~="text-[9px]"],
+.dashboard-font [class~="text-[10px]"],
+.dashboard-font [class~="text-[11px]"] {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
 button,
 input,
 textarea,

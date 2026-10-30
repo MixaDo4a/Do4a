@@ -24,11 +24,19 @@ type EmployeeMetric = {
   participationRevenue: number; grossParticipationRevenue: number; returns: number; receipts: number; itemsSold: number | null; averageCheck: number | null;
   taskDueCount: number; taskDone: number; taskOnTime: number; checklistCount: number;
   checklistAverage: number | null; payroll: number | null;
+  byStore: Record<string, EmployeeStoreMetric>;
   payrollParts: null | {
     mode: "academy" | "legacy"; sales: number; base: number; bonus: number; advances: number; deductions: number;
     hourly: number; commission: number; taskBonus: number; checklistBonus: number; commercialKpiBonus: number;
     contestBonus: number; networkPackage: number; mentorshipPackage: number; paidHours: number;
   };
+};
+type EmployeeStoreMetric = {
+  shiftCount: number; confirmedHours: number; unconfirmedShifts: number;
+  netRevenue: number; grossRevenue: number; returns: number; receipts: number;
+  itemsSold: number | null; averageCheck: number | null; checkDepth: number | null;
+  taskDueCount: number; taskDone: number; taskOnTime: number;
+  checklistCount: number; checklistAverage: number | null;
 };
 
 export type DashboardData = {
@@ -145,7 +153,7 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
   const formatMonth = localMonthName(initialPeriod);
   const messageText = message === "task-created" ? "Задача создана и уведомления отправлены." : message === "dashboard-goals-saved" ? "Цели магазина сохранены." : message === "dashboard-error" ? detail ?? "Не удалось сохранить изменения." : null;
 
-  return <main className="min-h-screen overflow-x-hidden px-4 py-4 text-[#f7f2ea] xl:h-screen xl:overflow-hidden xl:px-6 xl:py-5 2xl:px-8">
+  return <main className="dashboard-font min-h-screen overflow-x-hidden px-4 py-4 text-[#f7f2ea] xl:h-screen xl:overflow-hidden xl:px-6 xl:py-5 2xl:px-8">
     <div className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-[1900px] flex-col gap-3 xl:h-full xl:min-h-0">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-3">
         <div className="flex items-center gap-3">
@@ -237,14 +245,17 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
               {filteredStores.map((store) => <StoreTableRow key={store.id} store={store} period={initialPeriod} expanded={expandedId === store.id} onToggle={() => setExpandedId(expandedId === store.id ? null : store.id)} employees={employeeMetrics.filter((employee) => employee.storeIds.includes(store.id))} />)}
               {!filteredStores.length ? <tr><td colSpan={13} className="px-4 py-10 text-center text-white/40">По выбранным фильтрам магазинов нет.</td></tr> : null}
             </tbody>
-          </table> : <table className="w-full min-w-[1040px] border-collapse text-left text-xs">
-            <thead className="sticky top-0 z-10 bg-[#100c0d] text-[10px] uppercase tracking-wide text-white/45"><tr>
-              <th className="w-8 px-3 py-2" /><th className="px-2 py-2">Сотрудник</th><th className="px-2 py-2">Магазины</th><th className="px-2 py-2 text-right">LVL</th><th className="px-2 py-2 text-right">Смены</th><th className="px-2 py-2 text-right">Часы</th><th className="px-2 py-2 text-right">Участие в обороте</th><th className="px-2 py-2 text-right">Чеки</th><th className="px-2 py-2 text-right">Задачи в срок</th><th className="px-2 py-2 text-right">Чек-лист</th><th className="px-3 py-2 text-right">Зарплата</th>
-            </tr></thead><tbody>
-              {visibleEmployees.map((employee) => <EmployeeTableRow key={employee.id} employee={employee} stores={stores} period={initialPeriod} expanded={expandedId === employee.id} onToggle={() => setExpandedId(expandedId === employee.id ? null : employee.id)} />)}
-              {!visibleEmployees.length ? <tr><td colSpan={11} className="px-4 py-10 text-center text-white/40">Сотрудников по выбранным фильтрам нет.</td></tr> : null}
-            </tbody>
-          </table>}
+          </table> : <div className="flex flex-col gap-3 p-3">
+            {filteredStores.map((store) => <EmployeeStoreGroup
+              key={store.id}
+              store={store}
+              period={initialPeriod}
+              employees={visibleEmployees.filter((employee) => employee.storeIds.includes(store.id))}
+              expandedId={expandedId}
+              onToggle={(id) => setExpandedId(expandedId === id ? null : id)}
+            />)}
+            {!filteredStores.length || !visibleEmployees.length ? <div className="rounded-md border border-white/8 px-4 py-10 text-center text-white/45">Сотрудников по выбранным фильтрам нет.</div> : null}
+          </div>}
         </div>
         <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-white/8 px-4 py-2 text-[10px] text-white/40">
           <span>Данные ограничены магазинами, доступными вашей активной ролью.</span>
@@ -292,27 +303,66 @@ function StoreTableRow({ store, employees, period, expanded, onToggle }: {
   </>;
 }
 
-function EmployeeTableRow({ employee, stores, period, expanded, onToggle }: { employee: EmployeeMetric; stores: Props["stores"]; period: string; expanded: boolean; onToggle: () => void }) {
-  const completion = employee.taskDueCount ? employee.taskOnTime / employee.taskDueCount * 100 : null;
-  const depth = employee.receipts && employee.itemsSold !== null ? employee.itemsSold / employee.receipts : null;
+function EmployeeStoreGroup({ store, employees, period, expandedId, onToggle }: {
+  store: StoreMetric; employees: EmployeeMetric[]; period: string; expandedId: string | null; onToggle: (id: string) => void;
+}) {
+  const [year, month] = period.split("-").map(Number);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return <section className="overflow-hidden rounded-lg border border-white/10 bg-[#0b0809]/90">
+    <header className="grid gap-3 border-b border-white/8 bg-[#100c0d]/75 px-4 py-3 lg:grid-cols-[minmax(180px,1.2fr)_repeat(4,minmax(120px,1fr))] lg:items-center">
+      <div><h3 className="flex items-center gap-2 text-base font-semibold"><Store size={16} className="text-brand" />{store.name}</h3><p className="mt-0.5 text-xs text-white/50">{store.city} · {employees.length} сотрудников</p></div>
+      <StoreSummary label="Оборот магазина" value={rubles(store.netRevenue)} hint={`из ${rubles(store.salesPlan)}`} />
+      <StoreSummary label="План на день" value={store.salesPlan ? rubles(store.salesPlan / daysInMonth) : "—"} hint="месячный план / дни месяца" />
+      <StoreSummary label="Средний чек" value={rubles(store.averageCheck)} hint={`цель ${rubles(store.averageCheckTarget)}`} />
+      <StoreSummary label="Длина чека" value={metric(store.checkDepth)} hint={`цель ${metric(store.checkDepthTarget)}`} />
+    </header>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1260px] border-collapse text-left text-xs">
+        <thead className="bg-black/30 text-[11px] uppercase tracking-wide text-white/55"><tr>
+          <th className="w-9 px-3 py-2" /><th className="px-2 py-2">Сотрудник</th><th className="px-2 py-2 text-right">Уровень</th><th className="px-2 py-2 text-right">Смены</th><th className="px-2 py-2 text-right">Часы</th><th className="px-2 py-2 text-right">Оборот</th><th className="px-2 py-2 text-right">Чеки</th><th className="px-2 py-2 text-right">Ср. чек</th><th className="px-2 py-2 text-right">Позиций / чек</th><th className="px-2 py-2 text-right">Задачи в срок</th><th className="px-2 py-2 text-right">Чек-листы</th><th className="px-3 py-2 text-right">ЗП за месяц</th>
+        </tr></thead>
+        <tbody>{employees.map((employee) => {
+          const id = `${store.id}:${employee.id}`;
+          return <EmployeeStoreRow key={employee.id} employee={employee} store={store} period={period} expanded={expandedId === id} onToggle={() => onToggle(id)} />;
+        })}
+        {!employees.length ? <tr><td colSpan={12} className="px-4 py-7 text-center text-white/45">Сотрудники магазина не найдены за выбранный период.</td></tr> : null}
+        </tbody>
+      </table>
+    </div>
+    <footer className="border-t border-white/8 px-4 py-2 text-[11px] text-white/40">Зарплата в строках — общая за месяц по сотруднику, она не распределена по магазинам. Оборот сотрудника — оборот смен, в которых он участвовал.</footer>
+  </section>;
+}
+
+function StoreSummary({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return <div className="min-w-0"><p className="text-xs text-white/45">{label}</p><p className="mt-0.5 truncate text-sm font-semibold tabular-nums text-white">{value}</p><p className="truncate text-[11px] text-white/35">{hint}</p></div>;
+}
+
+function EmployeeStoreRow({ employee, store, period, expanded, onToggle }: {
+  employee: EmployeeMetric; store: StoreMetric; period: string; expanded: boolean; onToggle: () => void;
+}) {
+  const local = employee.byStore[store.id];
+  const completion = local.taskDueCount ? local.taskOnTime / local.taskDueCount * 100 : null;
+  const rowDepth = local.receipts && local.itemsSold !== null ? local.itemsSold / local.receipts : null;
   return <>
     <tr className="border-b border-white/[0.055] transition hover:bg-white/[0.035]">
-      <td className="px-2 py-2.5"><button type="button" aria-label={expanded ? `Свернуть ${employee.name}` : `Показать подробности ${employee.name}`} onClick={onToggle} className="grid size-6 place-items-center text-white/40 hover:text-white"><ChevronDown size={14} className={`transition-transform ${expanded ? "rotate-180" : ""}`} /></button></td>
-      <td className="px-2 py-2.5"><div className="font-semibold">{employee.name}</div><div className="mt-0.5 text-[10px] capitalize text-white/40">{employee.status === "experienced" ? "Бывалый" : "Подаван"}{employee.unconfirmedShifts ? ` · ${employee.unconfirmedShifts} смен без подтверждённых часов` : ""}</div></td>
-      <td className="max-w-[210px] truncate px-2 py-2.5 text-white/70" title={employee.stores.join(", ")}>{employee.stores.join(", ") || "—"}</td>
-      <td className="px-2 py-2.5 text-right tabular-nums">{employee.level ? `LVL ${employee.level}` : "—"}</td><td className="px-2 py-2.5 text-right tabular-nums">{number.format(employee.shiftCount)}</td><td className="px-2 py-2.5 text-right tabular-nums">{metric(employee.confirmedHours, 1)} ч.</td>
-      <td className="px-2 py-2.5 text-right tabular-nums">{rubles(employee.participationRevenue)}</td><td className="px-2 py-2.5 text-right tabular-nums">{number.format(employee.receipts)}</td>
-      <td className={`px-2 py-2.5 text-right tabular-nums ${completion !== null && completion < 95 ? "text-red-300" : ""}`}>{employee.taskDueCount ? `${pct(completion)} · ${employee.taskOnTime}/${employee.taskDueCount}` : "—"}</td>
-      <td className="px-2 py-2.5 text-right tabular-nums">{employee.checklistAverage === null ? "—" : `${metric(employee.checklistAverage)} · ${employee.checklistCount}`}</td><td className="px-3 py-2.5 text-right font-semibold tabular-nums">{rubles(employee.payroll)}</td>
+      <td className="px-2 py-2"><button type="button" aria-label={expanded ? `Свернуть ${employee.name}` : `Подробности ${employee.name}`} onClick={onToggle} className="grid size-6 place-items-center text-white/45 hover:text-white"><ChevronDown size={14} className={`transition-transform ${expanded ? "rotate-180" : ""}`} /></button></td>
+      <td className="px-2 py-2"><div className="font-semibold text-white">{employee.name}</div><div className="mt-0.5 text-[11px] capitalize text-white/45">{employee.status === "experienced" ? "Бывалый" : "Подаван"}{local.unconfirmedShifts ? ` · ${local.unconfirmedShifts} смен без подтверждения` : ""}</div></td>
+      <td className="px-2 py-2 text-right font-medium tabular-nums">{employee.level ? `LVL ${employee.level}` : "—"}</td>
+      <td className="px-2 py-2 text-right tabular-nums">{number.format(local.shiftCount)}</td><td className="px-2 py-2 text-right tabular-nums">{metric(local.confirmedHours, 1)} ч.</td>
+      <td className="px-2 py-2 text-right font-medium tabular-nums">{rubles(local.netRevenue)}</td><td className="px-2 py-2 text-right tabular-nums">{number.format(local.receipts)}</td>
+      <td className="px-2 py-2 text-right tabular-nums">{rubles(local.averageCheck)}</td><td className="px-2 py-2 text-right tabular-nums">{metric(rowDepth)}</td>
+      <td className={`px-2 py-2 text-right tabular-nums ${completion !== null && completion < 95 ? "text-red-300" : ""}`}>{local.taskDueCount ? `${pct(completion)} · ${local.taskOnTime}/${local.taskDueCount}` : "—"}</td>
+      <td className="px-2 py-2 text-right tabular-nums">{local.checklistAverage === null ? "—" : `${metric(local.checklistAverage)} · ${local.checklistCount}`}</td>
+      <td className="px-3 py-2 text-right font-semibold tabular-nums">{rubles(employee.payroll)}</td>
     </tr>
-    {expanded ? <tr className="border-b border-white/8 bg-white/[0.025]"><td colSpan={11} className="px-5 py-3">
-      <div className="grid gap-3 md:grid-cols-5">
-        <Detail label="Смены / подтверждённые часы" value={`${employee.shiftCount} / ${metric(employee.confirmedHours, 1)} ч.`} />
-        <Detail label="Участие в выручке до возвратов / возвраты" value={`${rubles(employee.grossParticipationRevenue)} / ${rubles(employee.returns)}`} />
-        <Detail label="Средний чек / глубина" value={`${rubles(employee.averageCheck)} / ${metric(depth)}`} />
-        <Detail label="Задачи в срок" value={employee.taskDueCount ? `${employee.taskOnTime} в срок из ${employee.taskDueCount}` : "Нет задач со сроком"} />
-        <Detail label="Чек-листы" value={employee.checklistAverage === null ? "Нет проверок" : `${metric(employee.checklistAverage)} из 10 · ${employee.checklistCount}`} />
-        <Detail label="Зарплата" value={employee.payroll === null ? "Ведомость ещё не рассчитана" : rubles(employee.payroll)} />
+    {expanded ? <tr className="border-b border-white/8 bg-white/[0.025]"><td colSpan={12} className="px-5 py-3">
+      <div className="grid gap-3 md:grid-cols-4">
+        <Detail label="Смены / часы с подтверждением на этом магазине" value={`${local.shiftCount} / ${metric(local.confirmedHours, 1)} ч.`} />
+        <Detail label="Оборот до возвратов / возвраты" value={`${rubles(local.grossRevenue)} / ${rubles(local.returns)}`} />
+        <Detail label="Средний чек / позиций на чек" value={`${rubles(local.averageCheck)} / ${metric(rowDepth)}`} />
+        <Detail label="Задачи этого магазина в срок" value={local.taskDueCount ? `${local.taskOnTime} из ${local.taskDueCount} · ${local.taskDone} выполнено` : "Нет задач со сроком"} />
+        <Detail label="Проверки на этом магазине" value={local.checklistAverage === null ? "Нет проверок" : `${metric(local.checklistAverage)} из 10 · ${local.checklistCount}`} />
+        <Detail label="Зарплата сотрудника за весь месяц" value={employee.payroll === null ? "Ведомость ещё не рассчитана" : rubles(employee.payroll)} />
       </div>
       {employee.payrollParts ? <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
         <Detail label="Продажи / премии" value={`${rubles(employee.payrollParts.sales)} / ${rubles(employee.payrollParts.bonus)}`} />
@@ -324,13 +374,12 @@ function EmployeeTableRow({ employee, stores, period, expanded, onToggle }: { em
         </> : null}
       </div> : null}
       <form action={`/tasks/create?returnTo=dashboard&period=${period}`} method="post" className="mt-4 grid gap-2 rounded-md border border-white/8 bg-black/25 p-3 sm:grid-cols-[1fr_1.5fr_1fr_auto]">
-        <input type="hidden" name="assignee_employee_id" value={employee.id} /><input type="hidden" name="priority" value="normal" />
-        <label className="grid gap-1 text-[10px] text-white/45"><span>Магазин</span><select name="store_ids" required className="h-9 min-w-0 rounded border border-white/10 bg-black/50 px-2 text-xs text-white">{stores.filter((store) => employee.storeIds.includes(store.id)).map((store) => <option key={store.id} value={store.id}>{store.city} · {store.name}</option>)}</select></label>
-        <label className="grid gap-1 text-[10px] text-white/45"><span>Задача для {employee.name}</span><input name="title" required maxLength={180} placeholder="Название" className="h-9 min-w-0 rounded border border-white/10 bg-black/50 px-2 text-xs text-white placeholder:text-white/30" /></label>
-        <label className="grid gap-1 text-[10px] text-white/45"><span>Срок</span><input name="due_at" type="datetime-local" className="h-9 min-w-0 rounded border border-white/10 bg-black/50 px-2 text-xs text-white" /></label>
-        <div className="flex items-end"><button type="submit" disabled={!employee.storeIds.length} className="h-9 w-full rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-50">Поставить</button></div>
+        <input type="hidden" name="assignee_employee_id" value={employee.id} /><input type="hidden" name="store_ids" value={store.id} /><input type="hidden" name="priority" value="normal" />
+        <label className="grid gap-1 text-xs text-white/55"><span>Задача для {employee.name}</span><input name="title" required maxLength={180} placeholder="Название" className="h-9 min-w-0 rounded border border-white/10 bg-black/50 px-2 text-xs text-white placeholder:text-white/30" /></label>
+        <label className="grid gap-1 text-xs text-white/55"><span>Срок</span><input name="due_at" type="datetime-local" className="h-9 min-w-0 rounded border border-white/10 bg-black/50 px-2 text-xs text-white" /></label>
+        <div className="flex items-end"><button type="submit" className="h-9 w-full rounded-md bg-brand px-3 text-xs font-semibold text-white">Поставить задачу</button></div>
       </form>
-      <div className="mt-3 flex gap-2"><Link className="text-[11px] text-red-300 hover:text-red-200" href={`/payroll?period=${period}&employeeId=${employee.id}`}>Расчёт зарплаты →</Link><Link className="text-[11px] text-red-300 hover:text-red-200" href={`/tasks?employeeId=${employee.id}`}>Задачи →</Link></div>
+      <div className="mt-3 flex gap-3"><Link className="text-xs text-red-300 hover:text-red-200" href={`/payroll?period=${period}&employeeId=${employee.id}`}>Расчёт зарплаты →</Link><Link className="text-xs text-red-300 hover:text-red-200" href={`/tasks?employeeId=${employee.id}&storeId=${store.id}`}>Задачи →</Link><Link className="text-xs text-red-300 hover:text-red-200" href={`/checklists?storeId=${store.id}`}>Чек-листы магазина →</Link></div>
     </td></tr> : null}
   </>;
 }

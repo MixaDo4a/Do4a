@@ -264,12 +264,40 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const itemsKnown = participations.every(({ report }) => report.items_sold_count !== null);
     const receipts = participations.reduce((sum, row) => sum + row.report.receipt_count, 0);
     const net = participations.reduce((sum, row) => sum + asNumber(row.report.net_revenue), 0);
+    const byStore = Object.fromEntries([...employee.stores].map((storeId) => {
+      const storeParticipations = participations.filter((row) => row.shift.store_id === storeId);
+      const storeTasks = assignedTasks.filter((task) => task.store_id === storeId);
+      const storeChecks = checklistRows.filter((row) => row.employee_id === employee.id && row.store_id === storeId);
+      const storeReceipts = storeParticipations.reduce((sum, row) => sum + row.report.receipt_count, 0);
+      const storeItemsKnown = storeParticipations.every(({ report }) => report.items_sold_count !== null);
+      const storeItems = storeItemsKnown
+        ? storeParticipations.reduce((sum, row) => sum + Number(row.report.items_sold_count ?? 0), 0)
+        : null;
+      return [storeId, {
+        shiftCount: new Set(storeParticipations.map((row) => row.shift.id)).size,
+        confirmedHours: storeParticipations.reduce((sum, row) => sum + (row.hours ?? 0), 0),
+        unconfirmedShifts: storeParticipations.filter((row) => row.hours === null).length,
+        netRevenue: storeParticipations.reduce((sum, row) => sum + asNumber(row.report.net_revenue), 0),
+        grossRevenue: storeParticipations.reduce((sum, row) => sum + asNumber(row.report.cash_revenue) + asNumber(row.report.card_revenue), 0),
+        returns: storeParticipations.reduce((sum, row) => sum + asNumber(row.report.cash_returns) + asNumber(row.report.card_returns), 0),
+        receipts: storeReceipts,
+        itemsSold: storeItems,
+        averageCheck: storeReceipts ? storeParticipations.reduce((sum, row) => sum + asNumber(row.report.net_revenue), 0) / storeReceipts : null,
+        checkDepth: storeReceipts && storeItems !== null ? storeItems / storeReceipts : null,
+        taskDueCount: storeTasks.length,
+        taskDone: storeTasks.filter((task) => task.status === "done").length,
+        taskOnTime: storeTasks.filter((task) => task.status === "done" && task.completed_at && new Date(task.completed_at) <= new Date(task.due_at!)).length,
+        checklistCount: storeChecks.length,
+        checklistAverage: storeChecks.length ? storeChecks.reduce((sum, row) => sum + asNumber(row.average_score), 0) / storeChecks.length : null,
+      } satisfies DashboardData["employeeMetrics"][number]["byStore"][string]];
+    }));
     const payrollEntry = payrollByEmployee.get(employee.id);
     const academySnapshot = payrollEntry?.calculation_snapshot?.academy_payroll;
     const academyBreakdown = academySnapshot && typeof academySnapshot === "object" ? academySnapshot as Record<string, unknown> : null;
     return {
       id: employee.id, name: employee.name, status: employee.status, level: levels.get(employee.id)?.level ?? null,
       storeIds: [...employee.stores],
+      byStore,
       stores: [...employee.stores].map((id) => storeById.get(id)?.name ?? "").filter(Boolean),
       shiftCount: new Set(participations.map((row) => row.shift.id)).size,
       confirmedHours: checkedHours, unconfirmedShifts: participations.filter((row) => row.hours === null).length,
