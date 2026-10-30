@@ -10,7 +10,7 @@ import {
 
 type DailyPoint = { date: string; amount: number };
 type StoreMetric = {
-  id: string; name: string; city: string; netRevenue: number; grossRevenue: number; returns: number; receipts: number; itemsSold: number | null;
+  id: string; name: string; city: string; netRevenue: number; grossRevenue: number; returns: number; receipts: number; itemsSold: number | null; itemsReceipts: number;
   averageCheck: number | null; checkDepth: number | null; shiftCount: number; erroneousShiftCount: number;
   plannedShifts: number; salesPlan: number | null; planCompletion: number | null;
   averageCheckTarget: number | null; checkDepthTarget: number | null; averageCheckAchieved: boolean; checkDepthAchieved: boolean;
@@ -34,7 +34,7 @@ type EmployeeMetric = {
 type EmployeeStoreMetric = {
   shiftCount: number; confirmedHours: number; unconfirmedShifts: number;
   netRevenue: number; grossRevenue: number; returns: number; receipts: number;
-  itemsSold: number | null; averageCheck: number | null; checkDepth: number | null;
+  itemsSold: number | null; itemsReceipts: number; averageCheck: number | null; checkDepth: number | null;
   taskDueCount: number; taskDone: number; taskOnTime: number;
   checklistCount: number; checklistAverage: number | null;
 };
@@ -108,6 +108,7 @@ function Bars({ points, period }: { points: DailyPoint[]; period: string }) {
 export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMetrics, openShifts, message, detail }: Props) {
   const [city, setCity] = useState("");
   const [storeId, setStoreId] = useState("");
+  const [mainTab, setMainTab] = useState<"overview" | "stores">("overview");
   const [tab, setTab] = useState<"stores" | "employees">("stores");
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -124,8 +125,8 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
     for (const store of filteredStores) for (const point of store.dailySales) daily.set(point.date, (daily.get(point.date) ?? 0) + point.amount);
     const net = filteredStores.reduce((sum, store) => sum + store.netRevenue, 0);
     const receipts = filteredStores.reduce((sum, store) => sum + store.receipts, 0);
-    const totalItemsKnown = filteredStores.every((store) => store.itemsSold !== null);
-    const items = totalItemsKnown ? filteredStores.reduce((sum, store) => sum + (store.itemsSold ?? 0), 0) : null;
+    const knownItems = filteredStores.reduce((sum, store) => sum + (store.itemsSold ?? 0), 0);
+    const itemsReceipts = filteredStores.reduce((sum, store) => sum + store.itemsReceipts, 0);
     const checks = filteredStores.reduce((sum, store) => sum + store.checklistCount, 0);
     const checklistScoreTotal = filteredStores.reduce((sum, store) => sum + store.checklistScoreTotal, 0);
     const due = filteredStores.reduce((sum, store) => sum + store.taskDueCount, 0);
@@ -136,11 +137,11 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
     const payout = employeesInStores.reduce((sum, employee) => sum + (employee.payroll ?? 0), 0);
     const payoutKnown = employeesInStores.some((employee) => employee.payroll !== null);
     return {
-      net, receipts, avg: receipts ? net / receipts : null, depth: receipts && items !== null ? items / receipts : null,
+      net, receipts, avg: receipts ? net / receipts : null, depth: itemsReceipts ? knownItems / itemsReceipts : null,
+      itemsReceipts,
       shifts: filteredStores.reduce((sum, store) => sum + store.shiftCount, 0),
       erroneous: filteredStores.reduce((sum, store) => sum + store.erroneousShiftCount, 0),
       overdue: delayed, tasksDonePercent: due ? onTime / due * 100 : null,
-      gross: filteredStores.reduce((sum, store) => sum + store.grossRevenue, 0),
       returns: filteredStores.reduce((sum, store) => sum + store.returns, 0),
       checklistCount: checks,
       checklistAvg: checks ? checklistScoreTotal / checks : null,
@@ -188,21 +189,27 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
         {messageText}{detail && message !== "dashboard-error" ? <span className="ml-2 text-white/50">{detail}</span> : null}
       </div> : null}
 
-      <section className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-4 2xl:grid-cols-10">
-        <MetricCard label="Чистая выручка" value={rubles(overview.net)} hint="Закрытые смены, без ошибочных" icon={WalletCards} />
-        <MetricCard label="До возвратов" value={rubles(overview.gross)} hint={`Возвраты: ${rubles(overview.returns)}`} icon={ArrowUpRight} />
+      <nav className="flex shrink-0 items-center gap-1 border-b border-white/10" aria-label="Разделы дашборда" role="tablist">
+        <button type="button" role="tab" aria-selected={mainTab === "overview"} onClick={() => setMainTab("overview")} className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition ${mainTab === "overview" ? "border-brand text-white" : "border-transparent text-white/45 hover:text-white/80"}`}>Общие показатели по городу</button>
+        <button type="button" role="tab" aria-selected={mainTab === "stores"} onClick={() => setMainTab("stores")} className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition ${mainTab === "stores" ? "border-brand text-white" : "border-transparent text-white/45 hover:text-white/80"}`}>Показатели по магазинам</button>
+      </nav>
+
+      {mainTab === "overview" ? <>
+      <section className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
+        <MetricCard label="Выручка" value={rubles(overview.net)} hint="Закрытые смены; ошибочные исключены" icon={WalletCards} />
+        <MetricCard label="Возвраты" value={rubles(overview.returns)} hint="Сумма возвратов по закрытым сменам" icon={ArrowUpRight} />
         <MetricCard label="Средний чек" value={rubles(overview.avg)} hint={`${number.format(overview.receipts)} чеков`} icon={ArrowUpRight} />
-        <MetricCard label="Глубина чека" value={metric(overview.depth)} hint="Товаров на чек; при пропусках — нет данных" icon={ListChecks} />
+        <MetricCard label="Глубина чека" value={metric(overview.depth)} hint={`${number.format(overview.itemsReceipts)} из ${number.format(overview.receipts)} чеков с указанным количеством товаров`} icon={ListChecks} />
         <MetricCard label="Закрытые смены" value={number.format(overview.shifts)} hint={`${number.format(openShifts)} открытых сейчас`} icon={Store} />
         <MetricCard label="Задачи в срок" value={pct(overview.tasksDonePercent)} hint={`${number.format(overview.overdue)} просрочено`} icon={CheckCheck} alert={overview.overdue > 0} />
         <MetricCard label="Чек-листы" value={metric(overview.checklistAvg)} hint={`${number.format(overview.checklistCount)} проверок · средний балл`} icon={ClipboardCheck} />
         <MetricCard label="Остаток наличных" value={rubles(overview.cash)} hint="Последний пересчёт по магазинам" icon={WalletCards} />
-        <MetricCard label="Начислено" value={rubles(overview.payout)} hint={overview.payout === null ? "Ведомость за месяц не рассчитана" : "Суммы целиком по сотрудникам выборки"} icon={UsersRound} />
+        <MetricCard label="Начислено в зарплату" value={rubles(overview.payout)} hint={overview.payout === null ? "Ведомость за месяц не рассчитана" : "Сумма рассчитанных зарплат сотрудников"} icon={UsersRound} />
       </section>
 
       <section className="grid min-h-[140px] shrink-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.75fr)]">
         <article className="rounded-lg border border-white/8 bg-[#0b0809]/90 px-4 py-3">
-          <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold">Выручка по дням</h2><p className="mt-0.5 text-[11px] text-white/40">Чистая выручка · выбранный период · наведите на столбец для суммы</p></div><span className="text-xs tabular-nums text-white/65">{rubles(overview.net)}</span></div>
+          <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold">Выручка по дням</h2><p className="mt-0.5 text-[11px] text-white/40">Выбранный период · наведите на столбец для суммы</p></div><span className="text-xs tabular-nums text-white/65">{rubles(overview.net)}</span></div>
           <div className="mt-3"><Bars points={overview.dailySales} period={initialPeriod} /></div>
         </article>
         <article className="grid grid-cols-2 gap-2 rounded-lg border border-white/8 bg-[#0b0809]/90 p-3 sm:grid-cols-4 xl:grid-cols-2">
@@ -216,13 +223,15 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
         </article>
       </section>
 
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/8 bg-[#090708]/95">
+      </> : null}
+
+      {mainTab === "stores" ? <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/8 bg-[#090708]/95">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/8 px-4 py-3">
           <div className="flex items-center gap-1 rounded-md bg-black/50 p-1">
             <button onClick={() => { setTab("stores"); setExpandedId(null); }} className={`rounded px-3 py-1.5 text-xs font-semibold transition ${tab === "stores" ? "bg-white/10 text-white" : "text-white/45 hover:text-white"}`}><Store size={14} className="mr-1.5 inline" />Магазины</button>
             <button onClick={() => { setTab("employees"); setExpandedId(null); }} className={`rounded px-3 py-1.5 text-xs font-semibold transition ${tab === "employees" ? "bg-white/10 text-white" : "text-white/45 hover:text-white"}`}><UsersRound size={14} className="mr-1.5 inline" />Сотрудники</button>
           </div>
-          <label className="flex h-9 min-w-[220px] items-center gap-2 rounded-md border border-white/10 bg-black/45 px-3 text-white/40"><Search size={14} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Поиск сотрудника" aria-label="Поиск сотрудника" className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-white outline-none placeholder:text-white/35" /></label>
+          {tab === "employees" ? <label className="flex h-9 min-w-[220px] items-center gap-2 rounded-md border border-white/10 bg-black/45 px-3 text-white/40"><Search size={14} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Поиск сотрудника" aria-label="Поиск сотрудника" className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-white outline-none placeholder:text-white/35" /></label> : <div className="flex-1" />}
           <div className="flex items-center gap-3">
             {tab === "stores" && stores.length ? <button type="button" onClick={() => setQuickTaskOpen((value) => !value)} className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition ${quickTaskOpen ? "border-brand/40 bg-brand/10 text-white" : "border-white/10 text-white/65 hover:border-brand/40 hover:text-white"}`}><Plus size={14} className="text-brand" />Быстрая задача</button> : null}
             <p className="text-[11px] text-white/40">{tab === "stores" ? `${filteredStores.length} магазинов · ${number.format(activeEmployees.length)} сотрудников с закрытыми сменами` : `${number.format(visibleEmployees.length)} сотрудников`}</p>
@@ -250,7 +259,7 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
               key={store.id}
               store={store}
               period={initialPeriod}
-              employees={visibleEmployees.filter((employee) => employee.storeIds.includes(store.id))}
+              employees={visibleEmployees.filter((employee) => employee.storeIds.includes(store.id) && (employee.byStore[store.id]?.shiftCount ?? 0) > 0)}
               expandedId={expandedId}
               onToggle={(id) => setExpandedId(expandedId === id ? null : id)}
             />)}
@@ -261,7 +270,7 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
           <span>Данные ограничены магазинами, доступными вашей активной ролью.</span>
           <span>Ошибочные смены не участвуют в итоговых метриках; оборот участия сотрудников может дублировать общую выручку смены.</span>
         </footer>
-      </section>
+      </section> : null}
     </div>
   </main>;
 }
@@ -283,7 +292,7 @@ function StoreTableRow({ store, employees, period, expanded, onToggle }: {
     </tr>
     {expanded ? <tr className="border-b border-white/8 bg-white/[0.025]"><td colSpan={13} className="px-5 py-3">
       <div className="grid gap-4 md:grid-cols-4">
-        <Detail label="Продажи до возвратов / чистая выручка" value={`${rubles(store.grossRevenue)} / ${rubles(store.netRevenue)}`} />
+        <Detail label="Выручка до возвратов / выручка после возвратов" value={`${rubles(store.grossRevenue)} / ${rubles(store.netRevenue)}`} />
         <Detail label="Цели среднего чека / глубины" value={`${preciseRubles(store.averageCheckTarget)} / ${metric(store.checkDepthTarget)}`} />
         <Detail label="Выполнение целей" value={`Средний чек: ${store.averageCheckTarget === null ? "нет цели" : store.averageCheckAchieved ? "выполнен" : "не выполнен"} · глубина: ${store.checkDepthTarget === null ? "нет цели" : store.checkDepthAchieved ? "выполнена" : "не выполнена"}`} />
         <Detail label="Задачи выполнены в срок" value={store.taskDueCount ? `${number.format(store.taskOnTime)} из ${number.format(store.taskDueCount)}` : "Нет задач со сроком в этом месяце"} />
@@ -342,7 +351,7 @@ function EmployeeStoreRow({ employee, store, period, expanded, onToggle }: {
 }) {
   const local = employee.byStore[store.id];
   const completion = local.taskDueCount ? local.taskOnTime / local.taskDueCount * 100 : null;
-  const rowDepth = local.receipts && local.itemsSold !== null ? local.itemsSold / local.receipts : null;
+  const rowDepth = local.checkDepth;
   return <>
     <tr className="border-b border-white/[0.055] transition hover:bg-white/[0.035]">
       <td className="px-2 py-2"><button type="button" aria-label={expanded ? `Свернуть ${employee.name}` : `Подробности ${employee.name}`} onClick={onToggle} className="grid size-6 place-items-center text-white/45 hover:text-white"><ChevronDown size={14} className={`transition-transform ${expanded ? "rotate-180" : ""}`} /></button></td>

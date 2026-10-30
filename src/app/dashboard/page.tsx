@@ -205,8 +205,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const gross = reports.reduce((sum, row) => sum + asNumber(row.cash_revenue) + asNumber(row.card_revenue), 0);
     const returns = reports.reduce((sum, row) => sum + asNumber(row.cash_returns) + asNumber(row.card_returns), 0);
     const receipts = reports.reduce((sum, row) => sum + Number(row.receipt_count || 0), 0);
-    const itemCountsKnown = reports.every((row) => row.items_sold_count !== null);
-    const items = itemCountsKnown ? reports.reduce((sum, row) => sum + Number(row.items_sold_count ?? 0), 0) : null;
+    const reportsWithItems = reports.filter((row) => row.items_sold_count !== null);
+    const items = reportsWithItems.length ? reportsWithItems.reduce((sum, row) => sum + Number(row.items_sold_count), 0) : null;
+    const itemsReceipts = reportsWithItems.reduce((sum, row) => sum + Number(row.receipt_count || 0), 0);
     const storeTasks = taskRows.filter((task) => task.store_id === store.id);
     const dueTasks = storeTasks.filter((task) => {
       const dueLocalDate = localDateAt(task.due_at, store.timezone ?? "Asia/Vladivostok");
@@ -215,7 +216,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const checks = checklistRows.filter((row) => row.store_id === store.id);
     const plan = planByStore.get(store.id) ?? null;
     const averageCheck = receipts ? net / receipts : null;
-    const checkDepth = receipts && items !== null ? items / receipts : null;
+    const checkDepth = itemsReceipts && items !== null ? items / itemsReceipts : null;
     const salesByDay = new Map<string, number>();
     for (const shift of validShifts) {
       const report = one(shift.shift_closing_reports);
@@ -224,7 +225,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const onTimeTasks = dueTasks.filter((task) => task.status === "done" && task.completed_at && task.due_at && new Date(task.completed_at) <= new Date(task.due_at)).length;
     return {
       id: store.id, name: store.name, city: store.city,
-      netRevenue: net, grossRevenue: gross, returns, receipts, itemsSold: items, averageCheck,
+      netRevenue: net, grossRevenue: gross, returns, receipts, itemsSold: items, itemsReceipts, averageCheck,
       checkDepth,
       shiftCount: validShifts.length, erroneousShiftCount: rows.filter((shift) => shift.is_erroneous).length,
       plannedShifts: scheduleRows.filter((row) => row.store_id === store.id && ["planned", "planned_secondary"].includes(row.status)).length,
@@ -261,7 +262,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const assignedTasks = taskAssignmentsByEmployee.get(employee.id) ?? [];
     const checks = checklistRows.filter((row) => row.employee_id === employee.id);
     const checkedHours = participations.reduce((sum, row) => sum + (row.hours ?? 0), 0);
-    const itemsKnown = participations.every(({ report }) => report.items_sold_count !== null);
+    const participationsWithItems = participations.filter(({ report }) => report.items_sold_count !== null);
     const receipts = participations.reduce((sum, row) => sum + row.report.receipt_count, 0);
     const net = participations.reduce((sum, row) => sum + asNumber(row.report.net_revenue), 0);
     const byStore = Object.fromEntries([...employee.stores].map((storeId) => {
@@ -269,10 +270,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       const storeTasks = assignedTasks.filter((task) => task.store_id === storeId);
       const storeChecks = checklistRows.filter((row) => row.employee_id === employee.id && row.store_id === storeId);
       const storeReceipts = storeParticipations.reduce((sum, row) => sum + row.report.receipt_count, 0);
-      const storeItemsKnown = storeParticipations.every(({ report }) => report.items_sold_count !== null);
-      const storeItems = storeItemsKnown
-        ? storeParticipations.reduce((sum, row) => sum + Number(row.report.items_sold_count ?? 0), 0)
+      const storeParticipationsWithItems = storeParticipations.filter(({ report }) => report.items_sold_count !== null);
+      const storeItems = storeParticipationsWithItems.length
+        ? storeParticipationsWithItems.reduce((sum, row) => sum + Number(row.report.items_sold_count), 0)
         : null;
+      const storeItemsReceipts = storeParticipationsWithItems.reduce((sum, row) => sum + Number(row.report.receipt_count || 0), 0);
       return [storeId, {
         shiftCount: new Set(storeParticipations.map((row) => row.shift.id)).size,
         confirmedHours: storeParticipations.reduce((sum, row) => sum + (row.hours ?? 0), 0),
@@ -282,8 +284,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         returns: storeParticipations.reduce((sum, row) => sum + asNumber(row.report.cash_returns) + asNumber(row.report.card_returns), 0),
         receipts: storeReceipts,
         itemsSold: storeItems,
+        itemsReceipts: storeItemsReceipts,
         averageCheck: storeReceipts ? storeParticipations.reduce((sum, row) => sum + asNumber(row.report.net_revenue), 0) / storeReceipts : null,
-        checkDepth: storeReceipts && storeItems !== null ? storeItems / storeReceipts : null,
+        checkDepth: storeItemsReceipts && storeItems !== null ? storeItems / storeItemsReceipts : null,
         taskDueCount: storeTasks.length,
         taskDone: storeTasks.filter((task) => task.status === "done").length,
         taskOnTime: storeTasks.filter((task) => task.status === "done" && task.completed_at && new Date(task.completed_at) <= new Date(task.due_at!)).length,
@@ -305,7 +308,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       grossParticipationRevenue: participations.reduce((sum, row) => sum + asNumber(row.report.cash_revenue) + asNumber(row.report.card_revenue), 0),
       returns: participations.reduce((sum, row) => sum + asNumber(row.report.cash_returns) + asNumber(row.report.card_returns), 0),
       receipts,
-      itemsSold: itemsKnown ? participations.reduce((sum, row) => sum + Number(row.report.items_sold_count ?? 0), 0) : null,
+      itemsSold: participationsWithItems.length ? participationsWithItems.reduce((sum, row) => sum + Number(row.report.items_sold_count), 0) : null,
       averageCheck: receipts ? net / receipts : null,
       taskDueCount: assignedTasks.length, taskDone: assignedTasks.filter((task) => task.status === "done").length,
       taskOnTime: assignedTasks.filter((task) => task.status === "done" && task.completed_at && new Date(task.completed_at) <= new Date(task.due_at!)).length,
