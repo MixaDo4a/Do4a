@@ -17,7 +17,7 @@ type ShiftRow = {
   shift_closing_reports: Relation<ReportRow>;
   shift_participants: Array<{
     employee_id: string; participant_role: string;
-    employees: Relation<{ id: string; full_name: string; employee_status: string }>;
+    employees: Relation<{ id: string; full_name: string }>;
     shift_work_times: Relation<{ paid_hours: number | string | null; confirmed_at: string | null }>;
   }>;
 };
@@ -30,7 +30,7 @@ type ScheduleRow = { id: string; store_id: string; employee_id: string; shift_da
 type CashRow = { store_id: string; cash_amount: number | string; created_at: string };
 type AssignmentRow = {
   employee_id: string; store_id: string; valid_from: string; valid_to: string | null;
-  employees: Relation<{ id: string; full_name: string; employee_status: string; is_active: boolean }>;
+  employees: Relation<{ id: string; full_name: string; is_active: boolean }>;
 };
 type PayrollRow = {
   employee_id: string; total_payout_amount: number | string; sales_pay_amount: number | string;
@@ -96,7 +96,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const { roles } = await getCurrentRoleCodes(supabase, user);
   if (!hasAnyRole(roles, ["store_manager", "super_admin", "developer"])) redirect("/");
 
-  const stores = (await getAccessibleStores(supabase)).filter((store) => store.status !== "archived");
+  const stores = (await getAccessibleStores(supabase))
+    .filter((store) => store.status !== "archived" && !/склад|warehouse/i.test(store.name));
   const storeIds = stores.map((store) => store.id);
   if (!storeIds.length) {
     return <DashboardView initialPeriod={period} stores={[]} storeMetrics={[]} employeeMetrics={[]} openShifts={0} message={params.message} detail={params.detail} />;
@@ -106,7 +107,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     supabase.from("stores").select("id, name, city, timezone, workday_start_time, workday_end_time, status").in("id", storeIds).returns<StoreDetailRow[]>(),
     supabase.from("store_sales_plans").select("store_id, sales_plan_amount, average_check_target, check_depth_target").eq("period_start", periodStart).eq("period_end", periodEnd).in("store_id", storeIds).returns<PlanRow[]>(),
     fetchPages<ShiftRow>((from, to) => supabase.from("shifts")
-      .select("id, store_id, shift_date, status, opened_at, closed_at, is_erroneous, shift_closing_reports(cash_revenue, card_revenue, cash_returns, card_returns, net_revenue, receipt_count, items_sold_count), shift_participants(employee_id, participant_role, employees(id, full_name, employee_status), shift_work_times(paid_hours, confirmed_at))")
+      .select("id, store_id, shift_date, status, opened_at, closed_at, is_erroneous, shift_closing_reports(cash_revenue, card_revenue, cash_returns, card_returns, net_revenue, receipt_count, items_sold_count), shift_participants(employee_id, participant_role, employees(id, full_name), shift_work_times(paid_hours, confirmed_at))")
       .in("store_id", storeIds).gte("shift_date", periodStart).lt("shift_date", nextMonth)
       .order("shift_date").range(from, to).returns<ShiftRow[]>()),
     fetchPages<TaskRow>((from, to) => supabase.from("tasks")
@@ -125,7 +126,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     Promise.all(storeIds.map((storeId) => supabase.from("store_cash_counts").select("store_id, cash_amount, created_at")
       .eq("store_id", storeId).order("created_at", { ascending: false }).limit(1).maybeSingle<CashRow>())),
     fetchPages<AssignmentRow>((from, to) => supabase.from("employee_store_assignments")
-      .select("employee_id, store_id, valid_from, valid_to, employees(id, full_name, employee_status, is_active)")
+      .select("employee_id, store_id, valid_from, valid_to, employees(id, full_name, is_active)")
       .in("store_id", storeIds).lte("valid_from", periodEnd)
       .or(`valid_to.is.null,valid_to.gte.${periodStart}`)
       .range(from, to).returns<AssignmentRow[]>()),
@@ -143,18 +144,18 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     .in("store_id", storeIds).in("status", ["opened", "correction_required"]);
   if (currentOpenQuery.error) throw new Error(currentOpenQuery.error.message);
 
-  const employeeMap = new Map<string, { id: string; name: string; status: string; stores: Set<string> }>();
+  const employeeMap = new Map<string, { id: string; name: string; stores: Set<string> }>();
   for (const assignment of assignments) {
     const employee = one(assignment.employees);
     if (!employee?.is_active || assignment.valid_from > periodEnd || (assignment.valid_to && assignment.valid_to < periodStart)) continue;
-    const value = employeeMap.get(employee.id) ?? { id: employee.id, name: employee.full_name, status: employee.employee_status, stores: new Set<string>() };
+    const value = employeeMap.get(employee.id) ?? { id: employee.id, name: employee.full_name, stores: new Set<string>() };
     value.stores.add(assignment.store_id);
     employeeMap.set(employee.id, value);
   }
   for (const shift of shiftRows) for (const participant of shift.shift_participants) {
     const person = one(participant.employees);
     if (!person) continue;
-    const value = employeeMap.get(person.id) ?? { id: person.id, name: person.full_name, status: person.employee_status, stores: new Set<string>() };
+    const value = employeeMap.get(person.id) ?? { id: person.id, name: person.full_name, stores: new Set<string>() };
     value.stores.add(shift.store_id);
     employeeMap.set(person.id, value);
   }
@@ -278,7 +279,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       return [storeId, {
         shiftCount: new Set(storeParticipations.map((row) => row.shift.id)).size,
         confirmedHours: storeParticipations.reduce((sum, row) => sum + (row.hours ?? 0), 0),
-        unconfirmedShifts: storeParticipations.filter((row) => row.hours === null).length,
         netRevenue: storeParticipations.reduce((sum, row) => sum + asNumber(row.report.net_revenue), 0),
         grossRevenue: storeParticipations.reduce((sum, row) => sum + asNumber(row.report.cash_revenue) + asNumber(row.report.card_revenue), 0),
         returns: storeParticipations.reduce((sum, row) => sum + asNumber(row.report.cash_returns) + asNumber(row.report.card_returns), 0),
@@ -298,12 +298,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const academySnapshot = payrollEntry?.calculation_snapshot?.academy_payroll;
     const academyBreakdown = academySnapshot && typeof academySnapshot === "object" ? academySnapshot as Record<string, unknown> : null;
     return {
-      id: employee.id, name: employee.name, status: employee.status, level: levels.get(employee.id)?.level ?? null,
+      id: employee.id, name: employee.name, level: levels.get(employee.id)?.level ?? null,
       storeIds: [...employee.stores],
       byStore,
       stores: [...employee.stores].map((id) => storeById.get(id)?.name ?? "").filter(Boolean),
       shiftCount: new Set(participations.map((row) => row.shift.id)).size,
-      confirmedHours: checkedHours, unconfirmedShifts: participations.filter((row) => row.hours === null).length,
+      confirmedHours: checkedHours,
       participationRevenue: net,
       grossParticipationRevenue: participations.reduce((sum, row) => sum + asNumber(row.report.cash_revenue) + asNumber(row.report.card_revenue), 0),
       returns: participations.reduce((sum, row) => sum + asNumber(row.report.cash_returns) + asNumber(row.report.card_returns), 0),

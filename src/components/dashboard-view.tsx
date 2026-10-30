@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowUpRight, Banknote, BellRing, CalendarClock, CalendarDays, CheckCheck, ChevronDown,
-  CircleAlert, ClipboardCheck, LayoutDashboard, ListChecks, Plus, Search, Settings, ShieldCheck, Store,
+  ClipboardCheck, LayoutDashboard, ListChecks, Plus, Search, Settings, ShieldCheck, Store,
   UsersRound, WalletCards,
 } from "lucide-react";
 
@@ -19,8 +19,8 @@ type StoreMetric = {
   cashAmount: number | null; cashUpdatedAt: string | null; dailySales: DailyPoint[];
 };
 type EmployeeMetric = {
-  id: string; name: string; status: string; level: number | null; stores: string[]; storeIds: string[];
-  shiftCount: number; confirmedHours: number; unconfirmedShifts: number;
+  id: string; name: string; level: number | null; stores: string[]; storeIds: string[];
+  shiftCount: number; confirmedHours: number;
   participationRevenue: number; grossParticipationRevenue: number; returns: number; receipts: number; itemsSold: number | null; averageCheck: number | null;
   taskDueCount: number; taskDone: number; taskOnTime: number; checklistCount: number;
   checklistAverage: number | null; payroll: number | null;
@@ -32,7 +32,7 @@ type EmployeeMetric = {
   };
 };
 type EmployeeStoreMetric = {
-  shiftCount: number; confirmedHours: number; unconfirmedShifts: number;
+  shiftCount: number; confirmedHours: number;
   netRevenue: number; grossRevenue: number; returns: number; receipts: number;
   itemsSold: number | null; itemsReceipts: number; averageCheck: number | null; checkDepth: number | null;
   taskDueCount: number; taskDone: number; taskOnTime: number;
@@ -140,7 +140,6 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
       net, receipts, avg: receipts ? net / receipts : null, depth: itemsReceipts ? knownItems / itemsReceipts : null,
       itemsReceipts,
       shifts: filteredStores.reduce((sum, store) => sum + store.shiftCount, 0),
-      erroneous: filteredStores.reduce((sum, store) => sum + store.erroneousShiftCount, 0),
       overdue: delayed, tasksDonePercent: due ? onTime / due * 100 : null,
       returns: filteredStores.reduce((sum, store) => sum + store.returns, 0),
       checklistCount: checks,
@@ -196,7 +195,7 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
 
       {mainTab === "overview" ? <>
       <section className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
-        <MetricCard label="Выручка" value={rubles(overview.net)} hint="Закрытые смены; ошибочные исключены" icon={WalletCards} />
+        <MetricCard label="Выручка" value={rubles(overview.net)} hint="За выбранный период" icon={WalletCards} />
         <MetricCard label="Возвраты" value={rubles(overview.returns)} hint="Сумма возвратов по закрытым сменам" icon={ArrowUpRight} />
         <MetricCard label="Средний чек" value={rubles(overview.avg)} hint={`${number.format(overview.receipts)} чеков`} icon={ArrowUpRight} />
         <MetricCard label="Глубина чека" value={metric(overview.depth)} hint={`${number.format(overview.itemsReceipts)} из ${number.format(overview.receipts)} чеков с указанным количеством товаров`} icon={ListChecks} />
@@ -216,10 +215,6 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
           <div className="col-span-2 flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={16} className="text-amber-100/70" /> Контроль периода</div>
           <div className="rounded-md bg-white/[0.035] p-2"><p className="text-[10px] text-white/40">План продаж</p><p className="mt-1 text-sm font-medium">{filteredStores.some((store) => store.salesPlan !== null) ? pct(filteredStores.filter((store) => store.salesPlan !== null).reduce((sum, store) => sum + store.netRevenue, 0) / Math.max(1, filteredStores.filter((store) => store.salesPlan !== null).reduce((sum, store) => sum + (store.salesPlan ?? 0), 0)) * 100) : "Не задан"}</p></div>
           <div className="rounded-md bg-white/[0.035] p-2"><p className="text-[10px] text-white/40">Плановые смены</p><p className="mt-1 text-sm font-medium">{number.format(filteredStores.reduce((sum, store) => sum + store.plannedShifts, 0))}</p></div>
-          <div className={`col-span-2 flex items-center gap-2 rounded-md p-2 text-xs ${overview.erroneous ? "bg-red-400/10 text-red-200" : "bg-emerald-400/8 text-emerald-100/75"}`}>
-            {overview.erroneous ? <CircleAlert size={15} /> : <CheckCheck size={15} />}
-            {overview.erroneous ? `${number.format(overview.erroneous)} ошибочных смен исключено из итогов` : "Ошибочных смен за период нет"}
-          </div>
         </article>
       </section>
 
@@ -266,10 +261,6 @@ export function DashboardView({ initialPeriod, stores, storeMetrics, employeeMet
             {!filteredStores.length || !visibleEmployees.length ? <div className="rounded-md border border-white/8 px-4 py-10 text-center text-white/45">Сотрудников по выбранным фильтрам нет.</div> : null}
           </div>}
         </div>
-        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-white/8 px-4 py-2 text-[10px] text-white/40">
-          <span>Данные ограничены магазинами, доступными вашей активной ролью.</span>
-          <span>Ошибочные смены не участвуют в итоговых метриках; оборот участия сотрудников может дублировать общую выручку смены.</span>
-        </footer>
       </section> : null}
     </div>
   </main>;
@@ -282,7 +273,7 @@ function StoreTableRow({ store, employees, period, expanded, onToggle }: {
   return <>
     <tr className="border-b border-white/[0.055] transition hover:bg-white/[0.035]">
       <td className="px-2 py-2.5"><button type="button" aria-label={expanded ? `Свернуть ${store.name}` : `Показать подробности ${store.name}`} onClick={onToggle} className="grid size-6 place-items-center text-white/40 hover:text-white"><ChevronDown size={14} className={`transition-transform ${expanded ? "rotate-180" : ""}`} /></button></td>
-      <td className="px-2 py-2.5"><div className="font-semibold">{store.name}</div><div className="mt-0.5 text-[10px] text-white/40">{store.city}{store.erroneousShiftCount ? ` · ${store.erroneousShiftCount} ошиб.` : ""}</div></td>
+      <td className="px-2 py-2.5"><div className="font-semibold">{store.name}</div><div className="mt-0.5 text-[10px] text-white/40">{store.city}</div></td>
       <td className="px-2 py-2.5 text-right font-semibold tabular-nums">{rubles(store.netRevenue)}</td><td className="px-2 py-2.5 text-right tabular-nums">{rubles(store.returns)}</td>
       <td className="min-w-[110px] px-2 py-2.5 text-right tabular-nums">{store.salesPlan === null ? <span className="text-white/35">—</span> : <><span>{pct(completion)}</span><Progress value={completion} tone={completion !== null && completion >= 100 ? "green" : "red"} /></>}</td>
       <td className="px-2 py-2.5 text-right tabular-nums">{number.format(store.receipts)}</td><td className={`px-2 py-2.5 text-right tabular-nums ${store.averageCheckAchieved ? "text-emerald-200" : ""}`}><div>{preciseRubles(store.averageCheck)}</div><div className="text-[10px] text-white/35">цель {preciseRubles(store.averageCheckTarget)}</div></td><td className={`px-2 py-2.5 text-right tabular-nums ${store.checkDepthAchieved ? "text-emerald-200" : ""}`}><div>{metric(store.checkDepth)}</div><div className="text-[10px] text-white/35">цель {metric(store.checkDepthTarget)}</div></td>
@@ -338,7 +329,6 @@ function EmployeeStoreGroup({ store, employees, period, expandedId, onToggle }: 
         </tbody>
       </table>
     </div>
-    <footer className="border-t border-white/8 px-4 py-2 text-[11px] text-white/40">Зарплата в строках — общая за месяц по сотруднику, она не распределена по магазинам. Оборот сотрудника — оборот смен, в которых он участвовал.</footer>
   </section>;
 }
 
@@ -355,8 +345,8 @@ function EmployeeStoreRow({ employee, store, period, expanded, onToggle }: {
   return <>
     <tr className="border-b border-white/[0.055] transition hover:bg-white/[0.035]">
       <td className="px-2 py-2"><button type="button" aria-label={expanded ? `Свернуть ${employee.name}` : `Подробности ${employee.name}`} onClick={onToggle} className="grid size-6 place-items-center text-white/45 hover:text-white"><ChevronDown size={14} className={`transition-transform ${expanded ? "rotate-180" : ""}`} /></button></td>
-      <td className="px-2 py-2"><div className="font-semibold text-white">{employee.name}</div><div className="mt-0.5 text-[11px] capitalize text-white/45">{employee.status === "experienced" ? "Бывалый" : "Подаван"}{local.unconfirmedShifts ? ` · ${local.unconfirmedShifts} смен без подтверждения` : ""}</div></td>
-      <td className="px-2 py-2 text-right font-medium tabular-nums">{employee.level ? `LVL ${employee.level}` : "—"}</td>
+      <td className="px-2 py-2"><div className="font-semibold text-white">{employee.name}</div></td>
+      <td className="px-2 py-2 text-right font-medium tabular-nums">{employee.level ? `Level ${employee.level}` : "—"}</td>
       <td className="px-2 py-2 text-right tabular-nums">{number.format(local.shiftCount)}</td><td className="px-2 py-2 text-right tabular-nums">{metric(local.confirmedHours, 1)} ч.</td>
       <td className="px-2 py-2 text-right font-medium tabular-nums">{rubles(local.netRevenue)}</td><td className="px-2 py-2 text-right tabular-nums">{number.format(local.receipts)}</td>
       <td className="px-2 py-2 text-right tabular-nums">{rubles(local.averageCheck)}</td><td className="px-2 py-2 text-right tabular-nums">{metric(rowDepth)}</td>
@@ -366,7 +356,7 @@ function EmployeeStoreRow({ employee, store, period, expanded, onToggle }: {
     </tr>
     {expanded ? <tr className="border-b border-white/8 bg-white/[0.025]"><td colSpan={12} className="px-5 py-3">
       <div className="grid gap-3 md:grid-cols-4">
-        <Detail label="Смены / часы с подтверждением на этом магазине" value={`${local.shiftCount} / ${metric(local.confirmedHours, 1)} ч.`} />
+        <Detail label="Смены / часы на этом магазине" value={`${local.shiftCount} / ${metric(local.confirmedHours, 1)} ч.`} />
         <Detail label="Оборот до возвратов / возвраты" value={`${rubles(local.grossRevenue)} / ${rubles(local.returns)}`} />
         <Detail label="Средний чек / позиций на чек" value={`${rubles(local.averageCheck)} / ${metric(rowDepth)}`} />
         <Detail label="Задачи этого магазина в срок" value={local.taskDueCount ? `${local.taskOnTime} из ${local.taskDueCount} · ${local.taskDone} выполнено` : "Нет задач со сроком"} />
