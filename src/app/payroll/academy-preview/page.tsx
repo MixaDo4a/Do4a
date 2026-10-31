@@ -7,6 +7,7 @@ import { getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
 import { loadAcademyPayLevels } from "@/lib/payroll/academy-level.server";
 import {
   calculateAcademyPayrollPreview,
+  distributeNetworkPackage,
   type PreviewEmployee,
   type PreviewRate,
   type PreviewShift,
@@ -61,6 +62,7 @@ type InventoryRow = {
 type AssignmentRow = {
   employee_id: string; store_id: string; valid_from: string; valid_to: string | null;
 };
+type PaidPackageRow = { employee_id: string; amount: number | string; package_type: "mentorship" };
 
 const OCTOBER_TARGETS: Record<string, { average: number; depth: number }> = {
   "10000000-0000-0000-0000-000000000001": { average: 3042.93, depth: 2.54 },
@@ -130,15 +132,16 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
   const { roles } = await getCurrentRoleCodes(supabase, user);
   if (!hasAnyRole(roles, ["super_admin", "developer"])) redirect("/payroll");
 
-  const [employeesResult, storesResult, shiftsResult, checklistsResult, ratesResult, plansResult, tasksResult] = await Promise.all([
+  const [employeesResult, storesResult, shiftsResult, checklistsResult, ratesResult, plansResult, tasksResult, packagesResult] = await Promise.all([
     supabase.from("employees").select("id, full_name, created_at, hired_at, terminated_at, is_active").order("full_name").returns<EmployeeRow[]>(),
     supabase.from("stores").select("id, name, timezone, workday_start_time, workday_end_time").eq("status", "active").returns<StoreRow[]>(),
     supabase.from("shifts").select(`id, store_id, shift_date, is_erroneous, stores!inner(id, name, timezone, workday_start_time, workday_end_time), shift_closing_reports(net_revenue, receipt_count, items_sold_count), shift_participants(employee_id, participant_role, employees(id, full_name), shift_work_times(paid_hours, confirmed_at))`)
-      .eq("status", "closed").eq("is_erroneous", false).gte("shift_date", periodStart).lt("shift_date", nextMonth).returns<ShiftRow[]>(),
+      .in("status", ["closed", "auto_closed"]).eq("is_erroneous", false).gte("shift_date", periodStart).lt("shift_date", nextMonth).returns<ShiftRow[]>(),
     supabase.from("checklist_submissions").select("employee_id, store_id, average_score").eq("period_month", periodStart).returns<ChecklistRow[]>(),
     supabase.from("academy_pay_rates").select("id, level, effective_from, hourly_rate, base_commission_percent, plan_commission_percent").lte("effective_from", periodStart).order("effective_from", { ascending: false }).order("id", { ascending: false }).returns<RateRow[]>(),
     supabase.from("store_sales_plans").select("store_id, sales_plan_amount, average_check_target, check_depth_target").eq("period_start", periodStart).eq("period_end", new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10)).returns<PlanRow[]>(),
     supabase.from("tasks").select("id, store_id, assignee_employee_id, created_at, due_at, completed_at, status, stores(timezone)").gte("due_at", new Date(Date.parse(`${periodStart}T00:00:00Z`) - 86_400_000).toISOString()).lt("due_at", new Date(Date.parse(`${nextMonth}T00:00:00Z`) + 86_400_000).toISOString()).returns<TaskRow[]>(),
+    supabase.from("academy_payroll_packages").select("employee_id, amount, package_type").eq("period_month", periodStart).eq("status", "confirmed").returns<PaidPackageRow[]>(),
   ]);
 
   for (const [label, error] of [
@@ -150,6 +153,7 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
   if (!ratesResult.error && !ratesResult.data?.length && !isOctoberSimulation) warnings.push("Ставки Академии ещё не заданы в базе; использована согласованная начальная сетка ставок.");
   if (plansResult.error && !isOctoberSimulation) warnings.push("Цели магазина не удалось прочитать. KPI по недоступным целям не начислены.");
   if (tasksResult.error) warnings.push("Задачи за месяц не удалось загрузить; премия за задачи может быть неполной.");
+  if (packagesResult.error) warnings.push("Подтверждённые пакеты Академии не удалось загрузить.");
   const stores = storesResult.data ?? [];
   const monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const employees = (employeesResult.data ?? []).filter((employee) => employee.hired_at <= monthEnd && (!employee.terminated_at || employee.terminated_at >= periodStart));
@@ -161,8 +165,6 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
   const salesPlanByStore = new Map((salesPlanFallback?.data ?? []).map((plan) => [plan.store_id, Number(plan.sales_plan_amount)]));
   if (isOctoberSimulation) {
     warnings.push("Октябрь — тестовый месяц: LVL4, полный график магазина, цели KPI и четыре пакета заданы только для симуляции.");
-  } else {
-    warnings.push("Назначение и подтверждение пакетов наставничества/работы сети ещё не подключены к расчётным данным; пакетные премии, кроме октябрьской тестовой симуляции, не включены.");
   }
 
   const employeeIds = employees.map((employee) => employee.id);
@@ -218,6 +220,20 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
     }
   }
 
+  const networkStoreIds = new Set(stores
+    .filter((store) => ["urban", "урбан", "наутилус", "nautilus"].includes(store.name.trim().toLocaleLowerCase("ru-RU")))
+    .map((store) => store.id));
+  const networkPackagesByEmployee = distributeNetworkPackage(
+    [...previewShiftsByEmployee].map(([id, shifts]) => ({ id, shifts })),
+    networkStoreIds,
+  );
+  const mentorshipByEmployee = new Map<string, number>();
+  for (const row of packagesResult.data ?? []) {
+    if (row.package_type === "mentorship") {
+      mentorshipByEmployee.set(row.employee_id, (mentorshipByEmployee.get(row.employee_id) ?? 0) + Number(row.amount));
+    }
+  }
+
   const tasks = (tasksResult.data ?? []).map((task): PreviewTask => {
     const store = task.store_id ? storeById.get(task.store_id) : undefined;
     const timeZone = store?.timezone ?? one(task.stores)?.timezone ?? DEFAULT_TIME_ZONE;
@@ -232,20 +248,30 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
       status: task.status === "done" ? "done" : task.status === "cancelled" ? "cancelled" : "open",
     };
   });
-  const previewEmployees: PreviewEmployee[] = employees.map((employee) => ({
+  const previewEmployees: PreviewEmployee[] = employees.map((employee) => {
+    const employeeShifts = previewShiftsByEmployee.get(employee.id) ?? [];
+    const level = levels.get(employee.id)?.level ?? 1;
+    const mentorship = level >= 7 && employeeShifts.length > 0
+      ? mentorshipByEmployee.get(employee.id) ?? 0
+      : 0;
+    const networkPackage = networkPackagesByEmployee.get(employee.id) ?? 0;
+    return {
     id: employee.id,
     name: employee.full_name,
-    level: levels.get(employee.id)?.level ?? 1,
-    shifts: previewShiftsByEmployee.get(employee.id) ?? [],
+    level,
+    shifts: employeeShifts,
     checklistScores: (checklistsResult.data ?? [])
       .filter((row) => row.employee_id === employee.id)
       .map((row) => ({ storeId: row.store_id, score: Number(row.average_score) })),
     tasks: tasks.filter((task) => task.assigneeEmployeeId === employee.id || !task.assigneeEmployeeId),
-    acceptedPackageAmount: isOctoberSimulation ? OCTOBER_PACKAGES[employee.full_name] ?? 0 : 0,
+    acceptedPackageAmount: isOctoberSimulation
+      ? OCTOBER_PACKAGES[employee.full_name] ?? 0
+      : mentorship + networkPackage,
     advances: 0,
     deductions: 0,
     signedAdjustments: 0,
-  }));
+  };
+  });
 
   const [adjustmentsResult, advancesResult, productsResult] = await Promise.all([
     supabase.from("payroll_adjustments").select("employee_id, adjustment_type, amount").eq("period_month", periodStart).returns<AdjustmentRow[]>(),

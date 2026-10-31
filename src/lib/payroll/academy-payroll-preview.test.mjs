@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateAcademyPayrollPreview, summarizeEmployeeTaskKpi } from "./academy-payroll-preview.ts";
+import { calculateAcademyPayrollPreview, distributeNetworkPackage, summarizeEmployeeTaskKpi } from "./academy-payroll-preview.ts";
 
 const rates = [
   { level: 4, hourlyRate: 280, baseCommissionPercent: 2, planCommissionPercent: 2 },
@@ -85,6 +85,20 @@ test("task KPI includes assigned and store tasks only during the employee's elig
     { id: "no-deadline", storeId: "", assigneeEmployeeId: "worker", createdLocalDate: "2026-10-01", dueLocalDate: null, dueAt: null, completedAt: null, status: "open" },
   ];
   assert.deepEqual(summarizeEmployeeTaskKpi(worker, tasks, "2026-10"), { total: 2, onTime: 1, percent: 50 });
+});
+
+test("distributes the network fund by confirmed Urban/Nautilus hours after four shifts", () => {
+  const workers = [
+    employee("first", { shifts: [1, 2, 3, 4].map((id) => shift(`f${id}`, "urban", { paidHours: 10, confirmedHours: true })) }),
+    employee("second", { shifts: [1, 2, 3, 4].map((id) => shift(`s${id}`, "nautilus", { paidHours: 15, confirmedHours: true })) }),
+    employee("three-shifts", { shifts: [1, 2, 3].map((id) => shift(`t${id}`, "urban", { confirmedHours: true })) }),
+    employee("unconfirmed", { shifts: [1, 2, 3, 4].map((id) => shift(`u${id}`, "urban")) }),
+  ];
+  const shares = distributeNetworkPackage(workers, new Set(["urban", "nautilus"]));
+  assert.equal(shares.get("first"), 4_000);
+  assert.equal(shares.get("second"), 6_000);
+  assert.equal(shares.has("three-shifts"), false);
+  assert.equal(shares.has("unconfirmed"), false);
 });
 
 test("applies checklist quality to hourly pay per store but not to commission or bonuses", () => {

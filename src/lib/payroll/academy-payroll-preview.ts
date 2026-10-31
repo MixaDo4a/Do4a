@@ -192,6 +192,22 @@ export function summarizeEmployeeTaskKpi(
   };
 }
 
+export function distributeNetworkPackage(
+  employees: Pick<PreviewEmployee, "id" | "shifts">[],
+  networkStoreIds: Set<string>,
+  fund = 10_000,
+): Map<string, number> {
+  const eligibleHours = new Map<string, number>();
+  for (const employee of employees) {
+    const eligible = employee.shifts.filter((shift) => networkStoreIds.has(shift.storeId) && shift.confirmedHours);
+    const distinctShifts = new Set(eligible.map((shift) => shift.id));
+    const hours = eligible.reduce((sum, shift) => sum + shift.paidHours, 0);
+    if (distinctShifts.size > 3 && hours > 0) eligibleHours.set(employee.id, hours);
+  }
+  const totalHours = [...eligibleHours.values()].reduce((sum, hours) => sum + hours, 0);
+  return new Map([...eligibleHours].map(([employeeId, hours]) => [employeeId, fund * hours / totalHours]));
+}
+
 function taskWasCompleted(task: PreviewTask, scoring: PreviewOptions["taskScoring"]): boolean {
   if (task.status !== "done") return false;
   if (scoring === "status") return true;
