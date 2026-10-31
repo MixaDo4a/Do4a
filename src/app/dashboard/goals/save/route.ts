@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccessibleStores } from "@/lib/auth/stores";
+import { isRetailStoreForMotivation } from "@/lib/store-motivation";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(dashboardUrl(request, period, "dashboard-error", "Недостаточно прав для изменения целей."), 303);
   }
   const accessibleStores = await getAccessibleStores(supabase);
-  if (!accessibleStores.some((store) => store.id === storeId)) {
+  if (!accessibleStores.some((store) => store.id === storeId && isRetailStoreForMotivation(store.name))) {
     return NextResponse.redirect(dashboardUrl(request, period, "dashboard-error", "Магазин недоступен для вашей роли."), 303);
   }
 

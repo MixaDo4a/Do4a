@@ -6,6 +6,7 @@ import { SectionHeader } from "@/components/section-header";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { resolveCityPayrollMode } from "@/lib/payroll/city-payroll-mode";
+import { isRetailStoreForMotivation } from "@/lib/store-motivation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const links = [
@@ -29,7 +30,9 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
   const month = currentMonth();
   const academyMonth = month < "2026-11" ? "2026-11" : month;
   const accessibleStores = await getAccessibleStores();
+  const retailStores = accessibleStores.filter((store) => isRetailStoreForMotivation(store.name));
   const accessibleStoreIds = accessibleStores.map((store) => store.id);
+  const retailStoreIds = retailStores.map((store) => store.id);
   const { data: employees } = accessibleStoreIds.length > 0
     ? await supabase
         .from("employees")
@@ -40,11 +43,11 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
   const accessibleEmployees = (employees ?? []).filter((employee: { employee_store_assignments?: { store_id: string }[] }) =>
     employee.employee_store_assignments?.some((assignment) => accessibleStoreIds.includes(assignment.store_id)),
   ) as { id: string; full_name: string }[];
-  const { data: plans } = accessibleStoreIds.length > 0
+  const { data: plans } = retailStoreIds.length > 0
     ? await supabase
         .from("store_sales_plans")
         .select("id, store_id, period_start, period_end, sales_plan_amount, average_check_target, check_depth_target")
-        .in("store_id", accessibleStoreIds)
+        .in("store_id", retailStoreIds)
         .order("period_start", { ascending: false })
         .limit(12)
     : { data: [] };
@@ -198,7 +201,7 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
             <form action="/admin/store-plans/save" className="mt-4 grid gap-3" method="post">
               <select className="h-11 rounded-md border border-line px-3" name="store_id" required>
                 <option value="">Выберите магазин</option>
-                {accessibleStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+              {retailStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
               </select>
               <input className="h-11 rounded-md border border-line px-3" defaultValue={month} name="month" required type="month" />
               <input className="h-11 rounded-md border border-line px-3" min="0" name="sales_plan_amount" placeholder="Сумма плана" required step="0.01" type="number" />
@@ -207,7 +210,7 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
               <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white">Сохранить план</button>
             </form>
             <div className="mt-4 grid gap-2 text-sm">
-              {accessibleStores.map((store) => {
+              {retailStores.map((store) => {
                 const plan = planByStoreAndMonth.get(`${store.id}_${month}-01`) as {
                   sales_plan_amount?: number | string;
                   average_check_target?: number | string | null;

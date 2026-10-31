@@ -16,6 +16,7 @@ import {
 } from "@/lib/payroll/academy-payroll-preview";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DEFAULT_TIME_ZONE } from "@/lib/timezone";
+import { isRetailStoreForMotivation } from "@/lib/store-motivation";
 
 type PageProps = { searchParams: Promise<{ period?: string }> };
 type Relation<T> = T | T[] | null;
@@ -154,7 +155,7 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
   if (plansResult.error && !isOctoberSimulation) warnings.push("Цели магазина не удалось прочитать. KPI по недоступным целям не начислены.");
   if (tasksResult.error) warnings.push("Задачи за месяц не удалось загрузить; премия за задачи может быть неполной.");
   if (packagesResult.error) warnings.push("Подтверждённые пакеты Академии не удалось загрузить.");
-  const stores = storesResult.data ?? [];
+  const stores = (storesResult.data ?? []).filter((store) => isRetailStoreForMotivation(store.name));
   const monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const employees = (employeesResult.data ?? []).filter((employee) => employee.hired_at <= monthEnd && (!employee.terminated_at || employee.terminated_at >= periodStart));
   const storeById = new Map(stores.map((store) => [store.id, store]));
@@ -172,7 +173,7 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
     ? new Map(employeeIds.map((id) => [id, { status: "ready" as const, level: 4, source: "default" as const, history: null }]))
     : await loadAcademyPayLevels(supabase, employeeIds, periodStart);
 
-  const shiftRows = shiftsResult.data ?? [];
+  const shiftRows = (shiftsResult.data ?? []).filter((shift) => storeById.has(shift.store_id));
   const previewShiftsByEmployee = new Map<string, PreviewShift[]>();
   const previewStores: PreviewStore[] = stores.map((store) => {
     const monthShifts = shiftRows.filter((shift) => shift.store_id === store.id);
@@ -234,7 +235,9 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
     }
   }
 
-  const tasks = (tasksResult.data ?? []).map((task): PreviewTask => {
+  const tasks = (tasksResult.data ?? [])
+    .filter((task) => task.store_id === null || storeById.has(task.store_id))
+    .map((task): PreviewTask => {
     const store = task.store_id ? storeById.get(task.store_id) : undefined;
     const timeZone = store?.timezone ?? one(task.stores)?.timezone ?? DEFAULT_TIME_ZONE;
     return {
@@ -261,7 +264,7 @@ export default async function AcademyPayrollPreviewPage({ searchParams }: PagePr
     level,
     shifts: employeeShifts,
     checklistScores: (checklistsResult.data ?? [])
-      .filter((row) => row.employee_id === employee.id)
+      .filter((row) => row.employee_id === employee.id && storeById.has(row.store_id))
       .map((row) => ({ storeId: row.store_id, score: Number(row.average_score) })),
     tasks: tasks.filter((task) => task.assigneeEmployeeId === employee.id || !task.assigneeEmployeeId),
     acceptedPackageAmount: isOctoberSimulation

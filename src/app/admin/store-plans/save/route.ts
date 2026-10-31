@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
+import { isRetailStoreForMotivation } from "@/lib/store-motivation";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
   }
 
   const accessibleStores = await getAccessibleStores();
-  if (!accessibleStores.some((store) => store.id === storeId)) {
+  if (!accessibleStores.some((store) => store.id === storeId && isRetailStoreForMotivation(store.name))) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Можно сохранять план только по доступным магазинам."), 303);
   }
 

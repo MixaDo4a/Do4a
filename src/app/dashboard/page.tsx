@@ -4,6 +4,7 @@ import { getAccessibleStores } from "@/lib/auth/stores";
 import { getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
 import { loadAcademyPayLevels } from "@/lib/payroll/academy-level.server";
 import { forecastStorePlan } from "@/lib/store-plan-forecast";
+import { isRetailStoreForMotivation } from "@/lib/store-motivation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = { searchParams: Promise<{
@@ -94,6 +95,11 @@ function validPeriod(period?: string) {
   }).format(new Date());
 }
 
+function addMonths(period: string, amount: number) {
+  const [year, month] = period.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1 + amount, 1)).toISOString().slice(0, 7);
+}
+
 function asNumber(value: number | string | null | undefined) {
   return Number(value ?? 0);
 }
@@ -108,11 +114,12 @@ function localDateAt(value: string | null, timeZone: string) {
 export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const fallbackPeriod = validPeriod(params.period);
+  const currentMonth = validPeriod();
   const periods = {
     overview: validPeriod(params.overviewPeriod ?? fallbackPeriod),
     employees: validPeriod(params.employeesPeriod ?? fallbackPeriod),
     stores: validPeriod(params.storesPeriod ?? fallbackPeriod),
-    goals: validPeriod(params.goalsPeriod ?? fallbackPeriod),
+    goals: validPeriod(params.goalsPeriod ?? addMonths(currentMonth, 1)),
   };
   const mainTab = params.mainTab === "stores" ? "stores" : "overview";
   const storeTab = params.tab === "stores" || params.tab === "goals" ? params.tab : "employees";
@@ -122,8 +129,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const nextMonth = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 1)).toISOString().slice(0, 10);
   const queryStart = new Date(Date.parse(`${periodStart}T00:00:00Z`) - 86_400_000).toISOString();
   const queryEnd = new Date(Date.parse(`${nextMonth}T00:00:00Z`) + 86_400_000).toISOString();
-  const yearStart = `${Number(period.slice(0, 4)) - 1}-01-01`;
-  const nextYear = `${Number(period.slice(0, 4)) + 1}-01-01`;
+  const currentYear = Number(currentMonth.slice(0, 4));
+  const yearStart = `${Math.min(Number(period.slice(0, 4)) - 1, currentYear - 1)}-01-01`;
+  const nextYear = `${Math.max(Number(period.slice(0, 4)) + 1, currentYear + 1)}-01-01`;
+  const nextPlanPeriod = addMonths(currentMonth, 1);
+  const nextPlanStart = `${nextPlanPeriod}-01`;
+  const nextPlanEnd = new Date(Date.UTC(Number(nextPlanPeriod.slice(0, 4)), Number(nextPlanPeriod.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -132,15 +143,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   if (!hasAnyRole(roles, ["store_manager", "super_admin", "developer"])) redirect("/");
 
   const stores = (await getAccessibleStores(supabase))
-    .filter((store) => store.status !== "archived" && !/склад|warehouse/i.test(store.name));
+    .filter((store) => store.status !== "archived" && isRetailStoreForMotivation(store.name));
   const storeIds = stores.map((store) => store.id);
   if (!storeIds.length) {
     return <DashboardView initialPeriod={period} periods={periods} initialMainTab={mainTab} initialStoreTab={storeTab} stores={[]} storeMetrics={[]} employeeMetrics={[]} openShifts={0} message={params.message} detail={params.detail} />;
   }
 
-  const [storeDetailsResult, plansResult, shiftRows, taskRows, checklistRows, scheduleRows, cashRows, assignments, payrollPeriod, historicalRowsResult, historicalDayRows, yearlyShiftRows, yearPlansResult] = await Promise.all([
+  const [storeDetailsResult, plansResult, nextPlanRowsResult, shiftRows, taskRows, checklistRows, scheduleRows, cashRows, assignments, payrollPeriod, historicalRowsResult, historicalDayRows, yearlyShiftRows, yearPlansResult] = await Promise.all([
     supabase.from("stores").select("id, name, city, timezone, workday_start_time, workday_end_time, status").in("id", storeIds).returns<StoreDetailRow[]>(),
     supabase.from("store_sales_plans").select("store_id, sales_plan_amount, average_check_target, check_depth_target, is_auto_generated").eq("period_start", periodStart).eq("period_end", periodEnd).in("store_id", storeIds).returns<PlanRow[]>(),
+    supabase.from("store_sales_plans").select("store_id, sales_plan_amount, average_check_target, check_depth_target, is_auto_generated").eq("period_start", nextPlanStart).eq("period_end", nextPlanEnd).in("store_id", storeIds).returns<PlanRow[]>(),
     fetchPages<ShiftRow>((from, to) => supabase.from("shifts")
       .select("id, store_id, shift_date, status, opened_at, closed_at, is_erroneous, shift_closing_reports(cash_revenue, card_revenue, cash_returns, card_returns, net_revenue, receipt_count, items_sold_count), shift_participants(employee_id, participant_role, employees(id, full_name), shift_work_times(paid_hours, confirmed_at))")
       .in("store_id", storeIds).gte("shift_date", periodStart).lt("shift_date", nextMonth)
@@ -183,6 +195,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   if (storeDetailsResult.error) throw new Error(storeDetailsResult.error.message);
   if (plansResult.error) throw new Error(plansResult.error.message);
+  if (nextPlanRowsResult.error) throw new Error(nextPlanRowsResult.error.message);
   const cashCountError = cashRows.find((result) => result.error)?.error;
   if (cashCountError) throw new Error(cashCountError.message);
   if (payrollPeriod.error) throw new Error(payrollPeriod.error.message);
@@ -309,7 +322,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     }
     liveMonthAccumulators.set(key, accumulator);
   }
-  const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Vladivostok", year: "numeric", month: "2-digit" }).format(new Date());
   for (const [key, row] of liveMonthAccumulators) {
     const itemMonth = historyByStore.get(row.storeId) ?? new Map<string, StoreMonthlyMetric>();
     const existing = itemMonth.get(row.period);
@@ -346,10 +358,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     average_check_target: number | null; check_depth_target: number | null;
     is_auto_generated: boolean; updated_by: string;
   }> = [];
-  for (const store of storeDetails) {
-    if (period <= currentMonth) continue;
-    const existing = planByStore.get(store.id);
-    if (existing && !existing.is_auto_generated) continue;
+  const nextPlanByStore = new Map((nextPlanRowsResult.data ?? []).map((plan) => [plan.store_id, plan]));
+  const generationPeriods = new Set([nextPlanPeriod, ...(period > currentMonth ? [period] : [])]);
+  for (const generationPeriod of generationPeriods) {
+    const generationStart = `${generationPeriod}-01`;
+    const generationEnd = new Date(Date.UTC(Number(generationPeriod.slice(0, 4)), Number(generationPeriod.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    const existingPlans = generationPeriod === period ? planByStore : nextPlanByStore;
+    for (const store of storeDetails) {
+    if (!isRetailStoreForMotivation(store.name) || existingPlans.has(store.id)) continue;
     const observations = [...(historyByStore.get(store.id)?.values() ?? [])].map((row) => ({
       period: row.period,
       revenue: row.revenue,
@@ -361,31 +377,31 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       missingReceipts: row.missingReceipts,
       missingItems: row.missingItems,
     }));
-    const forecast = forecastStorePlan(store.name, period, observations);
+    const completedObservations = observations.filter((row) => row.period < currentMonth);
+    const forecast = forecastStorePlan(store.name, generationPeriod, completedObservations);
     if (forecast.sales === null) continue;
     const generated = {
       store_id: store.id,
-      period_start: periodStart,
-      period_end: periodEnd,
+      period_start: generationStart,
+      period_end: generationEnd,
       sales_plan_amount: forecast.sales,
       average_check_target: forecast.averageCheck,
       check_depth_target: forecast.checkDepth,
       is_auto_generated: true,
       updated_by: user.id,
     };
-    const hasChanged = !existing
-      || Number(existing.sales_plan_amount) !== forecast.sales
-      || (existing.average_check_target == null ? forecast.averageCheck !== null : Number(existing.average_check_target) !== forecast.averageCheck)
-      || (existing.check_depth_target == null ? forecast.checkDepth !== null : Number(existing.check_depth_target) !== forecast.checkDepth);
-    if (hasChanged) generatedPlans.push(generated);
-    planByStore.set(store.id, {
+    generatedPlans.push(generated);
+    const generatedPlan: PlanRow = {
       store_id: store.id,
       sales_plan_amount: forecast.sales,
       average_check_target: forecast.averageCheck,
       check_depth_target: forecast.checkDepth,
       is_auto_generated: true,
-    });
-    planByStoreMonth.set(`${store.id}:${period}`, forecast.sales);
+    };
+    existingPlans.set(store.id, generatedPlan);
+    planByStoreMonth.set(`${store.id}:${generationPeriod}`, forecast.sales);
+    if (generationPeriod === period) planByStore.set(store.id, generatedPlan);
+    }
   }
   if (generatedPlans.length) {
     const { error } = await supabase.from("store_sales_plans")

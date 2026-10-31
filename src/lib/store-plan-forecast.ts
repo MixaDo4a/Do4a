@@ -50,9 +50,13 @@ function salesTarget(
   }).format(new Date());
   const comparableKeys: string[] = [];
   if (targetYear === Number(currentPeriod.slice(0, 4)) || targetYear < Number(currentPeriod.slice(0, 4))) {
-    const lastMonth = targetYear === Number(currentPeriod.slice(0, 4))
-      ? Math.min(targetMonth - 1, Number(currentPeriod.slice(5, 7)))
+    const latestAvailableMonth = targetYear === Number(currentPeriod.slice(0, 4))
+      ? observations
+        .filter((row) => row.period.startsWith(`${targetYear}-`) && row.period < period && row.period <= currentPeriod)
+        .map((row) => Number(row.period.slice(5, 7)))
+        .reduce((latest, month) => Math.max(latest, month), 0)
       : targetMonth - 1;
+    const lastMonth = Math.min(targetMonth - 1, latestAvailableMonth);
     for (let month = 1; month <= lastMonth; month += 1) {
       comparableKeys.push(`${targetYear}-${String(month).padStart(2, "0")}`);
     }

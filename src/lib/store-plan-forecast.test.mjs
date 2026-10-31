@@ -50,3 +50,14 @@ test("KPI defaults use the median of the latest three prior same-year months plu
   assert.equal(target.averageCheck, 30.3);
   assert.equal(target.checkDepth, 4.04);
 });
+
+test("December plan can be generated from the latest completed months without November actuals", () => {
+  const rows = [];
+  for (let month = 1; month <= 10; month += 1) {
+    const key = String(month).padStart(2, "0");
+    rows.push(row(`2025-${key}`, 100));
+    rows.push(row(`2026-${key}`, 100));
+  }
+  rows.push(row("2025-12", 200));
+  assert.equal(forecastStorePlan("Калинина", "2026-12", rows).sales, 220);
+});

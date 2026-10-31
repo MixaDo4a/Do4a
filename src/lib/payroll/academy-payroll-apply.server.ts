@@ -11,6 +11,7 @@ import {
   type PreviewTask,
 } from "@/lib/payroll/academy-payroll-preview";
 import { resolveCityPayrollMode } from "@/lib/payroll/city-payroll-mode";
+import { isRetailStoreForMotivation } from "@/lib/store-motivation";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 
 type Relation<T> = T | T[] | null;
@@ -146,7 +147,8 @@ export async function applyAcademyPayrollToCalculatedRows(
   const storeRows = stores ?? [];
   const storeById = new Map(storeRows.map((store) => [store.id, store]));
   const modeRows = modes ?? [];
-  const academyStores = storeRows.filter((store) => store.city && resolveCityPayrollMode(modeRows, store.city, periodMonth.slice(0, 7)) === "academy");
+  const academyStores = storeRows.filter((store) => isRetailStoreForMotivation(store.name)
+    && store.city && resolveCityPayrollMode(modeRows, store.city, periodMonth.slice(0, 7)) === "academy");
   const academyStoreIds = new Set(academyStores.map((store) => store.id));
 
   const monthEnd = new Date(Date.UTC(Number(periodMonth.slice(0, 4)), Number(periodMonth.slice(5, 7)), 0)).toISOString().slice(0, 10);
@@ -235,6 +237,7 @@ export async function applyAcademyPayrollToCalculatedRows(
   const confirmedShiftIdsByEmployee = new Map<string, Set<string>>();
   const totalMonthShiftsByEmployee = new Map<string, Set<string>>();
   for (const shift of validMonthShifts) {
+    if (!academyStoreIds.has(shift.store_id)) continue;
     for (const participant of shift.shift_participants ?? []) {
       const workTime = one(participant.shift_work_times);
       const hasConfirmedHours = Boolean(workTime?.confirmed_at && workTime.paid_hours !== null);
@@ -246,7 +249,6 @@ export async function applyAcademyPayrollToCalculatedRows(
         confirmedIds.add(shift.id);
         confirmedShiftIdsByEmployee.set(participant.employee_id, confirmedIds);
       }
-      if (!academyStoreIds.has(shift.store_id)) continue;
       const report = one(shift.shift_closing_reports);
       const rows = academyShiftsByEmployee.get(participant.employee_id) ?? [];
       rows.push({
@@ -344,7 +346,8 @@ export async function applyAcademyPayrollToCalculatedRows(
   const metricsByEmployeeStore = new Map<string, MetricRow[]>();
   for (const metric of validMetrics) {
     const store = storeById.get(metric.store_id);
-    if (!store || !store.city || resolveCityPayrollMode(modeRows ?? [], store.city, periodMonth.slice(0, 7)) !== "legacy") continue;
+    if (!store || !isRetailStoreForMotivation(store.name) || !store.city
+      || resolveCityPayrollMode(modeRows ?? [], store.city, periodMonth.slice(0, 7)) !== "legacy") continue;
     const key = `${metric.employee_id}:${metric.store_id}`;
     const rows = metricsByEmployeeStore.get(key) ?? [];
     rows.push(metric);
@@ -353,7 +356,8 @@ export async function applyAcademyPayrollToCalculatedRows(
   const legacyStoreGross = new Map<string, number>();
   for (const shift of validMonthShifts) {
     const store = storeById.get(shift.store_id);
-    if (!store || !store.city || resolveCityPayrollMode(modeRows ?? [], store.city, periodMonth.slice(0, 7)) !== "legacy") continue;
+    if (!store || !isRetailStoreForMotivation(store.name) || !store.city
+      || resolveCityPayrollMode(modeRows ?? [], store.city, periodMonth.slice(0, 7)) !== "legacy") continue;
     const report = one(shift.shift_closing_reports);
     legacyStoreGross.set(store.id, (legacyStoreGross.get(store.id) ?? 0) + amount(report?.gross_revenue));
   }
@@ -373,7 +377,8 @@ export async function applyAcademyPayrollToCalculatedRows(
     }).map((metric) => metric.shift_id));
     let legacyPlanBonus = 0;
     for (const store of storeRows) {
-      if (!store.city || resolveCityPayrollMode(modeRows ?? [], store.city, periodMonth.slice(0, 7)) !== "legacy") continue;
+      if (!isRetailStoreForMotivation(store.name) || !store.city
+        || resolveCityPayrollMode(modeRows ?? [], store.city, periodMonth.slice(0, 7)) !== "legacy") continue;
       const storePlan = planByStore.get(store.id);
       if (!storePlan || (legacyStoreGross.get(store.id) ?? 0) < amount(storePlan.sales_plan_amount)) continue;
       const employeeStoreGross = legacyMetrics.filter((metric) => metric.store_id === store.id)
