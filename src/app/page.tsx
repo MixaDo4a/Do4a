@@ -136,6 +136,11 @@ type StoreKpiShiftRow = {
 };
 
 type EmployeeChecklistKpiRow = { store_id: string; average_score: number | string; stores: { name: string } | null };
+type ChecklistWatchShiftRow = {
+  store_id: string;
+  shift_participants: Array<{ employee_id: string; employees: { full_name: string } | null }>;
+};
+type ChecklistWatchRow = { employee_id: string };
 type StoreKpiPlanRow = StorePlanPreview & { store_id: string };
 type EmployeeTaskKpiRow = {
   id: string; store_id: string | null; assignee_employee_id: string | null; created_at: string;
@@ -515,8 +520,25 @@ export default async function HomePage() {
       : Promise.resolve({ data: [] as ChecklistPreview[], error: null });
 
   const selectedMonth = `${localIsoDate().slice(0, 7)}-01`;
+  const checklistLocalDate = localIsoDate();
   const selectedMonthEnd = monthEndDate(selectedMonth);
   const nextMonthStart = new Date(Date.UTC(Number(selectedMonth.slice(0, 4)), Number(selectedMonth.slice(5, 7)), 1)).toISOString().slice(0, 10);
+  const checklistResponsible = roleCodes.some((role) => ["store_manager", "auditor", "super_admin", "developer"].includes(role));
+  const checklistWatchStores = accessibleStores.filter((store) => !/склад|warehouse/i.test(store.name));
+  const checklistWatchStoreIds = checklistWatchStores.map((store) => store.id);
+  const checklistWatchShiftsQuery = checklistResponsible && checklistWatchStoreIds.length
+    ? supabase.from("shifts").select("store_id, shift_participants(employee_id, employees(full_name))")
+        .in("store_id", checklistWatchStoreIds)
+        .gte("shift_date", selectedMonth).lt("shift_date", nextMonthStart)
+        .in("status", ["opened", "closed", "auto_closed", "correction_required"])
+        .eq("is_erroneous", false)
+        .returns<ChecklistWatchShiftRow[]>()
+    : Promise.resolve({ data: [] as ChecklistWatchShiftRow[], error: null });
+  const checklistWatchChecklistsQuery = checklistResponsible && checklistWatchStoreIds.length
+    ? supabase.from("checklist_submissions").select("employee_id")
+        .in("store_id", checklistWatchStoreIds).eq("period_month", selectedMonth)
+        .returns<ChecklistWatchRow[]>()
+    : Promise.resolve({ data: [] as ChecklistWatchRow[], error: null });
   const employeeKpiShiftsQuery = profile?.employee_id && !managementView && !auditorOnly
     ? supabase.from("shifts")
         .select("id, store_id, shift_date, stores(name), shift_closing_reports(net_revenue, receipt_count, items_sold_count), shift_participants!inner(employee_id, participant_role, shift_work_times(paid_hours, confirmed_at))")
@@ -585,6 +607,8 @@ export default async function HomePage() {
     schedulePreviewResult,
     scheduleEmployeeIds,
     employeeKpiShiftsResult,
+    checklistWatchShiftsResult,
+    checklistWatchChecklistsResult,
   ] = (await Promise.all([
     auditorOnly
       ? Promise.resolve({
@@ -626,6 +650,8 @@ export default async function HomePage() {
     schedulePreviewQuery,
     getScheduleEmployeeIds(supabase),
     employeeKpiShiftsQuery,
+    checklistWatchShiftsQuery,
+    checklistWatchChecklistsQuery,
   ])) as [
     HomeQueryResult<ShiftPreview[]>,
     HomeQueryResult<TaskPreview[]>,
@@ -639,6 +665,8 @@ export default async function HomePage() {
     HomeQueryResult<SchedulePreview[]>,
     Set<string>,
     HomeQueryResult<EmployeeKpiShiftRow[]>,
+    HomeQueryResult<ChecklistWatchShiftRow[]>,
+    HomeQueryResult<ChecklistWatchRow[]>,
   ];
 
   if (shiftsResult.error) {
@@ -663,6 +691,8 @@ export default async function HomePage() {
     throw new Error(employeesLookupResult.error.message);
   }
   if (employeeKpiShiftsResult.error) throw new Error(employeeKpiShiftsResult.error.message);
+  if (checklistWatchShiftsResult.error) throw new Error(checklistWatchShiftsResult.error.message);
+  if (checklistWatchChecklistsResult.error) throw new Error(checklistWatchChecklistsResult.error.message);
 
   const shifts = (shiftsResult.data ?? []) as ShiftPreview[];
   const overdueShifts = managementView ? shifts.filter((shift) => isShiftOverdue(shift)) : [];
@@ -868,6 +898,23 @@ export default async function HomePage() {
   const employeeNameById = new Map<string, string>(
     (employeesLookupResult.data ?? []).map((employee: EmployeeLookupRow) => [employee.id, employee.full_name] as const),
   );
+  const checkedEmployeeIds = new Set((checklistWatchChecklistsResult.data ?? []).map((row) => row.employee_id));
+  const missingChecklistMap = new Map<string, { id: string; name: string; storeIds: Set<string> }>();
+  for (const shift of checklistWatchShiftsResult.data ?? []) {
+    for (const participant of shift.shift_participants) {
+      if (checkedEmployeeIds.has(participant.employee_id) || !participant.employees?.full_name) continue;
+      const missing = missingChecklistMap.get(participant.employee_id) ?? { id: participant.employee_id, name: participant.employees.full_name, storeIds: new Set<string>() };
+      missing.storeIds.add(shift.store_id);
+      missingChecklistMap.set(participant.employee_id, missing);
+    }
+  }
+  const missingChecklistEmployees = [...missingChecklistMap.values()]
+    .map((employee) => ({
+      id: employee.id,
+      name: employee.name,
+      stores: [...employee.storeIds].map((id) => checklistWatchStores.find((store) => store.id === id)?.name ?? "").filter(Boolean),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, "ru"));
   if (schedulePreviewResult.error) {
     throw new Error(schedulePreviewResult.error.message);
   }
@@ -915,7 +962,7 @@ export default async function HomePage() {
     scheduleGroups.set(storeKey, storeGroup);
   }
   const accountName = employeeName(profile?.employees ?? (profile ? { full_name: profile.full_name } : null));
-  const canOpenDashboard = roleCodes.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  const canOpenDashboard = roleCodes.some((role) => ["store_manager", "auditor", "super_admin", "developer"].includes(role));
 
   return (
     <main className="app-shell min-h-dvh bg-surface text-ink">
@@ -971,6 +1018,20 @@ export default async function HomePage() {
               <LayoutDashboard size={15} className="text-brand" /> Операционный дашборд
             </Link>
           </div>
+        ) : null}
+
+        {checklistResponsible && Number(checklistLocalDate.slice(8, 10)) >= 20 && missingChecklistEmployees.length > 0 ? (
+          <section className="mx-auto mt-4 w-full max-w-5xl px-4 sm:px-6 lg:px-8" aria-label="Сотрудники без чек-листа">
+            <div className="ui-panel border-brand/45 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h2 className="font-semibold text-brand">Не проведены чек-листы</h2><p className="mt-1 text-sm text-muted">{missingChecklistEmployees.length} сотрудников без проверки за {new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${selectedMonth}T00:00:00Z`))}</p></div>
+                <Link href={`/dashboard?mainTab=stores&tab=employees&employeesPeriod=${selectedMonth.slice(0, 7)}`} className="inline-flex h-9 items-center justify-center rounded-md border border-brand/45 px-3 text-sm font-semibold text-brand hover:bg-brand/10">Открыть дашборд</Link>
+              </div>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {missingChecklistEmployees.map((employee) => <li key={employee.id} className="rounded-md bg-black/30 px-3 py-2 text-sm"><span className="font-medium">{employee.name}</span><span className="mt-0.5 block text-xs text-muted">{employee.stores.join(", ")}</span></li>)}
+              </ul>
+            </div>
+          </section>
         ) : null}
 
         {!managerOnlyView && !managementView ? <section className="role-switcher-panel mt-4 ui-panel p-4">

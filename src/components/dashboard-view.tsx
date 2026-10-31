@@ -49,6 +49,7 @@ type EmployeeMetric = {
     contestBonus: number; networkPackage: number; mentorshipPackage: number; paidHours: number;
   };
 };
+type MissingChecklistEmployee = { id: string; name: string; storeIds: string[]; stores: string[] };
 type EmployeeStoreMetric = {
   shiftCount: number; confirmedHours: number;
   netRevenue: number; grossRevenue: number; returns: number; receipts: number;
@@ -60,6 +61,7 @@ type EmployeeStoreMetric = {
 export type DashboardData = {
   storeMetrics: StoreMetric[];
   employeeMetrics: EmployeeMetric[];
+  missingChecklistEmployees: MissingChecklistEmployee[];
 };
 
 type Props = DashboardData & {
@@ -262,7 +264,7 @@ function Bars({ points, period, emptyLabel }: { points: DailyPoint[]; period: st
   </div>;
 }
 
-export function DashboardView({ initialPeriod, periods, initialMainTab, initialStoreTab, stores, storeMetrics, employeeMetrics, openShifts, message, detail }: Props) {
+export function DashboardView({ initialPeriod, periods, initialMainTab, initialStoreTab, stores, storeMetrics, employeeMetrics, missingChecklistEmployees, openShifts, message, detail }: Props) {
   const router = useRouter();
   const [city, setCity] = useState("");
   const [storeId, setStoreId] = useState("");
@@ -271,6 +273,7 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [quickTaskOpen, setQuickTaskOpen] = useState(false);
+  const [missingChecklistsOpen, setMissingChecklistsOpen] = useState(false);
   const [taskStoreId, setTaskStoreId] = useState(stores[0]?.id ?? "");
   const [periodChoices, setPeriodChoices] = useState(periods);
   useEffect(() => setPeriodChoices(periods), [periods]);
@@ -293,6 +296,7 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
   const employeesInStores = useMemo(() => employeeMetrics.filter((employee) => employee.storeIds.some((id) => visibleStoreIds.has(id))), [employeeMetrics, visibleStoreIds]);
   const filteredEmployees = useMemo(() => employeesInStores.filter((employee) => !search || employee.name.toLocaleLowerCase("ru").includes(search.toLocaleLowerCase("ru"))), [employeesInStores, search]);
   const activeEmployees = employeesInStores.filter((employee) => employee.shiftCount > 0);
+  const filteredMissingChecklistEmployees = missingChecklistEmployees.filter((employee) => employee.storeIds.some((id) => visibleStoreIds.has(id)));
   const overview = useMemo(() => {
     const daily = new Map<string, number>();
     for (const store of filteredStores) for (const point of store.dailySales) daily.set(point.date, (daily.get(point.date) ?? 0) + point.amount);
@@ -383,9 +387,29 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
         <MetricCard label="Закрытые смены" value={overview.shiftsUnavailable ? "—" : number.format(overview.shifts)} hint={overview.shiftsUnavailable ? "История смен не импортирована" : `${number.format(openShifts)} открытых сейчас`} icon={Store} />
         <MetricCard label="Задачи в срок" value={pct(overview.tasksDonePercent)} hint={`${number.format(overview.overdue)} просрочено`} icon={CheckCheck} alert={overview.overdue > 0} />
         <MetricCard label="Чек-листы" value={metric(overview.checklistAvg)} hint={`${number.format(overview.checklistCount)} проверок · средний балл`} icon={ClipboardCheck} />
+        <button type="button" onClick={() => setMissingChecklistsOpen(true)} aria-label={`Сотрудники без чек-листа: ${filteredMissingChecklistEmployees.length}`} className="min-w-0 rounded-lg border border-red-400/20 bg-[#0c090a]/95 px-4 py-3 text-left transition hover:border-red-400/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand">
+          <span className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-wide text-white/55"><span className="truncate">Без чек-листа</span><ClipboardCheck size={15} className="shrink-0 text-brand" /></span>
+          <span className="mt-2 block truncate text-[22px] font-semibold leading-none tabular-nums">{number.format(filteredMissingChecklistEmployees.length)}</span>
+          <span className="mt-2 block truncate text-[11px] text-white/45">Сотрудники с рабочими сменами</span>
+        </button>
         <MetricCard label="Остаток наличных" value={rubles(overview.cash)} hint="Последний пересчёт по магазинам" icon={WalletCards} />
         <MetricCard label="Начислено в зарплату" value={rubles(overview.payout)} hint={overview.payout === null ? "Ведомость за месяц не рассчитана" : "Сумма рассчитанных зарплат сотрудников"} icon={UsersRound} />
       </section>
+
+      {missingChecklistsOpen ? <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMissingChecklistsOpen(false); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="missing-checklists-title" className="max-h-[min(80vh,720px)] w-full max-w-xl overflow-y-auto rounded-lg border border-white/12 bg-[#100c0d] p-4 shadow-2xl">
+          <div className="flex items-start justify-between gap-4">
+            <div><h2 id="missing-checklists-title" className="text-base font-semibold">Нет чек-листа · {formatMonth}</h2><p className="mt-1 text-xs text-white/50">Сотрудники с неошибочными сменами за выбранный месяц</p></div>
+            <button type="button" onClick={() => setMissingChecklistsOpen(false)} aria-label="Закрыть список" className="grid size-9 shrink-0 place-items-center rounded-md border border-white/10 text-white/70 hover:text-white">×</button>
+          </div>
+          <div className="mt-4 divide-y divide-white/10">
+            {filteredMissingChecklistEmployees.length ? filteredMissingChecklistEmployees.map((employee) => <div key={employee.id} className="flex items-start justify-between gap-3 py-3">
+              <span className="font-medium">{employee.name}</span><span className="text-right text-xs text-white/50">{employee.storeIds.flatMap((id, index) => visibleStoreIds.has(id) ? [employee.stores[index]] : []).join(", ")}</span>
+            </div>) : <p className="py-4 text-sm text-white/55">За выбранный месяц все сотрудники с рабочими сменами прошли чек-лист.</p>}
+          </div>
+          <div className="mt-4 flex justify-end"><button type="button" onClick={() => setMissingChecklistsOpen(false)} className="h-9 rounded-md border border-white/10 px-3 text-sm text-white/75 hover:text-white">Закрыть</button></div>
+        </section>
+      </div> : null}
 
       <section className="grid min-h-[140px] shrink-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.75fr)]">
         <article className="rounded-lg border border-white/8 bg-[#0b0809]/90 px-4 py-3">
@@ -588,7 +612,7 @@ function EmployeeStoreRow({ employee, store, period, expanded, onToggle }: {
       <td className="px-2 py-2 text-right font-medium tabular-nums">{rubles(local.netRevenue)}</td><td className="px-2 py-2 text-right tabular-nums">{number.format(local.receipts)}</td>
       <td className="px-2 py-2 text-right tabular-nums">{rubles(local.averageCheck)}</td><td className="px-2 py-2 text-right tabular-nums">{metric(rowDepth)}</td>
       <td className={`px-2 py-2 text-right tabular-nums ${completion !== null && completion < 95 ? "text-red-300" : ""}`}>{local.taskDueCount ? `${pct(completion)} · ${local.taskOnTime}/${local.taskDueCount}` : "—"}</td>
-      <td className="px-2 py-2 text-right tabular-nums">{local.checklistAverage === null ? "—" : `${metric(local.checklistAverage)} · ${local.checklistCount}`}</td>
+      <td className="px-2 py-2 text-right tabular-nums">{employee.checklistCount === 0 ? <span className="text-red-300">Нет в месяце</span> : local.checklistAverage === null ? "—" : `${metric(local.checklistAverage)} · ${local.checklistCount}`}</td>
       <td className="px-3 py-2 text-right font-semibold tabular-nums">{rubles(employee.payroll)}</td>
     </tr>
     {expanded ? <tr className="border-b border-white/8 bg-white/[0.025]"><td colSpan={12} className="px-5 py-3">

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { DashboardView, type DashboardData, type StoreMonthlyMetric } from "@/components/dashboard-view";
+import { ChecklistDashboardView } from "@/components/checklist-dashboard-view";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
 import { loadAcademyPayLevels } from "@/lib/payroll/academy-level.server";
@@ -31,6 +32,16 @@ type TaskRow = {
   created_at: string; due_at: string | null; completed_at: string | null;
 };
 type ChecklistRow = { id: string; store_id: string; employee_id: string; average_score: number | string; submitted_at: string };
+type MissingChecklistEmployee = { id: string; name: string; storeIds: string[]; stores: string[] };
+type ChecklistCoverageShiftRow = {
+  store_id: string;
+  status: string;
+  is_erroneous: boolean;
+  shift_participants: Array<{
+    employee_id: string;
+    employees: Relation<{ full_name: string }>;
+  }>;
+};
 type ScheduleRow = { id: string; store_id: string; employee_id: string; shift_date: string; status: string };
 type CashRow = { store_id: string; cash_amount: number | string; created_at: string };
 type AssignmentRow = {
@@ -140,13 +151,48 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   if (!user) redirect("/login");
 
   const { roles } = await getCurrentRoleCodes(supabase, user);
-  if (!hasAnyRole(roles, ["store_manager", "super_admin", "developer"])) redirect("/");
+  const reviewerOnly = roles.includes("auditor") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  if (!hasAnyRole(roles, ["store_manager", "auditor", "super_admin", "developer"])) redirect("/");
 
   const stores = (await getAccessibleStores(supabase))
     .filter((store) => store.status !== "archived" && isRetailStoreForMotivation(store.name));
   const storeIds = stores.map((store) => store.id);
+  if (reviewerOnly) {
+    const [coverageShifts, submittedChecklists] = storeIds.length ? await Promise.all([
+      fetchPages<ChecklistCoverageShiftRow>((from, to) => supabase.from("shifts")
+        .select("store_id, status, is_erroneous, shift_participants(employee_id, employees(full_name))")
+        .in("store_id", storeIds).gte("shift_date", periodStart).lt("shift_date", nextMonth)
+        .in("status", ["opened", "closed", "auto_closed", "correction_required"])
+        .eq("is_erroneous", false).range(from, to).returns<ChecklistCoverageShiftRow[]>()),
+      fetchPages<{ employee_id: string; average_score: number | string }>((from, to) => supabase.from("checklist_submissions")
+        .select("employee_id, average_score").in("store_id", storeIds).eq("period_month", periodStart)
+        .range(from, to).returns<{ employee_id: string; average_score: number | string }[]>()),
+    ]) : [[], []] as [ChecklistCoverageShiftRow[], { employee_id: string; average_score: number | string }[]];
+    const checkedIds = new Set(submittedChecklists.map((row) => row.employee_id));
+    const missing = new Map<string, { name: string; storeIds: Set<string> }>();
+    for (const shift of coverageShifts) {
+      if (shift.is_erroneous) continue;
+      for (const participant of shift.shift_participants) {
+        if (checkedIds.has(participant.employee_id)) continue;
+        const employee = one(participant.employees);
+        if (!employee) continue;
+        const item = missing.get(participant.employee_id) ?? { name: employee.full_name, storeIds: new Set<string>() };
+        item.storeIds.add(shift.store_id);
+        missing.set(participant.employee_id, item);
+      }
+    }
+    const missingEmployees = [...missing.entries()].map(([id, employee]) => ({
+      id,
+      name: employee.name,
+      stores: [...employee.storeIds].map((storeId) => stores.find((store) => store.id === storeId)?.name ?? "").filter(Boolean),
+    })).sort((left, right) => left.name.localeCompare(right.name, "ru"));
+    const averageScore = submittedChecklists.length
+      ? submittedChecklists.reduce((sum, row) => sum + asNumber(row.average_score), 0) / submittedChecklists.length
+      : null;
+    return <ChecklistDashboardView period={period} submittedCount={submittedChecklists.length} averageScore={averageScore} missingEmployees={missingEmployees} />;
+  }
   if (!storeIds.length) {
-    return <DashboardView initialPeriod={period} periods={periods} initialMainTab={mainTab} initialStoreTab={storeTab} stores={[]} storeMetrics={[]} employeeMetrics={[]} openShifts={0} message={params.message} detail={params.detail} />;
+    return <DashboardView initialPeriod={period} periods={periods} initialMainTab={mainTab} initialStoreTab={storeTab} stores={[]} storeMetrics={[]} employeeMetrics={[]} missingChecklistEmployees={[]} openShifts={0} message={params.message} detail={params.detail} />;
   }
 
   const [storeDetailsResult, plansResult, nextPlanRowsResult, shiftRows, taskRows, checklistRows, scheduleRows, cashRows, assignments, payrollPeriod, historicalRowsResult, historicalDayRows, yearlyShiftRows, yearPlansResult] = await Promise.all([
@@ -575,6 +621,28 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     };
   }).sort((a, b) => b.participationRevenue - a.participationRevenue);
 
+  const checkedEmployeeIds = new Set(checklistRows.map((row) => row.employee_id));
+  const missingChecklistByEmployee = new Map<string, { name: string; storeIds: Set<string> }>();
+  for (const shift of relevantShiftRows) {
+    if (shift.is_erroneous || !["opened", "closed", "auto_closed", "correction_required"].includes(shift.status)) continue;
+    for (const participant of shift.shift_participants) {
+      if (checkedEmployeeIds.has(participant.employee_id)) continue;
+      const person = one(participant.employees);
+      if (!person) continue;
+      const entry = missingChecklistByEmployee.get(person.id) ?? { name: person.full_name, storeIds: new Set<string>() };
+      entry.storeIds.add(shift.store_id);
+      missingChecklistByEmployee.set(person.id, entry);
+    }
+  }
+  const missingChecklistEmployees: MissingChecklistEmployee[] = [...missingChecklistByEmployee.entries()]
+    .map(([id, employee]) => ({
+      id,
+      name: employee.name,
+      storeIds: [...employee.storeIds],
+      stores: [...employee.storeIds].map((storeId) => storeById.get(storeId)?.name ?? "").filter(Boolean),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, "ru"));
+
   const dailySales = new Map<string, number>();
   for (const metric of storeMetrics) for (const day of metric.dailySales) {
     dailySales.set(day.date, (dailySales.get(day.date) ?? 0) + day.amount);
@@ -588,6 +656,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     stores={stores.map(({ id, name, city }) => ({ id, name, city }))}
     storeMetrics={storeMetrics}
     employeeMetrics={employeeMetrics}
+    missingChecklistEmployees={missingChecklistEmployees}
     openShifts={openShifts}
     message={params.message}
     detail={params.detail}
