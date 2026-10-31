@@ -102,7 +102,7 @@ function pushUrlForNotification(notification: Pick<PushTargetRow, "event_type" |
     return "/tasks";
   }
 
-  if (["checklist_saved", "bad_checklist"].includes(notification.event_type ?? "")) {
+  if (["checklist_saved", "bad_checklist", "checklist_monthly_reminder"].includes(notification.event_type ?? "")) {
     return "/checklists";
   }
 

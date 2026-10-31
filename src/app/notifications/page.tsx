@@ -68,7 +68,7 @@ function relatedHref(item: NotificationRow) {
     return "/routine/evening";
   }
 
-  if (["checklist_saved", "bad_checklist"].includes(item.event_type)) {
+  if (["checklist_saved", "bad_checklist", "checklist_monthly_reminder"].includes(item.event_type)) {
     return "/checklists";
   }
 
