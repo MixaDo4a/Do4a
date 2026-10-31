@@ -230,7 +230,7 @@ function GoalPlanner({ stores, period, periods }: { stores: StoreMetric[]; perio
       })}{stores.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-white/40">Нет магазинов по выбранным фильтрам.</td></tr> : null}</tbody>
     </table>
     <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-[#090708] px-4 py-3">
-      <p className="max-w-3xl text-[10px] leading-4 text-white/45">Автоплан оборота: выручка того же месяца прошлого года × динамика сопоставимого периода × 1,10. Средний чек и глубина: медиана до 3 последних месяцев текущего года × 1,01. Автопланы обновляются при открытии будущего месяца; после ручного сохранения цель закрепляется.</p>
+      <p className="max-w-3xl text-[10px] leading-4 text-white/45">Автоплан оборота: выручка того же месяца прошлого года × динамика сопоставимого периода × 1,10. Средний чек и глубина: медиана до 3 последних завершённых месяцев × 1,01. При открытии дашборда создаются отсутствующие цели на следующий месяц; существующие планы не перезаписываются.</p>
       <button type="button" onClick={applySuggestions} disabled={!stores.some((store) => suggestions.get(store.id)?.average.value !== null && suggestions.get(store.id)?.depth.value !== null)} className="h-9 rounded-md border border-white/10 px-3 text-xs font-semibold text-white/70 hover:bg-white/5 disabled:opacity-40">Подставить автоцели</button>
       <button type="submit" disabled={!stores.length} className="h-9 rounded-md border border-brand/35 bg-brand/15 px-4 text-xs font-semibold text-white hover:bg-brand/25 disabled:opacity-50">Сохранить цели на месяц</button>
     </div>
