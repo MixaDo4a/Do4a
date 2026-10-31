@@ -29,6 +29,8 @@ import { getScheduleEmployeeIds } from "@/lib/schedule-employees";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatStoreDateTime, storeTimeZone } from "@/lib/timezone";
 import { isShiftOverdue } from "@/lib/shift-overdue";
+import { summarizeEmployeeTaskKpi, type PreviewShift, type PreviewTask } from "@/lib/payroll/academy-payroll-preview";
+import { calculateDailySalesPlan, type DailySalesActualRow, type DailySalesHistoryRow } from "@/lib/daily-sales-plan";
 
 type ProfileRow = {
   employee_id: string | null;
@@ -103,6 +105,61 @@ type ShiftPreview = {
   schedules: { planned_end_at: string } | null;
 };
 
+type StorePlanPreview = {
+  sales_plan_amount: number | string | null;
+  average_check_target: number | string | null;
+  check_depth_target: number | string | null;
+};
+
+type DailyPlanActualQueryRow = {
+  shift_date: string;
+  shift_closing_reports: { net_revenue: number | string | null } | { net_revenue: number | string | null }[] | null;
+};
+type DailyPlanScheduleQueryRow = { shift_date: string };
+
+type EmployeeKpiShiftRow = {
+  id: string;
+  store_id: string;
+  shift_date: string;
+  stores: { name: string } | null;
+  shift_closing_reports: { net_revenue: number | string | null; receipt_count: number | null; items_sold_count: number | null } | { net_revenue: number | string | null; receipt_count: number | null; items_sold_count: number | null }[] | null;
+  shift_participants: {
+    employee_id: string;
+    participant_role: "primary_seller" | "secondary_seller";
+    shift_work_times: { paid_hours: number | string | null; confirmed_at: string | null } | { paid_hours: number | string | null; confirmed_at: string | null }[] | null;
+  }[];
+};
+
+type StoreKpiShiftRow = {
+  store_id: string;
+  shift_closing_reports: { net_revenue: number | string | null; receipt_count: number | null; items_sold_count: number | null } | { net_revenue: number | string | null; receipt_count: number | null; items_sold_count: number | null }[] | null;
+};
+
+type EmployeeChecklistKpiRow = { store_id: string; average_score: number | string; stores: { name: string } | null };
+type StoreKpiPlanRow = StorePlanPreview & { store_id: string };
+type EmployeeTaskKpiRow = {
+  id: string; store_id: string | null; assignee_employee_id: string | null; created_at: string;
+  due_at: string | null; completed_at: string | null; status: string; stores: { timezone: string | null } | null;
+};
+
+type EmployeeKpiStoreView = {
+  id: string;
+  name: string;
+  shifts: number;
+  confirmedShifts: number;
+  confirmedHours: number;
+  ownAverageCheck: number | null;
+  ownCheckDepth: number | null;
+  storeAverageCheck: number | null;
+  storeCheckDepth: number | null;
+  storeRevenue: number;
+  salesPlan: number | null;
+  averageTarget: number | null;
+  depthTarget: number | null;
+  checklistAverage: number | null;
+  checklistCount: number;
+};
+
 const managementRoles = ["manager", "store_manager", "super_admin", "developer"];
 
 const roleLabels: Record<string, string> = {
@@ -132,6 +189,127 @@ function money(value: number | string | null | undefined) {
   }).format(Number(value ?? 0))} руб.`;
 }
 
+function firstRelation<T>(value: T | T[] | null | undefined): T | null {
+  return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
+function dateAtTimeZone(value: string | null, timeZone: string) {
+  if (!value) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date(value));
+  const date = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${date.year}-${date.month}-${date.day}`;
+}
+
+function displayNumber(value: number | null, decimals = 2) {
+  return value === null ? "—" : new Intl.NumberFormat("ru-RU", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value);
+}
+
+function EmployeeKpiPanel({ period, taskKpi, stores }: { period: string; taskKpi: ReturnType<typeof summarizeEmployeeTaskKpi>; stores: EmployeeKpiStoreView[] }) {
+  const periodLabel = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(`${period}-01T00:00:00Z`));
+  const checklistRows = stores.filter((store) => store.checklistCount > 0);
+  const checklistTotal = checklistRows.reduce((sum, store) => sum + store.checklistCount, 0);
+  const checklistAverage = checklistTotal
+    ? checklistRows.reduce((sum, store) => sum + (store.checklistAverage ?? 0) * store.checklistCount, 0) / checklistTotal
+    : null;
+  const shiftCount = stores.reduce((sum, store) => sum + store.shifts, 0);
+  const confirmedShiftCount = stores.reduce((sum, store) => sum + store.confirmedShifts, 0);
+  const confirmedHours = stores.reduce((sum, store) => sum + store.confirmedHours, 0);
+
+  return <section className="mt-4 ui-panel p-4" aria-label={`Мои показатели за ${periodLabel}`}>
+    <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 className="text-base font-semibold">Мои KPI · {periodLabel}</h2>
+      <p className="text-xs text-muted">Показатели, используемые в расчёте премий</p>
+    </div>
+    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="rounded-md bg-surface p-3"><p className="text-xs text-muted">Задачи в срок</p><p className="mt-1 text-lg font-semibold tabular-nums">{taskKpi.percent === null ? "—" : `${displayNumber(taskKpi.percent, 1)}%`}</p><p className="mt-1 text-xs text-muted">{taskKpi.total ? `${taskKpi.onTime} из ${taskKpi.total} · порог 95%` : "Нет задач со сроком"}</p></div>
+      <div className="rounded-md bg-surface p-3"><p className="text-xs text-muted">Средний балл чек-листов</p><p className="mt-1 text-lg font-semibold tabular-nums">{displayNumber(checklistAverage)}</p><p className="mt-1 text-xs text-muted">{checklistTotal ? `${checklistTotal} проверок · порог 9,00` : "Проверок пока нет"}</p></div>
+      <div className="rounded-md bg-surface p-3"><p className="text-xs text-muted">Подтверждённые смены</p><p className="mt-1 text-lg font-semibold tabular-nums">{confirmedShiftCount} / 3</p><p className="mt-1 text-xs text-muted">Всего закрыто: {shiftCount}</p></div>
+      <div className="rounded-md bg-surface p-3"><p className="text-xs text-muted">Подтверждённые часы</p><p className="mt-1 text-lg font-semibold tabular-nums">{displayNumber(confirmedHours, 1)} ч</p><p className="mt-1 text-xs text-muted">Для почасовой части зарплаты</p></div>
+    </div>
+    <div className="mt-4">
+      {stores.length ? <>
+      <div className="grid gap-2 sm:hidden">
+        {stores.map((store) => {
+          const averageAchieved = store.averageTarget !== null && store.storeAverageCheck !== null && Math.round(store.storeAverageCheck * 100) / 100 >= store.averageTarget;
+          const depthAchieved = store.depthTarget !== null && store.storeCheckDepth !== null && Math.round(store.storeCheckDepth * 100) / 100 >= store.depthTarget;
+          const salesPercent = store.salesPlan && store.salesPlan > 0 ? store.storeRevenue / store.salesPlan * 100 : null;
+          return <div key={store.id} className="rounded-md bg-surface p-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-semibold">{store.name}</h3>
+              <span className="text-xs text-muted">{store.confirmedShifts}/{store.shifts} смен подтверждено</span>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+              <div><dt className="text-muted">Ваш средний чек</dt><dd className="mt-0.5 tabular-nums">{displayNumber(store.ownAverageCheck)} ₽</dd></div>
+              <div><dt className="text-muted">Ваша глубина чека</dt><dd className="mt-0.5 tabular-nums">{displayNumber(store.ownCheckDepth)}</dd></div>
+              <div><dt className="text-muted">Чек магазина / цель</dt><dd className={`mt-0.5 tabular-nums ${averageAchieved ? "text-emerald-300" : ""}`}>{displayNumber(store.storeAverageCheck)} / {displayNumber(store.averageTarget)} ₽</dd></div>
+              <div><dt className="text-muted">Глубина / цель</dt><dd className={`mt-0.5 tabular-nums ${depthAchieved ? "text-emerald-300" : ""}`}>{displayNumber(store.storeCheckDepth)} / {displayNumber(store.depthTarget)}</dd></div>
+              <div><dt className="text-muted">Оборот магазина / план</dt><dd className="mt-0.5 tabular-nums">{money(store.storeRevenue)} / {store.salesPlan && store.salesPlan > 0 ? `${money(store.salesPlan)}${salesPercent !== null ? ` · ${displayNumber(salesPercent, 1)}%` : ""}` : "не задан"}</dd></div>
+              <div><dt className="text-muted">Ваши чек-листы</dt><dd className="mt-0.5 tabular-nums">{store.checklistCount ? `${displayNumber(store.checklistAverage)} · ${store.checklistCount} проверок` : "Нет проверок"}</dd></div>
+              <div><dt className="text-muted">Подтверждённые смены</dt><dd className="mt-0.5 tabular-nums">{store.confirmedShifts} / 3</dd></div>
+              <div><dt className="text-muted">Подтверждённые часы</dt><dd className="mt-0.5 tabular-nums">{displayNumber(store.confirmedHours, 1)} ч</dd></div>
+            </dl>
+          </div>;
+        })}
+      </div>
+      <div className="hidden overflow-x-auto sm:block">
+      <table className="w-full min-w-[760px] border-collapse text-left text-xs">
+        <thead className="text-[10px] uppercase tracking-wide text-muted"><tr>
+          <th className="px-2 py-2">Магазин</th><th className="px-2 py-2 text-right">Ваши чек / глубина</th><th className="px-2 py-2 text-right">Цели магазина: чек / глубина</th><th className="px-2 py-2 text-right">Оборот / план</th><th className="px-2 py-2 text-right">Чек-листы</th><th className="px-2 py-2 text-right">Допуск</th>
+        </tr></thead>
+        <tbody>{stores.map((store) => {
+          const averageAchieved = store.averageTarget !== null && store.storeAverageCheck !== null && Math.round(store.storeAverageCheck * 100) / 100 >= store.averageTarget;
+          const depthAchieved = store.depthTarget !== null && store.storeCheckDepth !== null && Math.round(store.storeCheckDepth * 100) / 100 >= store.depthTarget;
+          const salesPercent = store.salesPlan && store.salesPlan > 0 ? store.storeRevenue / store.salesPlan * 100 : null;
+          return <tr key={store.id} className="border-t border-line">
+            <td className="px-2 py-2.5 font-semibold">{store.name}</td>
+            <td className="px-2 py-2.5 text-right tabular-nums">{displayNumber(store.ownAverageCheck)} ₽ / {displayNumber(store.ownCheckDepth)}</td>
+            <td className="px-2 py-2.5 text-right tabular-nums"><span className={averageAchieved ? "text-emerald-300" : ""}>{displayNumber(store.storeAverageCheck)} / {displayNumber(store.averageTarget)} ₽</span><br /><span className={depthAchieved ? "text-emerald-300" : ""}>{displayNumber(store.storeCheckDepth)} / {displayNumber(store.depthTarget)}</span></td>
+            <td className="px-2 py-2.5 text-right tabular-nums">{money(store.storeRevenue)} / {store.salesPlan && store.salesPlan > 0 ? `${money(store.salesPlan)}${salesPercent !== null ? ` · ${displayNumber(salesPercent, 1)}%` : ""}` : "не задан"}</td>
+            <td className="px-2 py-2.5 text-right tabular-nums">{store.checklistCount ? `${displayNumber(store.checklistAverage)} · ${store.checklistCount}` : "Нет проверок"}</td>
+            <td className="px-2 py-2.5 text-right tabular-nums">{store.confirmedShifts} / 3 смены</td>
+          </tr>;
+        })}</tbody>
+      </table>
+      </div>
+      </> : <p className="py-2 text-sm text-muted">В этом месяце пока нет закрытых смен. Показатели магазина появятся после закрытия смены.</p>}
+    </div>
+  </section>;
+}
+
+function StoreGoalsCard({ plan, shiftDate }: { plan: StorePlanPreview | null; shiftDate: string }) {
+  const monthLabel = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(`${shiftDate.slice(0, 7)}-01T00:00:00Z`));
+  const target = (value: number | string | null, decimals = 0) => value == null || Number(value) <= 0
+    ? "Не задан"
+    : new Intl.NumberFormat("ru-RU", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(Number(value));
+
+  return <div className="mt-4 rounded-md border border-line bg-black/25 p-3">
+    <p className="text-sm font-semibold">План магазина · {monthLabel}</p>
+    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div><p className="text-xs text-muted">Средний чек</p><p className="mt-1 font-semibold tabular-nums">{target(plan?.average_check_target ?? null)}{plan?.average_check_target != null && Number(plan.average_check_target) > 0 ? " ₽" : ""}</p></div>
+      <div><p className="text-xs text-muted">Глубина чека</p><p className="mt-1 font-semibold tabular-nums">{target(plan?.check_depth_target ?? null, 2)}</p></div>
+      {plan?.sales_plan_amount != null && Number(plan.sales_plan_amount) > 0 ? <div><p className="text-xs text-muted">План оборота</p><p className="mt-1 font-semibold tabular-nums">{money(plan.sales_plan_amount)}</p></div> : null}
+    </div>
+  </div>;
+}
+
+function DailySalesPlanCard({ target, remaining, basis, years }: { target: number; remaining: number; basis: "history" | "schedule" | "calendar"; years: number[] }) {
+  const basisLabel = basis === "history"
+    ? years.length === 3 ? `Тот же месяц · ${years.join(" / ")} · веса 50/30/20` : `Тот же месяц · ${years.join(" / ")} · вес по доступной истории`
+    : basis === "schedule" ? "Равномерно по датам графика" : "Равномерно по дням месяца";
+  return <div className="mt-3 rounded-md border border-brand/35 bg-brand/10 p-3">
+    <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <p className="text-sm font-semibold">План на день</p>
+      <p className="text-xs text-muted">Основной продавец смены</p>
+    </div>
+    <p className="mt-1 text-2xl font-semibold tabular-nums">{money(target)}</p>
+    <p className="mt-1 text-xs text-muted">Остаток месячного плана: {money(remaining)} · {basisLabel}</p>
+  </div>;
+}
+
 function todayLabel() {
   return new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
@@ -151,15 +329,6 @@ function formatDate(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function monthStartDate(value?: string) {
-  if (value && /^\d{4}-\d{2}$/.test(value)) {
-    return `${value}-01`;
-  }
-
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
 }
 
 function monthEndDate(monthStartValue: string) {
@@ -345,8 +514,26 @@ export default async function HomePage() {
           .returns<ChecklistPreview[]>()
       : Promise.resolve({ data: [] as ChecklistPreview[], error: null });
 
-  const selectedMonth = monthStartDate();
+  const selectedMonth = `${localIsoDate().slice(0, 7)}-01`;
   const selectedMonthEnd = monthEndDate(selectedMonth);
+  const nextMonthStart = new Date(Date.UTC(Number(selectedMonth.slice(0, 4)), Number(selectedMonth.slice(5, 7)), 1)).toISOString().slice(0, 10);
+  const employeeKpiShiftsQuery = profile?.employee_id && !managementView && !auditorOnly
+    ? supabase.from("shifts")
+        .select("id, store_id, shift_date, stores(name), shift_closing_reports(net_revenue, receipt_count, items_sold_count), shift_participants!inner(employee_id, participant_role, shift_work_times(paid_hours, confirmed_at))")
+        .eq("shift_participants.employee_id", profile.employee_id)
+        .eq("status", "closed")
+        .eq("is_erroneous", false)
+        .gte("shift_date", selectedMonth)
+        .lt("shift_date", nextMonthStart)
+        .returns<EmployeeKpiShiftRow[]>()
+    : Promise.resolve({ data: [] as EmployeeKpiShiftRow[], error: null });
+  const employeeKpiChecklistsQuery = profile?.employee_id && !managementView && !auditorOnly
+    ? supabase.from("checklist_submissions")
+        .select("store_id, average_score, stores(name)")
+        .eq("employee_id", profile.employee_id)
+        .eq("period_month", selectedMonth)
+        .returns<EmployeeChecklistKpiRow[]>()
+    : Promise.resolve({ data: [] as EmployeeChecklistKpiRow[], error: null });
   const employeesLookupQuery =
     managementView || canSeeAccessibleStoreSchedules
       ? supabase.from("employees").select("id, full_name").eq("is_active", true).returns<EmployeeLookupRow[]>()
@@ -397,8 +584,9 @@ export default async function HomePage() {
     cashCountsResult,
     schedulePreviewResult,
     scheduleEmployeeIds,
+    employeeKpiShiftsResult,
   ] = (await Promise.all([
-    auditorOnly || supportOnlyView
+    auditorOnly
       ? Promise.resolve({
           data: [] as ShiftPreview[],
           error: null,
@@ -415,8 +603,8 @@ export default async function HomePage() {
       : profile?.employee_id
         ? supabase
             .from("shifts")
-            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name, timezone), schedules(planned_end_at)")
-            .eq("opened_by_employee_id", profile.employee_id)
+            .select("id, store_id, shift_date, status, opened_at, opened_by_employee_id, stores(name, timezone), schedules(planned_end_at), shift_participants!inner(employee_id)")
+            .eq("shift_participants.employee_id", profile.employee_id)
             .in("status", ["opened", "correction_required"])
             .order("shift_date", { ascending: false })
             .limit(1)
@@ -430,29 +618,27 @@ export default async function HomePage() {
       .eq("recipient_profile_id", user.id)
       .gte("created_at", notificationCutoffIso())
       .eq("is_read", false),
-    supabase
-      .from("checklist_submissions")
-      .select("average_score")
-      .order("submitted_at", { ascending: false })
-      .limit(5),
+    employeeKpiChecklistsQuery,
     auditorOnly || storeManagerView || supportOnlyView ? Promise.resolve({ data: [] as { total_payout_amount: number | string }[], error: null }) : payrollQuery,
     checklistArchiveQuery,
     employeesLookupQuery,
     cashCountsQuery,
     schedulePreviewQuery,
     getScheduleEmployeeIds(supabase),
+    employeeKpiShiftsQuery,
   ])) as [
     HomeQueryResult<ShiftPreview[]>,
     HomeQueryResult<TaskPreview[]>,
     HomeQueryResult<TaskPreview[]>,
     HomeQueryResult<{ id: string }[]>,
-    HomeQueryResult<{ average_score: number | string }[]>,
+    HomeQueryResult<EmployeeChecklistKpiRow[]>,
     HomeQueryResult<{ total_payout_amount: number | string }[]>,
     HomeQueryResult<ChecklistPreview[]>,
     HomeQueryResult<EmployeeLookupRow[]>,
     HomeQueryResult<CashCountPreview[]>,
     HomeQueryResult<SchedulePreview[]>,
     Set<string>,
+    HomeQueryResult<EmployeeKpiShiftRow[]>,
   ];
 
   if (shiftsResult.error) {
@@ -476,6 +662,7 @@ export default async function HomePage() {
   if (employeesLookupResult.error) {
     throw new Error(employeesLookupResult.error.message);
   }
+  if (employeeKpiShiftsResult.error) throw new Error(employeeKpiShiftsResult.error.message);
 
   const shifts = (shiftsResult.data ?? []) as ShiftPreview[];
   const overdueShifts = managementView ? shifts.filter((shift) => isShiftOverdue(shift)) : [];
@@ -484,11 +671,194 @@ export default async function HomePage() {
   // Manager view already uses the personal task query for the main task block.
   const personalTasks = (managerOnlyView ? tasksResult.data ?? [] : personalTasksResult.data ?? []) as TaskPreview[];
   const checklistArchive = (checklistArchiveResult.data ?? []) as ChecklistPreview[];
-  const checklistScores = (checklistResult.data ?? []) as { average_score: number | string }[];
+  const checklistScores = checklistResult.data ?? [];
   const averageChecklist = checklistScores.length
-    ? checklistScores.reduce((sum: number, row: { average_score: number | string }) => sum + Number(row.average_score), 0) / checklistScores.length
-    : 10;
+    ? checklistScores.reduce((sum, row) => sum + Number(row.average_score), 0) / checklistScores.length
+    : null;
   const activeShift = shifts[0];
+  const activeShiftPlanResult = activeShift
+    ? await supabase.from("store_sales_plans")
+        .select("sales_plan_amount, average_check_target, check_depth_target")
+        .eq("store_id", activeShift.store_id)
+        .eq("period_start", `${activeShift.shift_date.slice(0, 7)}-01`)
+        .maybeSingle<StorePlanPreview>()
+    : { data: null, error: null };
+  if (activeShiftPlanResult.error) throw new Error(activeShiftPlanResult.error.message);
+  const activeShiftPlan = activeShiftPlanResult.data;
+  const isPrimarySellerOnActiveShift = Boolean(
+    managerOnlyView && profile?.employee_id && activeShift?.opened_by_employee_id === profile.employee_id,
+  );
+  const dailyPlanPeriod = activeShift?.shift_date.slice(0, 7) ?? "";
+  const dailyPlanHistoryStart = dailyPlanPeriod
+    ? `${Number(dailyPlanPeriod.slice(0, 4)) - 3}-${dailyPlanPeriod.slice(5, 7)}-01`
+    : "";
+  const dailyPlanHistoryEnd = dailyPlanPeriod ? `${dailyPlanPeriod}-01` : "";
+  const dailyPlanHistoryQuery = isPrimarySellerOnActiveShift
+    ? supabase.from("store_daily_historical_analytics").select("sales_date, revenue_amount, returns_amount")
+        .eq("store_id", activeShift!.store_id).gte("sales_date", dailyPlanHistoryStart)
+        .lt("sales_date", dailyPlanHistoryEnd).order("sales_date", { ascending: true })
+        .returns<{ sales_date: string; revenue_amount: number | string; returns_amount: number | string }[]>()
+    : Promise.resolve({ data: [] as { sales_date: string; revenue_amount: number | string; returns_amount: number | string }[], error: null });
+  const dailyPlanActualQuery = isPrimarySellerOnActiveShift
+    ? supabase.from("shifts").select("shift_date, shift_closing_reports(net_revenue)")
+        .eq("store_id", activeShift!.store_id).eq("status", "closed").eq("is_erroneous", false)
+        .gte("shift_date", `${dailyPlanPeriod}-01`).lt("shift_date", activeShift!.shift_date)
+        .returns<DailyPlanActualQueryRow[]>()
+    : Promise.resolve({ data: [] as DailyPlanActualQueryRow[], error: null });
+  const dailyPlanScheduleQuery = isPrimarySellerOnActiveShift
+    ? supabase.from("schedules").select("shift_date").eq("store_id", activeShift!.store_id)
+        .gte("shift_date", `${dailyPlanPeriod}-01`).lte("shift_date", monthEndDate(`${dailyPlanPeriod}-01`))
+        .eq("status", "planned")
+        .returns<DailyPlanScheduleQueryRow[]>()
+    : Promise.resolve({ data: [] as DailyPlanScheduleQueryRow[], error: null });
+  const [dailyPlanHistoryResult, dailyPlanActualResult, dailyPlanScheduleResult] = await Promise.all([
+    dailyPlanHistoryQuery, dailyPlanActualQuery, dailyPlanScheduleQuery,
+  ]);
+  for (const error of [dailyPlanHistoryResult.error, dailyPlanActualResult.error, dailyPlanScheduleResult.error]) {
+    if (error) throw new Error(error.message);
+  }
+  const dailySalesPlan = isPrimarySellerOnActiveShift && activeShiftPlan?.sales_plan_amount != null
+    ? calculateDailySalesPlan({
+        period: dailyPlanPeriod,
+        targetDate: activeShift!.shift_date,
+        monthlyPlan: Number(activeShiftPlan.sales_plan_amount),
+        historicalRows: (dailyPlanHistoryResult.data ?? []).map((row): DailySalesHistoryRow => ({
+          date: row.sales_date, revenue: Number(row.revenue_amount), returns: Number(row.returns_amount),
+        })),
+        actualRows: (dailyPlanActualResult.data ?? []).map((row): DailySalesActualRow => ({
+          date: row.shift_date, netRevenue: Number(firstRelation(row.shift_closing_reports)?.net_revenue ?? 0),
+        })),
+        scheduledDates: (dailyPlanScheduleResult.data ?? []).map((row) => row.shift_date),
+      })
+    : null;
+  const employeeKpiShiftRows = employeeKpiShiftsResult.data ?? [];
+  const employeeKpiStoreIds = [...new Set(employeeKpiShiftRows.map((shift) => shift.store_id))];
+  const taskWindowStart = new Date(Date.parse(`${selectedMonth}T00:00:00Z`) - 86_400_000).toISOString();
+  const taskWindowEnd = new Date(Date.parse(`${nextMonthStart}T00:00:00Z`) + 86_400_000).toISOString();
+  const employeeTaskQuery = profile?.employee_id
+    ? supabase.from("tasks").select("id, store_id, assignee_employee_id, created_at, due_at, completed_at, status, stores(timezone)")
+        .eq("assignee_employee_id", profile.employee_id).gte("due_at", taskWindowStart).lt("due_at", taskWindowEnd).limit(1000).returns<EmployeeTaskKpiRow[]>()
+    : Promise.resolve({ data: [] as EmployeeTaskKpiRow[], error: null });
+  const storeTaskQuery = employeeKpiStoreIds.length
+    ? supabase.from("tasks").select("id, store_id, assignee_employee_id, created_at, due_at, completed_at, status, stores(timezone)")
+        .in("store_id", employeeKpiStoreIds).gte("due_at", taskWindowStart).lt("due_at", taskWindowEnd).limit(1000).returns<EmployeeTaskKpiRow[]>()
+    : Promise.resolve({ data: [] as EmployeeTaskKpiRow[], error: null });
+  const storeKpiShiftQuery = employeeKpiStoreIds.length
+    ? supabase.from("shifts").select("store_id, shift_closing_reports(net_revenue, receipt_count, items_sold_count)")
+        .in("store_id", employeeKpiStoreIds).eq("status", "closed").eq("is_erroneous", false)
+        .gte("shift_date", selectedMonth).lt("shift_date", nextMonthStart).returns<StoreKpiShiftRow[]>()
+    : Promise.resolve({ data: [] as StoreKpiShiftRow[], error: null });
+  const storeKpiPlanQuery = employeeKpiStoreIds.length
+    ? supabase.from("store_sales_plans").select("store_id, sales_plan_amount, average_check_target, check_depth_target")
+        .in("store_id", employeeKpiStoreIds).eq("period_start", selectedMonth).eq("period_end", selectedMonthEnd).returns<StoreKpiPlanRow[]>()
+    : Promise.resolve({ data: [] as StoreKpiPlanRow[], error: null });
+  const [employeeTaskResult, storeTaskResult, storeKpiShiftResult, storeKpiPlanResult] = await Promise.all([
+    employeeTaskQuery, storeTaskQuery, storeKpiShiftQuery, storeKpiPlanQuery,
+  ]);
+  for (const error of [employeeTaskResult.error, storeTaskResult.error, storeKpiShiftResult.error, storeKpiPlanResult.error]) {
+    if (error) throw new Error(error.message);
+  }
+  const employeeKpiTasksById = new Map<string, EmployeeTaskKpiRow>();
+  for (const row of [...(employeeTaskResult.data ?? []), ...(storeTaskResult.data ?? [])]) employeeKpiTasksById.set(row.id, row);
+  const previewEmployeeShifts: PreviewShift[] = employeeKpiShiftRows.flatMap((shift) => {
+    const participant = shift.shift_participants.find((item) => item.employee_id === profile?.employee_id);
+    const report = firstRelation(shift.shift_closing_reports);
+    if (!report || !participant) return [];
+    const workTime = firstRelation(participant.shift_work_times);
+    return [{
+      id: shift.id,
+      storeId: shift.store_id,
+      shiftDate: shift.shift_date,
+      paidHours: Number(workTime?.paid_hours ?? 0),
+      confirmedHours: Boolean(workTime?.confirmed_at && workTime.paid_hours !== null),
+      participantRole: participant.participant_role,
+      netRevenue: Number(report.net_revenue ?? 0),
+      receiptCount: Number(report.receipt_count ?? 0),
+      itemsSoldCount: report.items_sold_count === null ? null : Number(report.items_sold_count),
+    }];
+  });
+  const previewEmployeeTasks: PreviewTask[] = [...employeeKpiTasksById.values()].map((task) => {
+    const timeZone = storeTimeZone(task.stores?.timezone);
+    return {
+      id: task.id,
+      storeId: task.store_id ?? "",
+      assigneeEmployeeId: task.assignee_employee_id,
+      createdLocalDate: dateAtTimeZone(task.created_at, timeZone) ?? selectedMonth,
+      dueLocalDate: dateAtTimeZone(task.due_at, timeZone),
+      dueAt: task.due_at,
+      completedAt: task.completed_at,
+      status: task.status === "done" ? "done" : task.status === "cancelled" ? "cancelled" : "open",
+    };
+  });
+  const employeeTaskKpi = profile?.employee_id
+    ? summarizeEmployeeTaskKpi({ id: profile.employee_id, shifts: previewEmployeeShifts }, previewEmployeeTasks, selectedMonth.slice(0, 7))
+    : { total: 0, onTime: 0, percent: null };
+  const employeeKpiStoreData = new Map<string, EmployeeKpiStoreView>();
+  for (const shift of employeeKpiShiftRows) {
+    const row = employeeKpiStoreData.get(shift.store_id) ?? {
+      id: shift.store_id, name: shift.stores?.name ?? "Магазин", shifts: 0, confirmedShifts: 0, confirmedHours: 0,
+      ownAverageCheck: null, ownCheckDepth: null, storeAverageCheck: null, storeCheckDepth: null,
+      storeRevenue: 0, salesPlan: null, averageTarget: null, depthTarget: null, checklistAverage: null, checklistCount: 0,
+    };
+    const participant = shift.shift_participants.find((item) => item.employee_id === profile?.employee_id);
+    const workTime = firstRelation(participant?.shift_work_times);
+    row.shifts++;
+    if (workTime?.confirmed_at && workTime.paid_hours !== null) {
+      row.confirmedShifts++;
+      row.confirmedHours += Number(workTime.paid_hours);
+    }
+    employeeKpiStoreData.set(shift.store_id, row);
+  }
+  const ownMetricByStore = new Map<string, { revenue: number; receipts: number; items: number; itemReceipts: number; missingItems: boolean }>();
+  for (const shift of previewEmployeeShifts) {
+    const current = ownMetricByStore.get(shift.storeId) ?? { revenue: 0, receipts: 0, items: 0, itemReceipts: 0, missingItems: false };
+    current.revenue += shift.netRevenue;
+    current.receipts += shift.receiptCount;
+    if (shift.itemsSoldCount === null) current.missingItems = true;
+    else { current.items += shift.itemsSoldCount; current.itemReceipts += shift.receiptCount; }
+    ownMetricByStore.set(shift.storeId, current);
+  }
+  const storeMetricById = new Map<string, { revenue: number; receipts: number; items: number; missingItems: boolean }>();
+  for (const shift of storeKpiShiftResult.data ?? []) {
+    const current = storeMetricById.get(shift.store_id) ?? { revenue: 0, receipts: 0, items: 0, missingItems: false };
+    const report = firstRelation(shift.shift_closing_reports);
+    if (report) {
+      current.revenue += Number(report.net_revenue ?? 0);
+      current.receipts += Number(report.receipt_count ?? 0);
+      if (report.items_sold_count === null) current.missingItems = true;
+      else current.items += Number(report.items_sold_count);
+    }
+    storeMetricById.set(shift.store_id, current);
+  }
+  const storePlansById = new Map((storeKpiPlanResult.data ?? []).map((plan) => [plan.store_id, plan]));
+  const checklistTotalsByStore = new Map<string, { total: number; count: number }>();
+  for (const checklist of checklistResult.data ?? []) {
+    const total = checklistTotalsByStore.get(checklist.store_id) ?? { total: 0, count: 0 };
+    total.total += Number(checklist.average_score);
+    total.count++;
+    checklistTotalsByStore.set(checklist.store_id, total);
+    const store = employeeKpiStoreData.get(checklist.store_id);
+    if (store) {
+      store.checklistCount++;
+      store.checklistAverage = (store.checklistAverage ?? 0) + Number(checklist.average_score);
+    }
+  }
+  for (const store of employeeKpiStoreData.values()) {
+    const own = ownMetricByStore.get(store.id);
+    const storeMetric = storeMetricById.get(store.id);
+    const plan = storePlansById.get(store.id);
+    const checklist = checklistTotalsByStore.get(store.id);
+    store.ownAverageCheck = own && own.receipts > 0 ? own.revenue / own.receipts : null;
+    store.ownCheckDepth = own && own.receipts > 0 && !own.missingItems && own.itemReceipts > 0 ? own.items / own.itemReceipts : null;
+    store.storeAverageCheck = storeMetric && storeMetric.receipts > 0 ? storeMetric.revenue / storeMetric.receipts : null;
+    store.storeCheckDepth = storeMetric && storeMetric.receipts > 0 && !storeMetric.missingItems ? storeMetric.items / storeMetric.receipts : null;
+    store.storeRevenue = storeMetric?.revenue ?? 0;
+    store.salesPlan = plan?.sales_plan_amount == null ? null : Number(plan.sales_plan_amount);
+    store.averageTarget = plan?.average_check_target == null ? null : Number(plan.average_check_target);
+    store.depthTarget = plan?.check_depth_target == null ? null : Number(plan.check_depth_target);
+    store.checklistAverage = checklist?.count ? checklist.total / checklist.count : null;
+  }
+  const employeeKpiStores = [...employeeKpiStoreData.values()].sort((left, right) => left.name.localeCompare(right.name, "ru"));
   const payrollPreview = payrollResult.data?.[0]?.total_payout_amount ?? 0;
   const latestCashCountByStore = new Map<string, CashCountPreview>();
   for (const cashCount of cashCountsResult.data ?? []) {
@@ -641,6 +1011,8 @@ export default async function HomePage() {
             </div>
           </div>
         </section> : null}
+
+        {profile?.employee_id && !managementView && !auditorOnly ? <EmployeeKpiPanel period={selectedMonth.slice(0, 7)} taskKpi={employeeTaskKpi} stores={employeeKpiStores} /> : null}
 
         {auditorOnly ? (
           <>
@@ -829,6 +1201,8 @@ export default async function HomePage() {
                   <p className="mt-1 text-xl font-semibold">
                     {money(latestCashCountByStore.get(activeShift.store_id)?.cash_amount ?? 0)}
                   </p>
+                  <StoreGoalsCard plan={activeShiftPlan} shiftDate={activeShift.shift_date} />
+                  {dailySalesPlan ? <DailySalesPlanCard target={dailySalesPlan.target} remaining={dailySalesPlan.monthlyRemaining} basis={dailySalesPlan.basis} years={dailySalesPlan.years} /> : null}
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <Link className="inline-flex h-11 items-center justify-center rounded-md bg-brand px-3 text-sm font-semibold text-white" href={`/shifts/close?shiftId=${activeShift.id}&hideCash=1`}>Закрыть смену</Link>
                     <Link className="inline-flex h-11 items-center justify-center rounded-md ui-panel px-3 text-sm font-semibold" href={`/shifts/recount?storeId=${activeShift.store_id}&shiftId=${activeShift.id}`}>Пересчёт</Link>
@@ -903,7 +1277,7 @@ export default async function HomePage() {
             {!superAdminView ? (
               <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Metric icon={ReceiptText} label="К выплате" value={money(payrollPreview)} />
-                <Metric icon={ClipboardCheck} label="Чек-лист" value={averageChecklist.toFixed(2)} />
+                <Metric icon={ClipboardCheck} label="Чек-лист" value={averageChecklist === null ? "—" : averageChecklist.toFixed(2)} />
                 <Metric icon={ListTodo} label="Задачи" value={`${tasks.length} задач`} />
                 <Metric icon={WalletCards} label="Уведомления" value={`${notificationsCount}`} />
               </section>
@@ -925,6 +1299,7 @@ export default async function HomePage() {
               <p className="mt-1 font-medium">{activeShift?.shift_date ?? "-"}</p>
             </div>
           </div>
+          {activeShift ? <StoreGoalsCard plan={activeShiftPlan} shiftDate={activeShift.shift_date} /> : null}
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Link className="rounded-md bg-brand px-4 py-3 text-center text-sm font-semibold text-white" href="/shifts">
               Смены

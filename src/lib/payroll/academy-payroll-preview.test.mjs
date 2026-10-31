@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateAcademyPayrollPreview } from "./academy-payroll-preview.ts";
+import { calculateAcademyPayrollPreview, summarizeEmployeeTaskKpi } from "./academy-payroll-preview.ts";
 
 const rates = [
   { level: 4, hourlyRate: 280, baseCommissionPercent: 2, planCommissionPercent: 2 },
@@ -74,6 +74,17 @@ test("weights store KPI results by the employee's actual hours and gates at thre
   assert.equal(result.employees[1].commercialKpiBonus, 0);
   assert.equal(result.stores.a.goalAward, 5_000);
   assert.equal(result.stores.b.goalAward, 2_000);
+});
+
+test("task KPI includes assigned and store tasks only during the employee's eligible date range", () => {
+  const worker = employee("worker", { shifts: [shift("s1", "a", { shiftDate: "2026-10-12" })] });
+  const tasks = [
+    { id: "personal", storeId: "", assigneeEmployeeId: "worker", createdLocalDate: "2026-10-01", dueLocalDate: "2026-10-20", dueAt: "2026-10-20T10:00:00Z", completedAt: "2026-10-20T09:00:00Z", status: "done" },
+    { id: "store", storeId: "a", assigneeEmployeeId: null, createdLocalDate: "2026-10-10", dueLocalDate: "2026-10-15", dueAt: "2026-10-15T10:00:00Z", completedAt: "2026-10-16T10:00:00Z", status: "done" },
+    { id: "before-work", storeId: "a", assigneeEmployeeId: null, createdLocalDate: "2026-10-01", dueLocalDate: "2026-10-05", dueAt: "2026-10-05T10:00:00Z", completedAt: null, status: "open" },
+    { id: "no-deadline", storeId: "", assigneeEmployeeId: "worker", createdLocalDate: "2026-10-01", dueLocalDate: null, dueAt: null, completedAt: null, status: "open" },
+  ];
+  assert.deepEqual(summarizeEmployeeTaskKpi(worker, tasks, "2026-10"), { total: 2, onTime: 1, percent: 50 });
 });
 
 test("applies checklist quality to hourly pay per store but not to commission or bonuses", () => {

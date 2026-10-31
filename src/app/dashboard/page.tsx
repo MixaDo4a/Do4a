@@ -1,11 +1,15 @@
 import { redirect } from "next/navigation";
-import { DashboardView, type DashboardData } from "@/components/dashboard-view";
+import { DashboardView, type DashboardData, type StoreMonthlyMetric } from "@/components/dashboard-view";
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
 import { loadAcademyPayLevels } from "@/lib/payroll/academy-level.server";
+import { forecastStorePlan } from "@/lib/store-plan-forecast";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-type PageProps = { searchParams: Promise<{ period?: string; message?: string; detail?: string }> };
+type PageProps = { searchParams: Promise<{
+  period?: string; overviewPeriod?: string; employeesPeriod?: string; storesPeriod?: string; goalsPeriod?: string;
+  mainTab?: string; tab?: string; message?: string; detail?: string;
+}> };
 type Relation<T> = T | T[] | null;
 type StoreRow = { id: string; name: string; city: string; timezone: string | null; workday_start_time: string | null; workday_end_time: string | null };
 type ReportRow = {
@@ -43,7 +47,27 @@ type StoreDetailRow = StoreRow & { status: string };
 type PlanRow = {
   store_id: string; sales_plan_amount: number | string;
   average_check_target: number | string | null; check_depth_target: number | string | null;
+  is_auto_generated: boolean;
 };
+type HistoricalMonthRow = {
+  store_id: string; period_start: string; revenue_amount: number | string; returns_amount: number | string;
+  receipt_count: number; items_sold_count: number | null; active_days: number;
+  missing_revenue_days: number; missing_receipt_days: number; missing_item_days: number;
+  seasonality_coefficient: number | string | null;
+};
+type HistoricalDayRow = {
+  store_id: string; sales_date: string; revenue_amount: number | string; returns_amount: number | string;
+  receipt_count: number; items_sold_count: number; nonzero_turnover_shifts: number;
+};
+type MonthlyReportRow = {
+  gross_revenue: number | string | null; cash_revenue: number | string | null; card_revenue: number | string | null;
+  cash_returns: number | string | null; card_returns: number | string | null; receipt_count: number | null; items_sold_count: number | null;
+};
+type MonthlyShiftRow = {
+  store_id: string; shift_date: string; status: string; is_erroneous: boolean;
+  shift_closing_reports: Relation<MonthlyReportRow>;
+};
+type YearPlanRow = { store_id: string; period_start: string; sales_plan_amount: number | string };
 
 const PAGE_SIZE = 1000;
 
@@ -83,12 +107,23 @@ function localDateAt(value: string | null, timeZone: string) {
 
 export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const period = validPeriod(params.period);
+  const fallbackPeriod = validPeriod(params.period);
+  const periods = {
+    overview: validPeriod(params.overviewPeriod ?? fallbackPeriod),
+    employees: validPeriod(params.employeesPeriod ?? fallbackPeriod),
+    stores: validPeriod(params.storesPeriod ?? fallbackPeriod),
+    goals: validPeriod(params.goalsPeriod ?? fallbackPeriod),
+  };
+  const mainTab = params.mainTab === "stores" ? "stores" : "overview";
+  const storeTab = params.tab === "stores" || params.tab === "goals" ? params.tab : "employees";
+  const period = mainTab === "overview" ? periods.overview : periods[storeTab];
   const periodStart = `${period}-01`;
   const periodEnd = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const nextMonth = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 1)).toISOString().slice(0, 10);
   const queryStart = new Date(Date.parse(`${periodStart}T00:00:00Z`) - 86_400_000).toISOString();
   const queryEnd = new Date(Date.parse(`${nextMonth}T00:00:00Z`) + 86_400_000).toISOString();
+  const yearStart = `${Number(period.slice(0, 4)) - 1}-01-01`;
+  const nextYear = `${Number(period.slice(0, 4)) + 1}-01-01`;
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -100,12 +135,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     .filter((store) => store.status !== "archived" && !/склад|warehouse/i.test(store.name));
   const storeIds = stores.map((store) => store.id);
   if (!storeIds.length) {
-    return <DashboardView initialPeriod={period} stores={[]} storeMetrics={[]} employeeMetrics={[]} openShifts={0} message={params.message} detail={params.detail} />;
+    return <DashboardView initialPeriod={period} periods={periods} initialMainTab={mainTab} initialStoreTab={storeTab} stores={[]} storeMetrics={[]} employeeMetrics={[]} openShifts={0} message={params.message} detail={params.detail} />;
   }
 
-  const [storeDetailsResult, plansResult, shiftRows, taskRows, checklistRows, scheduleRows, cashRows, assignments, payrollPeriod] = await Promise.all([
+  const [storeDetailsResult, plansResult, shiftRows, taskRows, checklistRows, scheduleRows, cashRows, assignments, payrollPeriod, historicalRowsResult, historicalDayRows, yearlyShiftRows, yearPlansResult] = await Promise.all([
     supabase.from("stores").select("id, name, city, timezone, workday_start_time, workday_end_time, status").in("id", storeIds).returns<StoreDetailRow[]>(),
-    supabase.from("store_sales_plans").select("store_id, sales_plan_amount, average_check_target, check_depth_target").eq("period_start", periodStart).eq("period_end", periodEnd).in("store_id", storeIds).returns<PlanRow[]>(),
+    supabase.from("store_sales_plans").select("store_id, sales_plan_amount, average_check_target, check_depth_target, is_auto_generated").eq("period_start", periodStart).eq("period_end", periodEnd).in("store_id", storeIds).returns<PlanRow[]>(),
     fetchPages<ShiftRow>((from, to) => supabase.from("shifts")
       .select("id, store_id, shift_date, status, opened_at, closed_at, is_erroneous, shift_closing_reports(cash_revenue, card_revenue, cash_returns, card_returns, net_revenue, receipt_count, items_sold_count), shift_participants(employee_id, participant_role, employees(id, full_name), shift_work_times(paid_hours, confirmed_at))")
       .in("store_id", storeIds).gte("shift_date", periodStart).lt("shift_date", nextMonth)
@@ -131,6 +166,19 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       .or(`valid_to.is.null,valid_to.gte.${periodStart}`)
       .range(from, to).returns<AssignmentRow[]>()),
     supabase.from("payroll_periods").select("id").eq("period_month", periodStart).maybeSingle<{ id: string }>(),
+    fetchPages<HistoricalMonthRow>((from, to) => supabase.from("store_monthly_historical_analytics")
+      .select("store_id, period_start, revenue_amount, returns_amount, receipt_count, items_sold_count, active_days, missing_revenue_days, missing_receipt_days, missing_item_days, seasonality_coefficient")
+      .in("store_id", storeIds).order("period_start").range(from, to).returns<HistoricalMonthRow[]>()),
+    fetchPages<HistoricalDayRow>((from, to) => supabase.from("store_daily_historical_analytics")
+      .select("store_id, sales_date, revenue_amount, returns_amount, receipt_count, items_sold_count, nonzero_turnover_shifts")
+      .in("store_id", storeIds).gte("sales_date", periodStart).lt("sales_date", nextMonth)
+      .order("sales_date").range(from, to).returns<HistoricalDayRow[]>()),
+    fetchPages<MonthlyShiftRow>((from, to) => supabase.from("shifts")
+      .select("store_id, shift_date, status, is_erroneous, shift_closing_reports(gross_revenue, cash_revenue, card_revenue, cash_returns, card_returns, receipt_count, items_sold_count)")
+      .in("store_id", storeIds).gte("shift_date", yearStart).lt("shift_date", nextYear)
+      .order("shift_date").range(from, to).returns<MonthlyShiftRow[]>()),
+    supabase.from("store_sales_plans").select("store_id, period_start, sales_plan_amount")
+      .in("store_id", storeIds).gte("period_start", yearStart).lt("period_start", nextYear).returns<YearPlanRow[]>(),
   ]);
 
   if (storeDetailsResult.error) throw new Error(storeDetailsResult.error.message);
@@ -138,7 +186,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const cashCountError = cashRows.find((result) => result.error)?.error;
   if (cashCountError) throw new Error(cashCountError.message);
   if (payrollPeriod.error) throw new Error(payrollPeriod.error.message);
+  if (yearPlansResult.error) throw new Error(yearPlansResult.error.message);
   const storeDetails = storeDetailsResult.data ?? [];
+  const storeById = new Map(storeDetails.map((store) => [store.id, store]));
+  const relevantShiftRows = shiftRows.filter((shift) => !(storeById.get(shift.store_id)?.name === "Урбан" && shift.shift_date < "2026-08-01"));
+  const dailyHistoryByStore = new Map<string, HistoricalDayRow[]>();
+  for (const row of historicalDayRows) {
+    const dailyRows = dailyHistoryByStore.get(row.store_id) ?? [];
+    dailyRows.push(row);
+    dailyHistoryByStore.set(row.store_id, dailyRows);
+  }
   const planByStore = new Map((plansResult.data ?? []).map((plan) => [plan.store_id, plan]));
   const currentOpenQuery = await supabase.from("shifts").select("id", { count: "exact", head: true })
     .in("store_id", storeIds).in("status", ["opened", "correction_required"]);
@@ -152,7 +209,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     value.stores.add(assignment.store_id);
     employeeMap.set(employee.id, value);
   }
-  for (const shift of shiftRows) for (const participant of shift.shift_participants) {
+  for (const shift of relevantShiftRows) for (const participant of shift.shift_participants) {
     const person = one(participant.employees);
     if (!person) continue;
     const value = employeeMap.get(person.id) ?? { id: person.id, name: person.full_name, stores: new Set<string>() };
@@ -179,7 +236,163 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const lastCashByStore = new Map<string, CashRow>();
   for (const result of cashRows) if (result.data) lastCashByStore.set(result.data.store_id, result.data);
   const payrollByEmployee = new Map(payrollRows.map((row) => [row.employee_id, row]));
-  const storeById = new Map(storeDetails.map((store) => [store.id, store]));
+  const historyByStore = new Map<string, Map<string, StoreMonthlyMetric>>();
+  const planByStoreMonth = new Map((yearPlansResult.data ?? []).map((row) => [`${row.store_id}:${row.period_start.slice(0, 7)}`, asNumber(row.sales_plan_amount)]));
+  for (const row of historicalRowsResult) {
+    const period = row.period_start.slice(0, 7);
+    const key = `${row.store_id}:${period}`;
+    const revenue = asNumber(row.revenue_amount);
+    const receipts = Number(row.receipt_count || 0);
+    const itemsSold = Number(row.items_sold_count ?? 0);
+    const missingRevenue = Number(row.missing_revenue_days || 0);
+    const missingReceipts = Number(row.missing_receipt_days || 0);
+    const missingItems = Number(row.missing_item_days || 0);
+    const month: StoreMonthlyMetric = {
+      period, revenue, returns: asNumber(row.returns_amount), receipts, itemsSold,
+      averageCheck: receipts > 0 ? (revenue - asNumber(row.returns_amount)) / receipts : null,
+      checkDepth: receipts > 0 ? itemsSold / receipts : null,
+      salesPlan: planByStoreMonth.get(key) ?? null,
+      seasonality: row.seasonality_coefficient == null ? null : asNumber(row.seasonality_coefficient),
+      activeDays: Number(row.active_days || 0), missingRevenue, missingReceipts, missingItems,
+      missingItemsUnit: "дн.", source: "cash-sheet",
+    };
+    const months = historyByStore.get(row.store_id) ?? new Map<string, StoreMonthlyMetric>();
+    months.set(period, month);
+    historyByStore.set(row.store_id, months);
+  }
+  const liveMonthAccumulators = new Map<string, {
+    storeId: string; period: string; revenue: number; returns: number; receipts: number; items: number;
+    averageRevenue: number; averageReturns: number; averageReceipts: number;
+    knownRevenue: number; knownReceipts: number; knownItems: number; missingRevenue: number; missingReceipts: number;
+    missingItems: number; itemReceipts: number; dates: Set<string>;
+  }>();
+  for (const shift of yearlyShiftRows) {
+    if (storeById.get(shift.store_id)?.name === "Урбан" && shift.shift_date < "2026-08-01") continue;
+    if (shift.is_erroneous || !["closed", "auto_closed"].includes(shift.status)) continue;
+    const period = shift.shift_date.slice(0, 7);
+    const key = `${shift.store_id}:${period}`;
+    const accumulator = liveMonthAccumulators.get(key) ?? {
+      storeId: shift.store_id, period, revenue: 0, returns: 0, receipts: 0, items: 0,
+      averageRevenue: 0, averageReturns: 0, averageReceipts: 0,
+      knownRevenue: 0, knownReceipts: 0, knownItems: 0, missingRevenue: 0, missingReceipts: 0,
+      missingItems: 0, itemReceipts: 0, dates: new Set<string>(),
+    };
+    accumulator.dates.add(shift.shift_date);
+    const report = one(shift.shift_closing_reports);
+    if (!report) {
+      accumulator.missingRevenue++;
+      accumulator.missingReceipts++;
+      accumulator.missingItems++;
+      liveMonthAccumulators.set(key, accumulator);
+      continue;
+    }
+    const gross = report.gross_revenue != null
+      ? asNumber(report.gross_revenue)
+      : report.cash_revenue != null && report.card_revenue != null
+        ? asNumber(report.cash_revenue) + asNumber(report.card_revenue)
+        : null;
+    if (gross === null) accumulator.missingRevenue++;
+    else { accumulator.revenue += gross; accumulator.knownRevenue++; }
+    accumulator.returns += asNumber(report.cash_returns) + asNumber(report.card_returns);
+    if (report.receipt_count === null) accumulator.missingReceipts++;
+    else { accumulator.receipts += Number(report.receipt_count); accumulator.knownReceipts++; }
+    if (gross !== null && report.receipt_count !== null && report.receipt_count > 0) {
+      accumulator.averageRevenue += gross;
+      accumulator.averageReturns += asNumber(report.cash_returns) + asNumber(report.card_returns);
+      accumulator.averageReceipts += Number(report.receipt_count);
+    }
+    if (report.items_sold_count === null) accumulator.missingItems++;
+    else {
+      accumulator.items += Number(report.items_sold_count);
+      accumulator.knownItems++;
+      accumulator.itemReceipts += Number(report.receipt_count || 0);
+    }
+    liveMonthAccumulators.set(key, accumulator);
+  }
+  const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Vladivostok", year: "numeric", month: "2-digit" }).format(new Date());
+  for (const [key, row] of liveMonthAccumulators) {
+    const itemMonth = historyByStore.get(row.storeId) ?? new Map<string, StoreMonthlyMetric>();
+    const existing = itemMonth.get(row.period);
+    if (existing?.source === "cash-sheet" && row.period !== currentMonth) continue;
+    const receipts = row.receipts;
+    const itemsSold = row.knownItems > 0 ? row.items : null;
+    itemMonth.set(row.period, {
+      period: row.period,
+      revenue: row.revenue,
+      returns: row.returns,
+      receipts,
+      itemsSold,
+      averageCheck: row.averageReceipts > 0 ? (row.averageRevenue - row.averageReturns) / row.averageReceipts : null,
+      checkDepth: row.itemReceipts > 0 ? row.items / row.itemReceipts : null,
+      salesPlan: planByStoreMonth.get(key) ?? null,
+      seasonality: existing?.seasonality ?? null,
+      activeDays: row.dates.size,
+      missingRevenue: row.missingRevenue,
+      missingReceipts: row.missingReceipts,
+      missingItems: row.missingItems,
+      missingItemsUnit: "см.",
+      source: "app",
+    });
+    historyByStore.set(row.storeId, itemMonth);
+  }
+  for (const [storeId, months] of historyByStore) {
+    for (const [monthKey, month] of months) {
+      month.salesPlan = planByStoreMonth.get(`${storeId}:${monthKey}`) ?? null;
+    }
+  }
+
+  const generatedPlans: Array<{
+    store_id: string; period_start: string; period_end: string; sales_plan_amount: number;
+    average_check_target: number | null; check_depth_target: number | null;
+    is_auto_generated: boolean; updated_by: string;
+  }> = [];
+  for (const store of storeDetails) {
+    if (period <= currentMonth) continue;
+    const existing = planByStore.get(store.id);
+    if (existing && !existing.is_auto_generated) continue;
+    const observations = [...(historyByStore.get(store.id)?.values() ?? [])].map((row) => ({
+      period: row.period,
+      revenue: row.revenue,
+      returns: row.returns,
+      receipts: row.receipts,
+      itemsSold: row.itemsSold,
+      activeDays: row.activeDays,
+      missingRevenue: row.missingRevenue,
+      missingReceipts: row.missingReceipts,
+      missingItems: row.missingItems,
+    }));
+    const forecast = forecastStorePlan(store.name, period, observations);
+    if (forecast.sales === null) continue;
+    const generated = {
+      store_id: store.id,
+      period_start: periodStart,
+      period_end: periodEnd,
+      sales_plan_amount: forecast.sales,
+      average_check_target: forecast.averageCheck,
+      check_depth_target: forecast.checkDepth,
+      is_auto_generated: true,
+      updated_by: user.id,
+    };
+    const hasChanged = !existing
+      || Number(existing.sales_plan_amount) !== forecast.sales
+      || (existing.average_check_target == null ? forecast.averageCheck !== null : Number(existing.average_check_target) !== forecast.averageCheck)
+      || (existing.check_depth_target == null ? forecast.checkDepth !== null : Number(existing.check_depth_target) !== forecast.checkDepth);
+    if (hasChanged) generatedPlans.push(generated);
+    planByStore.set(store.id, {
+      store_id: store.id,
+      sales_plan_amount: forecast.sales,
+      average_check_target: forecast.averageCheck,
+      check_depth_target: forecast.checkDepth,
+      is_auto_generated: true,
+    });
+    planByStoreMonth.set(`${store.id}:${period}`, forecast.sales);
+  }
+  if (generatedPlans.length) {
+    const { error } = await supabase.from("store_sales_plans")
+      .upsert(generatedPlans, { onConflict: "store_id,period_start,period_end" });
+    if (error) throw new Error(`Не удалось сохранить автоматические планы: ${error.message}`);
+  }
+
   const taskAssignmentsByEmployee = new Map<string, TaskRow[]>();
   for (const task of taskRows) {
     if (!task.due_at || task.status === "cancelled") continue;
@@ -189,7 +402,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     if (!dueLocalDate || dueLocalDate < periodStart || dueLocalDate > periodEnd) continue;
     const creditedEmployeeIds = task.assignee_employee_id
       ? [task.assignee_employee_id]
-      : [...new Set(shiftRows.filter((shift) => shift.store_id === task.store_id && !shift.is_erroneous && shift.status === "closed" && createdLocalDate && shift.shift_date >= createdLocalDate && shift.shift_date <= dueLocalDate)
+      : [...new Set(relevantShiftRows.filter((shift) => shift.store_id === task.store_id && !shift.is_erroneous && shift.status === "closed" && createdLocalDate && shift.shift_date >= createdLocalDate && shift.shift_date <= dueLocalDate)
         .flatMap((shift) => shift.shift_participants.map((participant) => participant.employee_id)))];
     for (const employeeId of creditedEmployeeIds) {
       const assigned = taskAssignmentsByEmployee.get(employeeId) ?? [];
@@ -199,16 +412,25 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   }
 
   const storeMetrics: DashboardData["storeMetrics"] = storeDetails.map((store) => {
-    const rows = shiftRows.filter((shift) => shift.store_id === store.id);
+    const rows = relevantShiftRows.filter((shift) => shift.store_id === store.id);
     const validShifts = rows.filter((shift) => !shift.is_erroneous && shift.status === "closed");
     const reports = validShifts.map((shift) => one(shift.shift_closing_reports)).filter((row): row is ReportRow => Boolean(row));
-    const net = reports.reduce((sum, row) => sum + asNumber(row.net_revenue), 0);
-    const gross = reports.reduce((sum, row) => sum + asNumber(row.cash_revenue) + asNumber(row.card_revenue), 0);
-    const returns = reports.reduce((sum, row) => sum + asNumber(row.cash_returns) + asNumber(row.card_returns), 0);
-    const receipts = reports.reduce((sum, row) => sum + Number(row.receipt_count || 0), 0);
+    const appNet = reports.reduce((sum, row) => sum + asNumber(row.net_revenue), 0);
+    const appGross = reports.reduce((sum, row) => sum + asNumber(row.cash_revenue) + asNumber(row.card_revenue), 0);
+    const appReturns = reports.reduce((sum, row) => sum + asNumber(row.cash_returns) + asNumber(row.card_returns), 0);
+    const appReceipts = reports.reduce((sum, row) => sum + Number(row.receipt_count || 0), 0);
     const reportsWithItems = reports.filter((row) => row.items_sold_count !== null);
-    const items = reportsWithItems.length ? reportsWithItems.reduce((sum, row) => sum + Number(row.items_sold_count), 0) : null;
+    const appItems = reportsWithItems.length ? reportsWithItems.reduce((sum, row) => sum + Number(row.items_sold_count), 0) : null;
     const itemsReceipts = reportsWithItems.reduce((sum, row) => sum + Number(row.receipt_count || 0), 0);
+    const historicalMonth = historyByStore.get(store.id)?.get(period);
+    const historicalDays = dailyHistoryByStore.get(store.id) ?? [];
+    const hasHistoricalMonth = period !== currentMonth && historicalMonth?.source === "cash-sheet";
+    const gross = hasHistoricalMonth ? historicalMonth.revenue : appGross;
+    const returns = hasHistoricalMonth ? historicalMonth.returns : appReturns;
+    const receipts = hasHistoricalMonth ? historicalMonth.receipts : appReceipts;
+    const items = hasHistoricalMonth ? historicalMonth.itemsSold : appItems;
+    const net = hasHistoricalMonth ? gross - returns : appNet;
+    const comparableItemsReceipts = hasHistoricalMonth ? receipts : itemsReceipts;
     const storeTasks = taskRows.filter((task) => task.store_id === store.id);
     const dueTasks = storeTasks.filter((task) => {
       const dueLocalDate = localDateAt(task.due_at, store.timezone ?? "Asia/Vladivostok");
@@ -216,19 +438,22 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     });
     const checks = checklistRows.filter((row) => row.store_id === store.id);
     const plan = planByStore.get(store.id) ?? null;
-    const averageCheck = receipts ? net / receipts : null;
-    const checkDepth = itemsReceipts && items !== null ? items / itemsReceipts : null;
+    const averageCheck = hasHistoricalMonth ? historicalMonth.averageCheck : receipts ? net / receipts : null;
+    const checkDepth = hasHistoricalMonth ? historicalMonth.checkDepth : comparableItemsReceipts && items !== null ? items / comparableItemsReceipts : null;
     const salesByDay = new Map<string, number>();
     for (const shift of validShifts) {
       const report = one(shift.shift_closing_reports);
       salesByDay.set(shift.shift_date, (salesByDay.get(shift.shift_date) ?? 0) + asNumber(report?.net_revenue));
     }
     const onTimeTasks = dueTasks.filter((task) => task.status === "done" && task.completed_at && task.due_at && new Date(task.completed_at) <= new Date(task.due_at)).length;
+    const importedDays = hasHistoricalMonth && historicalDays.length
+      ? historicalDays.map((row) => ({ date: row.sales_date, amount: asNumber(row.revenue_amount) }))
+      : null;
     return {
       id: store.id, name: store.name, city: store.city,
-      netRevenue: net, grossRevenue: gross, returns, receipts, itemsSold: items, itemsReceipts, averageCheck,
+      netRevenue: net, grossRevenue: gross, returns, receipts, itemsSold: items, itemsReceipts: comparableItemsReceipts, averageCheck,
       checkDepth,
-      shiftCount: validShifts.length, erroneousShiftCount: rows.filter((shift) => shift.is_erroneous).length,
+      shiftCount: importedDays ? historicalDays.reduce((sum, day) => sum + Number(day.nonzero_turnover_shifts || 0), 0) : validShifts.length, erroneousShiftCount: rows.filter((shift) => shift.is_erroneous).length,
       plannedShifts: scheduleRows.filter((row) => row.store_id === store.id && ["planned", "planned_secondary"].includes(row.status)).length,
       salesPlan: plan ? asNumber(plan.sales_plan_amount) : null,
       planCompletion: plan && asNumber(plan.sales_plan_amount) > 0 ? net / asNumber(plan.sales_plan_amount) * 100 : null,
@@ -247,12 +472,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       employeeCount: new Set(validShifts.flatMap((shift) => shift.shift_participants.map((person) => person.employee_id))).size,
       cashAmount: lastCashByStore.has(store.id) ? asNumber(lastCashByStore.get(store.id)!.cash_amount) : null,
       cashUpdatedAt: lastCashByStore.get(store.id)?.created_at ?? null,
-      dailySales: [...salesByDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, amount]) => ({ date, amount })),
+      dailySales: importedDays ?? [...salesByDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, amount]) => ({ date, amount })),
+      monthlyHistory: [...(historyByStore.get(store.id)?.values() ?? [])].sort((a, b) => a.period.localeCompare(b.period)),
     };
   });
 
   const employeeMetrics: DashboardData["employeeMetrics"] = [...employeeMap.values()].map((employee) => {
-    const participations = shiftRows.flatMap((shift) => {
+    const participations = relevantShiftRows.flatMap((shift) => {
       const participant = shift.shift_participants.find((person) => person.employee_id === employee.id);
       if (!participant || shift.is_erroneous || shift.status !== "closed") return [];
       const report = one(shift.shift_closing_reports);
@@ -340,6 +566,9 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const openShifts = currentOpenQuery.count ?? 0;
   return <DashboardView
     initialPeriod={period}
+    periods={periods}
+    initialMainTab={mainTab}
+    initialStoreTab={storeTab}
     stores={stores.map(({ id, name, city }) => ({ id, name, city }))}
     storeMetrics={storeMetrics}
     employeeMetrics={employeeMetrics}

@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
       sales_plan_amount: salesPlanAmount,
       average_check_target: averageCheckTarget ?? existingPlan?.average_check_target ?? null,
       check_depth_target: checkDepthTarget ?? existingPlan?.check_depth_target ?? null,
+      is_auto_generated: false,
       created_by: user.id,
       updated_by: user.id,
     },

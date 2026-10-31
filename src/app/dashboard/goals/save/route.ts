@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
     sales_plan_amount: salesPlan,
     average_check_target: average.value,
     check_depth_target: depth.value,
+    is_auto_generated: false,
     updated_by: user.id,
   };
   const { error } = existingPlan

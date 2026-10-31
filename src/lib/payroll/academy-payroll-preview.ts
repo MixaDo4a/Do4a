@@ -165,7 +165,7 @@ function averageScoresByStore(scores: PreviewChecklistScore[]): Record<string, n
 
 function creditedTaskEmployees(
   task: PreviewTask,
-  employees: PreviewEmployee[],
+  employees: Pick<PreviewEmployee, "id" | "shifts">[],
   periodMonth: string,
 ): string[] {
   if (task.status === "cancelled" || !task.dueLocalDate || !isMonthDate(task.dueLocalDate, periodMonth)) return [];
@@ -176,6 +176,20 @@ function creditedTaskEmployees(
       shift.storeId === task.storeId && shift.shiftDate >= task.createdLocalDate && shift.shiftDate <= task.dueLocalDate!,
     ))
     .map((employee) => employee.id);
+}
+
+export function summarizeEmployeeTaskKpi(
+  employee: Pick<PreviewEmployee, "id" | "shifts">,
+  tasks: PreviewTask[],
+  periodMonth: string,
+) {
+  const eligibleTasks = tasks.filter((task) => creditedTaskEmployees(task, [employee], periodMonth).includes(employee.id));
+  const onTimeCount = eligibleTasks.filter((task) => taskWasCompleted(task, "on_time")).length;
+  return {
+    total: eligibleTasks.length,
+    onTime: onTimeCount,
+    percent: eligibleTasks.length ? roundMoney(onTimeCount / eligibleTasks.length * 100) : null,
+  };
 }
 
 function taskWasCompleted(task: PreviewTask, scoring: PreviewOptions["taskScoring"]): boolean {
