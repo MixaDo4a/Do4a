@@ -11,8 +11,11 @@ export function constantTimeSecretMatches(expected: string | undefined, supplied
 }
 
 export function staffQaWorkerAuthorized(request: Request) {
+  const previewToken = process.env.VERCEL_ENV === "preview"
+    ? process.env.STAFF_QA_PREVIEW_WORKER_TOKEN
+    : undefined;
   return constantTimeSecretMatches(
-    process.env.STAFF_QA_WORKER_TOKEN,
+    previewToken || process.env.STAFF_QA_WORKER_TOKEN,
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? null,
   );
 }
