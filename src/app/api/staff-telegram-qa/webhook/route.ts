@@ -129,6 +129,17 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
           p_production_deployment_id: productionId, p_production_url: current.url ? `https://${current.url}` : env("STAFF_QA_PRODUCTION_URL"),
         });
         if (publishError) throw new Error("Деплой готов, но итог не записался в журнал; требуется ручная сверка.");
+        try {
+          await telegramCall("setWebhook", {
+            url: new URL("/api/staff-telegram-qa/webhook", productionUrl).toString(),
+            secret_token: env("STAFF_QA_WEBHOOK_SECRET"),
+            allowed_updates: ["message", "callback_query"],
+            drop_pending_updates: false,
+          });
+        } catch {
+          await postReleaseStatus(row, "опубликовано, но Telegram webhook не переключился на Production; требуется ручная проверка.");
+          return;
+        }
         await postReleaseStatus(row, `опубликовано. SHA ${row.commit_sha}; Production deployment ${productionId}.`);
         return;
       }
