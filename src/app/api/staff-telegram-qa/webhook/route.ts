@@ -25,6 +25,15 @@ type VercelDeployment = {
   errorCode?: string; errorMessage?: string;
 };
 
+function detectPhotoMime(bytes: Uint8Array) {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+      bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return "image/png";
+  if (bytes.length >= 12 && new TextDecoder().decode(bytes.subarray(0, 4)) === "RIFF" &&
+      new TextDecoder().decode(bytes.subarray(8, 12)) === "WEBP") return "image/webp";
+  return null;
+}
+
 function env(name: string) {
   const value = process.env[name];
   if (!value) throw new Error(`Missing ${name}`);
@@ -205,26 +214,36 @@ export async function POST(request: Request) {
     .select("id,request_no,status")
     .eq("telegram_update_id", updateId!).maybeSingle();
   if (lookupError) return NextResponse.json({ error: "Could not check duplicate update" }, { status: 503 });
-  if (existing) return NextResponse.json({ ok: true, duplicate: true, request_no: existing.request_no });
-
-  const { data: report, error: insertError } = await supabase.from("staff_telegram_qa_reports").insert({
-    telegram_update_id: updateId,
-    telegram_chat_id: message.chat.id,
-    telegram_message_id: message.message_id,
-    telegram_thread_id: message.message_thread_id,
-    telegram_user_id: message.from?.id ?? null,
-    telegram_username: message.from?.username ?? null,
-    sender_name: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(" ") || null,
-    caption: (message.caption ?? "").slice(0, 10000),
-    photo_file_id: photo.file_id,
-    photo_unique_id: photo.file_unique_id,
-    photo_size_bytes: photo.file_size ?? null,
-    photo_mime_type: "image/jpeg",
-    telegram_sent_at: new Date(message.date * 1000).toISOString(),
-  }).select("id,request_no").single();
-  if (insertError || !report) {
-    if (insertError?.code === "23505") return NextResponse.json({ ok: true, duplicate: true });
-    return NextResponse.json({ error: "Could not store report" }, { status: 503 });
+  let report: { id: string; request_no: number };
+  if (existing) {
+    if (existing.status !== "failed") return NextResponse.json({ ok: true, duplicate: true, request_no: existing.request_no });
+    const { data: claimed, error: claimError } = await supabase.from("staff_telegram_qa_reports")
+      .update({ status: "receiving", last_error: null, updated_at: new Date().toISOString() })
+      .eq("id", existing.id).eq("status", "failed").select("id,request_no").maybeSingle();
+    if (claimError) return NextResponse.json({ error: "Could not retry failed report" }, { status: 503 });
+    if (!claimed) return NextResponse.json({ ok: true, duplicate: true, request_no: existing.request_no });
+    report = claimed;
+  } else {
+    const { data: inserted, error: insertError } = await supabase.from("staff_telegram_qa_reports").insert({
+      telegram_update_id: updateId,
+      telegram_chat_id: message.chat.id,
+      telegram_message_id: message.message_id,
+      telegram_thread_id: message.message_thread_id,
+      telegram_user_id: message.from?.id ?? null,
+      telegram_username: message.from?.username ?? null,
+      sender_name: [message.from?.first_name, message.from?.last_name].filter(Boolean).join(" ") || null,
+      caption: (message.caption ?? "").slice(0, 10000),
+      photo_file_id: photo.file_id,
+      photo_unique_id: photo.file_unique_id,
+      photo_size_bytes: photo.file_size ?? null,
+      photo_mime_type: "image/jpeg",
+      telegram_sent_at: new Date(message.date * 1000).toISOString(),
+    }).select("id,request_no").single();
+    if (insertError || !inserted) {
+      if (insertError?.code === "23505") return NextResponse.json({ ok: true, duplicate: true });
+      return NextResponse.json({ error: "Could not store report" }, { status: 503 });
+    }
+    report = inserted;
   }
 
   try {
@@ -240,8 +259,8 @@ export async function POST(request: Request) {
     const bytes = new Uint8Array(await downloaded.arrayBuffer());
     if (!bytes.byteLength || bytes.byteLength > 10_000_000) throw new Error("Photo size is invalid");
     const path = `${report.id}/${photo.file_unique_id}`;
-    const contentType = downloaded.headers.get("content-type")?.split(";")[0] ?? "image/jpeg";
-    if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) throw new Error("Unsupported photo type");
+    const contentType = detectPhotoMime(bytes);
+    if (!contentType) throw new Error("Unsupported photo type");
     const { error: uploadError } = await supabase.storage.from(STAFF_QA_BUCKET).upload(path, bytes, { contentType, upsert: true });
     if (uploadError) throw uploadError;
     const { error: updateError } = await supabase.from("staff_telegram_qa_reports").update({
