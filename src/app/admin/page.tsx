@@ -17,6 +17,8 @@ const messages: Record<string, string> = {
   "schedule-created": "График сохранён.",
   "store-plan-saved": "План магазина сохранён.",
   "payroll-adjustment-saved": "Корректировка зарплаты сохранена.",
+  "expiration-writeoff-saved": "Списание просрочки сохранено, зарплатные расчёты обновлены.",
+  "expiration-writeoff-recalc-error": "Списание сохранено, но автоматический перерасчёт зарплаты не завершён. Не отправляйте его повторно; обратитесь к супер-администратору.",
   "vault-withdrawal-saved": "Списание из сейфа сохранено.",
   "vault-withdrawal-required": "Укажите положительную сумму и комментарий.",
   "vault-withdrawal-over-balance": "Нельзя списать больше текущего остатка сейфа.",
@@ -64,7 +66,11 @@ export default async function AdminPage({ searchParams }: PageProps) {
   const { data: warehouseEmployees, error: employeesError } = warehouseManagerOnly
     ? await supabase.rpc("list_warehouse_deduction_employees")
     : { data: [], error: null };
+  const { data: warehouseStores, error: storesError } = warehouseManagerOnly
+    ? await supabase.rpc("list_warehouse_deduction_stores")
+    : { data: [], error: null };
   const accessibleEmployees = (warehouseEmployees ?? []) as { id: string; full_name: string }[];
+  const accessibleStores = (warehouseStores ?? []) as { id: string; name: string }[];
 
   const canRunNotificationCron = roles.some((role) => ["super_admin", "developer"].includes(role));
   const canManageVault = roles.includes("super_admin");
@@ -162,7 +168,37 @@ export default async function AdminPage({ searchParams }: PageProps) {
 
         {warehouseManagerOnly ? (
           <section className="mt-4 ui-panel p-4">
-            <h2 className="font-semibold">Новый вычет</h2>
+            <h2 className="font-semibold">Вычеты</h2>
+            <h3 className="mt-4 text-sm font-semibold">Списание просрочки по магазину</h3>
+            {storesError ? <p className="mt-2 text-sm text-brand">Не удалось загрузить магазины.</p> : null}
+            {accessibleStores.length === 0 && !storesError ? <p className="mt-2 text-sm text-muted">Нет доступных магазинов в вашем городе.</p> : null}
+            {accessibleStores.length > 0 ? (
+              <form action="/admin/expiration-writeoffs/create" className="mt-3 grid gap-3" method="post">
+                <label className="grid gap-1 text-sm">
+                  <span>Магазин</span>
+                  <select className="h-11 rounded-md border border-line bg-surface px-3" name="store_id" required defaultValue="">
+                    <option value="" disabled>Выберите магазин</option>
+                    {accessibleStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Месяц списания</span>
+                  <input className="h-11 rounded-md border border-line bg-surface px-3" defaultValue={new Date().toISOString().slice(0, 7)} min="2026-11" name="month" required type="month" />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Сумма просрочки, ₽</span>
+                  <input className="h-11 rounded-md border border-line bg-surface px-3" min="0.01" name="amount" required step="0.01" type="number" />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Причина / комментарий</span>
+                  <textarea className="min-h-20 rounded-md border border-line bg-surface px-3 py-2" maxLength={1000} name="reason" required />
+                </label>
+                <p className="text-xs text-muted">Покрытие рассчитывается как 0,2% выручки магазина после возвратов; половина остатка распределяется по подтверждённым часам подходящих сотрудников.</p>
+                <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white" type="submit">Сохранить списание</button>
+              </form>
+            ) : null}
+            <details className="mt-6 border-t border-line pt-4">
+              <summary className="cursor-pointer text-sm font-semibold">Другие индивидуальные вычеты</summary>
             {employeesError ? <p className="mt-3 text-sm text-brand">Не удалось загрузить сотрудников: {employeesError.message}</p> : null}
             {!employeesError && (accessibleEmployees?.length ?? 0) === 0 ? (
               <p className="mt-3 text-sm text-muted">Нет сотрудников, привязанных к магазинам вашего города.</p>
@@ -185,7 +221,6 @@ export default async function AdminPage({ searchParams }: PageProps) {
                   <select className="h-11 rounded-md border border-line bg-surface px-3" name="adjustment_type" required>
                     <option value="fine">Штраф</option>
                     <option value="inventory">Инвентаризация</option>
-                    <option value="expiration">Просрочка</option>
                     <option value="product">Товар</option>
                   </select>
                 </label>
@@ -200,6 +235,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
                 <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white" type="submit">Сохранить вычет</button>
               </form>
             ) : null}
+            </details>
           </section>
         ) : null}
 

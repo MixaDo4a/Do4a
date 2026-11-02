@@ -178,7 +178,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
         if (auditorOnly && item.hideForAuditorOnly) {
           return false;
         }
-        if (warehouseManagerOnly && ["/shifts", "/checklists", "/checklists/new", "/finances"].includes(item.href)) {
+        if (warehouseManagerOnly && ["/shifts", "/checklists", "/checklists/new"].includes(item.href)) {
           return false;
         }
         if (warehouseAssistantOnly && !["/", "/tasks", "/payroll", "/notifications"].includes(item.href)) {
