@@ -59,8 +59,20 @@ test("new employees use their confirmed rank when it becomes effective", () => {
   assert.equal(resolve(history, "2026-12-01", createdAtCutoff).level, 2);
 });
 
-test("rejects conflicting levels with the same effective date", () => {
-  assert.equal(resolve([rank(3, "2026-11-01"), rank(4, "2026-11-01")], "2026-11-01").status, "ambiguous");
+test("uses the latest confirmation when multiple ranks share an effective date", () => {
+  const earlier = rank(1, "2026-11-01", "2026-10-30T08:43:37.033945Z");
+  const later = rank(2, "2026-11-01", "2026-10-30T08:55:41.898214Z");
+  const result = resolve([later, earlier], "2026-11-01", createdAtCutoff);
+  assert.equal(result.level, 2);
+  assert.equal(result.history?.id, later.id);
+});
+
+test("rejects conflicting ranks with an identical confirmation time", () => {
+  const confirmedAt = "2026-10-30T08:43:37.033945Z";
+  assert.equal(resolve([
+    rank(3, "2026-11-01", confirmedAt),
+    rank(4, "2026-11-01", confirmedAt),
+  ], "2026-11-01").status, "ambiguous");
 });
 
 test("rejects a rank outside the pay grid", () => {

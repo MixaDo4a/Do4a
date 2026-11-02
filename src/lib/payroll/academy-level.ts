@@ -58,12 +58,16 @@ export function resolveAcademyPayLevel(
 
   const latestDate = effective[0].pay_effective_from;
   const latest = effective.filter((row) => row.pay_effective_from === latestDate);
-  if (latest.some((row) => row.rank !== latest[0].rank) || latest[0].rank < 1 || latest[0].rank > 10) {
+  const latestConfirmation = latest[0].confirmed_at;
+  const latestConfirmationRows = latest.filter((row) => row.confirmed_at === latestConfirmation);
+  if (latestConfirmationRows.some((row) => row.rank !== latestConfirmationRows[0].rank)
+    || latestConfirmationRows[0].rank < 1 || latestConfirmationRows[0].rank > 10) {
     return { status: "ambiguous", level: null, source: "none", history: null };
   }
 
-  if (hasLegacyFloor && latest[0].rank < 3) {
-    return { status: "ready", level: 3, source: "legacy_floor", history: latest[0] };
+  const latestRank = latestConfirmationRows[0];
+  if (hasLegacyFloor && latestRank.rank < 3) {
+    return { status: "ready", level: 3, source: "legacy_floor", history: latestRank };
   }
-  return { status: "ready", level: latest[0].rank, source: "history", history: latest[0] };
+  return { status: "ready", level: latestRank.rank, source: "history", history: latestRank };
 }
