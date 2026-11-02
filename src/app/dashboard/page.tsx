@@ -154,7 +154,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const reviewerOnly = roles.includes("auditor") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
   if (!hasAnyRole(roles, ["store_manager", "auditor", "super_admin", "developer"])) redirect("/");
 
-  const stores = (await getAccessibleStores(supabase))
+  const [accessibleStores, vaultBalanceResult] = await Promise.all([
+    getAccessibleStores(supabase),
+    supabase.rpc("get_vault_cash_balance"),
+  ]);
+  const vaultBalance = vaultBalanceResult.error || vaultBalanceResult.data === null
+    ? null
+    : Number(vaultBalanceResult.data);
+  const stores = accessibleStores
     .filter((store) => store.status !== "archived" && isRetailStoreForMotivation(store.name));
   const storeIds = stores.map((store) => store.id);
   if (reviewerOnly) {
@@ -189,10 +196,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const averageScore = submittedChecklists.length
       ? submittedChecklists.reduce((sum, row) => sum + asNumber(row.average_score), 0) / submittedChecklists.length
       : null;
-    return <ChecklistDashboardView period={period} submittedCount={submittedChecklists.length} averageScore={averageScore} missingEmployees={missingEmployees} />;
+    return <ChecklistDashboardView period={period} submittedCount={submittedChecklists.length} averageScore={averageScore} missingEmployees={missingEmployees} vaultBalance={vaultBalance} />;
   }
   if (!storeIds.length) {
-    return <DashboardView initialPeriod={period} periods={periods} initialMainTab={mainTab} initialStoreTab={storeTab} stores={[]} storeMetrics={[]} employeeMetrics={[]} missingChecklistEmployees={[]} openShifts={0} message={params.message} detail={params.detail} />;
+    return <DashboardView initialPeriod={period} periods={periods} initialMainTab={mainTab} initialStoreTab={storeTab} stores={[]} storeMetrics={[]} employeeMetrics={[]} missingChecklistEmployees={[]} openShifts={0} vaultBalance={vaultBalance} message={params.message} detail={params.detail} />;
   }
 
   const [storeDetailsResult, plansResult, nextPlanRowsResult, shiftRows, taskRows, checklistRows, scheduleRows, cashRows, assignments, payrollPeriod, historicalRowsResult, historicalDayRows, yearlyShiftRows, yearPlansResult] = await Promise.all([
@@ -658,6 +665,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     employeeMetrics={employeeMetrics}
     missingChecklistEmployees={missingChecklistEmployees}
     openShifts={openShifts}
+    vaultBalance={vaultBalance}
     message={params.message}
     detail={params.detail}
   />;

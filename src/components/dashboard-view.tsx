@@ -71,6 +71,7 @@ type Props = DashboardData & {
   initialStoreTab: "employees" | "stores" | "goals";
   stores: Array<{ id: string; name: string; city: string }>;
   openShifts: number;
+  vaultBalance: number | null;
   message?: string;
   detail?: string;
 };
@@ -264,7 +265,7 @@ function Bars({ points, period, emptyLabel }: { points: DailyPoint[]; period: st
   </div>;
 }
 
-export function DashboardView({ initialPeriod, periods, initialMainTab, initialStoreTab, stores, storeMetrics, employeeMetrics, missingChecklistEmployees, openShifts, message, detail }: Props) {
+export function DashboardView({ initialPeriod, periods, initialMainTab, initialStoreTab, stores, storeMetrics, employeeMetrics, missingChecklistEmployees, openShifts, vaultBalance, message, detail }: Props) {
   const router = useRouter();
   const [city, setCity] = useState("");
   const [storeId, setStoreId] = useState("");
@@ -379,7 +380,7 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
         </div>
       </div>
       {overview.hasCashHistory ? <p className="shrink-0 rounded-md border border-amber-200/10 bg-black/45 px-3 py-2 text-[11px] text-white/55">Пропуски чеков и товаров в старой кассовой истории считаются как 0. Каждая строка кассы с ненулевой выручкой считается закрытой сменой. Персональные смены, задачи и чек-листы из старого источника не импортированы.</p> : null}
-      <section className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
+      <section className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-6">
         <MetricCard label="Выручка" value={rubles(overview.revenue)} hint="Оборот магазина за выбранный период" icon={WalletCards} />
         <MetricCard label="Возвраты" value={rubles(overview.returns)} hint="Сумма возвратов за выбранный период" icon={ArrowUpRight} />
         <MetricCard label="Средний чек" value={rubles(overview.avg)} hint={`${number.format(overview.receipts)} чеков${overview.missingReceiptData ? " · пропуски = 0" : ""}`} icon={ArrowUpRight} />
@@ -393,6 +394,7 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
           <span className="mt-2 block truncate text-[11px] text-white/45">Сотрудники с рабочими сменами</span>
         </button>
         <MetricCard label="Остаток наличных" value={rubles(overview.cash)} hint="Последний пересчёт по магазинам" icon={WalletCards} />
+        {vaultBalance !== null ? <MetricCard label="Остаток сейфа" value={rubles(vaultBalance)} hint="Общий по компании · инкассации с 01.11.2026 минус списания" icon={Banknote} /> : null}
         <MetricCard label="Начислено в зарплату" value={rubles(overview.payout)} hint={overview.payout === null ? "Ведомость за месяц не рассчитана" : "Сумма рассчитанных зарплат сотрудников"} icon={UsersRound} />
       </section>
 
