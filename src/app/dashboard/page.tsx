@@ -371,7 +371,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   for (const [key, row] of liveMonthAccumulators) {
     const itemMonth = historyByStore.get(row.storeId) ?? new Map<string, StoreMonthlyMetric>();
     const existing = itemMonth.get(row.period);
-    if (existing?.source === "cash-sheet" && row.period !== currentMonth) continue;
+    if (existing?.source === "cash-sheet" && row.period !== currentMonth && row.dates.size === 0) continue;
     const receipts = row.receipts;
     const itemsSold = row.knownItems > 0 ? row.items : null;
     itemMonth.set(row.period, {
