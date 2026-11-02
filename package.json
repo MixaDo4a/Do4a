@@ -10,6 +10,7 @@
     "check": "npm run typecheck && npm run build && npm run clean:next",
     "start": "next start",
     "smoke:production": "node scripts/smoke-production.mjs",
+    "staff-qa:worker": "node scripts/staff-qa-worker.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
