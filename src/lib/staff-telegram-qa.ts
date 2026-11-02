@@ -38,6 +38,24 @@ export async function telegramCall<T>(method: string, body: Record<string, unkno
   return result.result;
 }
 
+export async function registerStaffQaWebhook(baseUrl: string, protectedPreview = false) {
+  const webhookUrl = new URL("/api/staff-telegram-qa/webhook", baseUrl);
+  if (protectedPreview) {
+    const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    if (!bypassSecret) throw new Error("Preview webhook bypass is not configured");
+    webhookUrl.searchParams.set("x-vercel-protection-bypass", bypassSecret);
+  }
+
+  await telegramCall<boolean>("setWebhook", {
+    url: webhookUrl.toString(),
+    secret_token: process.env.STAFF_QA_WEBHOOK_SECRET,
+    allowed_updates: ["message", "callback_query"],
+    drop_pending_updates: false,
+  });
+  const webhook = await telegramCall<{ url?: string }>("getWebhookInfo", {});
+  if (webhook.url !== webhookUrl.toString()) throw new Error("Staff QA webhook target could not be verified");
+}
+
 export function workerJson(request: Request) {
   return staffQaWorkerAuthorized(request);
 }

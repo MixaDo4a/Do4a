@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffQaSupabase, staffQaWorkerAuthorized, telegramCall } from "@/lib/staff-telegram-qa";
+import { registerStaffQaWebhook, staffQaSupabase, staffQaWorkerAuthorized, telegramCall } from "@/lib/staff-telegram-qa";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +17,7 @@ function requiredEnv(name: string) {
 
 export async function POST(request: Request, context: { params: Promise<{ reportId: string }> }) {
   if (!staffQaWorkerAuthorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (process.env.VERCEL_ENV !== "preview") return NextResponse.json({ error: "Approval requests must originate from a Preview deployment" }, { status: 403 });
   const { reportId } = await context.params;
   let body: { deployment_id?: string; summary?: string };
   try { body = await request.json(); }
@@ -64,6 +65,14 @@ export async function POST(request: Request, context: { params: Promise<{ report
       "Публикация затронет только Do4a Staff.",
     ].join("\n\n");
     try {
+      await registerStaffQaWebhook(candidateUrl, true);
+    } catch {
+      await supabase.from("staff_telegram_qa_release_approvals").update({ status: "failed", last_error: "Could not register the verified Preview webhook", updated_at: new Date().toISOString() }).eq("id", approval.id);
+      await supabase.from("staff_telegram_qa_release_history").insert({ approval_id: approval.id, event_type: "failed", details: { reason: "preview_webhook_setup_failed" } });
+      await registerStaffQaWebhook(requiredEnv("STAFF_QA_PRODUCTION_URL")).catch(() => undefined);
+      return NextResponse.json({ error: "Could not register and verify the Preview webhook" }, { status: 503 });
+    }
+    try {
       const sent = await telegramCall<{ message_id: number }>("sendMessage", {
         chat_id: approverId,
         text,
@@ -77,6 +86,7 @@ export async function POST(request: Request, context: { params: Promise<{ report
     } catch {
       await supabase.from("staff_telegram_qa_release_approvals").update({ status: "failed", last_error: "Could not DM owner; owner must start the Staff QA bot before approval requests can be sent", updated_at: new Date().toISOString() }).eq("id", approval.id);
       await supabase.from("staff_telegram_qa_release_history").insert({ approval_id: approval.id, event_type: "failed", details: { reason: "owner_dm_failed" } });
+      await registerStaffQaWebhook(requiredEnv("STAFF_QA_PRODUCTION_URL")).catch(() => undefined);
       return NextResponse.json({ error: "Could not send approval DM. Open the Staff QA bot and send /start first." }, { status: 503 });
     }
     return NextResponse.json({ ok: true, approval_id: approval.id, preview_url: candidateUrl, commit_sha: sha });

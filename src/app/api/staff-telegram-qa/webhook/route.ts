@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { constantTimeSecretMatches, staffQaSupabase, STAFF_QA_BUCKET, telegramCall } from "@/lib/staff-telegram-qa";
+import { constantTimeSecretMatches, registerStaffQaWebhook, staffQaSupabase, STAFF_QA_BUCKET, telegramCall } from "@/lib/staff-telegram-qa";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -102,7 +102,12 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
   await telegramCall("answerCallbackQuery", { callback_query_id: callback.id, text: decision === "publish" ? "Проверяю и публикую…" : "Публикация отклонена." });
   await telegramCall("editMessageReplyMarkup", { chat_id: message!.chat.id, message_id: message!.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => undefined);
   if (decision === "reject") {
-    await postReleaseStatus(row, "владелец отклонил публикацию.");
+    let webhookRestored = false;
+    try {
+      await registerStaffQaWebhook(env("STAFF_QA_PRODUCTION_URL"));
+      webhookRestored = true;
+    } catch { /* The approval decision remains recorded if Telegram is unavailable. */ }
+    await postReleaseStatus(row, webhookRestored ? "владелец отклонил публикацию; webhook возвращён на Production." : "владелец отклонил публикацию, но webhook не удалось вернуть на Production; требуется ручная проверка.");
     return;
   }
 
@@ -153,12 +158,7 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
         });
         if (publishError) throw new Error("Деплой готов, но итог не записался в журнал; требуется ручная сверка.");
         try {
-          await telegramCall("setWebhook", {
-            url: new URL("/api/staff-telegram-qa/webhook", productionUrl).toString(),
-            secret_token: env("STAFF_QA_WEBHOOK_SECRET"),
-            allowed_updates: ["message", "callback_query"],
-            drop_pending_updates: false,
-          });
+          await registerStaffQaWebhook(productionUrl.toString());
         } catch {
           await postReleaseStatus(row, "опубликовано, но Telegram webhook не переключился на Production; требуется ручная проверка.");
           return;
@@ -177,7 +177,12 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
         p_production_deployment_id: productionId, p_production_url: null,
       });
     } catch { /* Keep the callback response independent from audit availability. */ }
-    await postReleaseStatus(row, `публикация не подтверждена. Причина: ${reason}`);
+    let webhookRestored = false;
+    try {
+      await registerStaffQaWebhook(env("STAFF_QA_PRODUCTION_URL"));
+      webhookRestored = true;
+    } catch { /* Preserve the original release failure and report webhook recovery separately. */ }
+    await postReleaseStatus(row, `публикация не подтверждена. Причина: ${reason}${webhookRestored ? " Webhook возвращён на Production." : " Webhook не удалось вернуть на Production; требуется ручная проверка."}`);
   }
 }
 
