@@ -44,6 +44,16 @@ function deploymentSha(deployment: VercelDeployment) {
   return (deployment.gitSource?.sha ?? deployment.meta?.githubCommitSha ?? deployment.meta?.gitCommitSha ?? "").toLowerCase();
 }
 
+function deploymentOrigin(value?: string) {
+  if (!value) return null;
+  try {
+    const url = new URL(value.startsWith("https://") ? value : `https://${value}`);
+    return url.protocol === "https:" && url.hostname.endsWith(".vercel.app") ? url.origin.toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function vercelRequest(path: string, init?: RequestInit) {
   const url = new URL(path, "https://api.vercel.com");
   url.searchParams.set("teamId", env("STAFF_QA_VERCEL_TEAM_ID"));
@@ -102,7 +112,8 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
     const candidateRes = await vercelRequest(`/v13/deployments/${encodeURIComponent(row.preview_deployment_id)}?withGitRepoInfo=true`);
     const candidate = await candidateRes.json() as VercelDeployment;
     if (!candidateRes.ok || candidate.projectId !== projectId || candidate.readyState !== "READY" || candidate.target === "production" ||
-        candidate.url !== row.preview_url || deploymentSha(candidate) !== row.commit_sha.toLowerCase()) {
+        !deploymentOrigin(candidate.url) || deploymentOrigin(candidate.url) !== deploymentOrigin(row.preview_url) ||
+        deploymentSha(candidate) !== row.commit_sha.toLowerCase()) {
       throw new Error("Preview уже не совпадает с согласованным проектом, URL, статусом или SHA.");
     }
     const productionUrl = new URL(env("STAFF_QA_PRODUCTION_URL"));
