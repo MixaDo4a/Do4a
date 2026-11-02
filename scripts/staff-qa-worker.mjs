@@ -1,8 +1,10 @@
-import { createWriteStream, mkdirSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
 const baseUrl = process.env.STAFF_QA_PREVIEW_URL?.replace(/\/$/, "");
 const workerToken = process.env.STAFF_QA_PREVIEW_WORKER_TOKEN;
