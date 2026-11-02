@@ -23,6 +23,7 @@ type PayrollEntry = {
   expiration_writeoff_amount: number;
   inventory_loss_amount: number;
   product_writeoff_amount: number;
+  carryover_debt_amount: number;
   total_payout_amount: number;
   calculation_snapshot: Record<string, unknown> | null;
   employees: { full_name: string; is_active: boolean } | null;
@@ -109,7 +110,7 @@ export default async function PayrollStatementPage({ searchParams }: PageProps) 
   let entriesQuery = supabase
     .from("payroll_entries")
     .select(
-      "employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, total_payout_amount, calculation_snapshot, employees(full_name, is_active)",
+      "employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, carryover_debt_amount, total_payout_amount, calculation_snapshot, employees(full_name, is_active)",
     )
     .eq("payroll_period_id", payrollPeriod.id)
     .eq("employee_id", requestedEmployeeId);
@@ -228,6 +229,7 @@ export default async function PayrollStatementPage({ searchParams }: PageProps) 
                 <p className="flex justify-between border-b border-line pb-2"><span>Просрочка</span><span>-{money(entry.expiration_writeoff_amount)}</span></p>
                 <p className="flex justify-between border-b border-line pb-2"><span>Инвентарные потери</span><span>-{money(entry.inventory_loss_amount)}</span></p>
                 <p className="flex justify-between border-b border-line pb-2"><span>Корректировки под ЗП</span><span>-{money(entry.product_writeoff_amount)}</span></p>
+                {entry.carryover_debt_amount > 0 ? <p className="flex justify-between border-b border-line pb-2"><span>Долг с прошлого месяца</span><span>-{money(entry.carryover_debt_amount)}</span></p> : null}
               </div>
             </div>
           </div>

@@ -28,6 +28,7 @@ type PayrollEntry = {
   expiration_writeoff_amount: number;
   inventory_loss_amount: number;
   product_writeoff_amount: number;
+  carryover_debt_amount: number;
   total_payout_amount: number;
   calculation_snapshot: Record<string, unknown> | null;
   employees: { full_name: string; is_active: boolean } | null;
@@ -170,7 +171,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
     ? supabase
         .from("payroll_entries")
         .select(
-          "id, employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, total_payout_amount, calculation_snapshot, employees(full_name, is_active)",
+          "id, employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, carryover_debt_amount, total_payout_amount, calculation_snapshot, employees(full_name, is_active)",
         )
         .eq("payroll_period_id", payrollPeriod.id)
     : null;
@@ -385,6 +386,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
                   <span>Просрок: -{money(entry.expiration_writeoff_amount)}</span>
                   <span>Инвента: -{money(entry.inventory_loss_amount)}</span>
                   <span>Под ЗП: -{money(entry.product_writeoff_amount)}</span>
+                  {entry.carryover_debt_amount > 0 ? <span>Долг с прошлого месяца: -{money(entry.carryover_debt_amount)}</span> : null}
                 </div>
               </Link>
               );
@@ -464,6 +466,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
                   <p className="flex justify-between border-b border-line pb-2"><span>Просрочка</span><span>-{money(selectedEntry.expiration_writeoff_amount)}</span></p>
                   <p className="flex justify-between border-b border-line pb-2"><span>Инвентарные потери</span><span>-{money(selectedEntry.inventory_loss_amount)}</span></p>
                   <p className="flex justify-between border-b border-line pb-2"><span>Корректировки под ЗП</span><span>-{money(selectedEntry.product_writeoff_amount)}</span></p>
+                  {selectedEntry.carryover_debt_amount > 0 ? <p className="flex justify-between border-b border-line pb-2"><span>Долг с прошлого месяца</span><span>-{money(selectedEntry.carryover_debt_amount)}</span></p> : null}
                 </div>
               </div>
             </div>
