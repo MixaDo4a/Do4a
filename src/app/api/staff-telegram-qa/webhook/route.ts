@@ -64,15 +64,17 @@ async function vercelRequest(path: string, init?: RequestInit) {
   });
 }
 
-async function postReleaseStatus(approval: { report_id: string; commit_sha: string }, message: string) {
+async function postReleaseStatus(approval: { report_id: string; commit_sha: string }, outcome: "published" | "not_published", reason: string) {
   const { data: report } = await staffQaSupabase().from("staff_telegram_qa_reports")
     .select("request_no").eq("id", approval.report_id).maybeSingle();
   const requestLabel = report?.request_no ? `заявка №${report.request_no}` : `заявка ${approval.report_id.slice(0, 8)}`;
+  const text = [`STAFF QA · ${requestLabel}`, `Итог: ${outcome === "published" ? "опубликовано" : "не опубликовано"}.`, `Причина: ${reason}`].join("\n\n");
   await telegramCall("sendMessage", {
     chat_id: env("STAFF_QA_TELEGRAM_CHAT_ID"),
     message_thread_id: Number(env("STAFF_QA_TELEGRAM_THREAD_ID")),
-    text: `STAFF QA · ${requestLabel} · ${message}`,
+    text,
   }).catch(() => undefined);
+  await telegramCall("sendMessage", { chat_id: Number(env("STAFF_QA_TELEGRAM_APPROVER_ID")), text }).catch(() => undefined);
 }
 
 async function processApprovalCallback(callback: NonNullable<Update["callback_query"]>) {
@@ -107,7 +109,9 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
       await registerStaffQaWebhook(env("STAFF_QA_PRODUCTION_URL"));
       webhookRestored = true;
     } catch { /* The approval decision remains recorded if Telegram is unavailable. */ }
-    await postReleaseStatus(row, webhookRestored ? "владелец отклонил публикацию; webhook возвращён на Production." : "владелец отклонил публикацию, но webhook не удалось вернуть на Production; требуется ручная проверка.");
+    await postReleaseStatus(row, "not_published", webhookRestored
+      ? "Владелец отклонил публикацию."
+      : "Владелец отклонил публикацию; webhook не удалось вернуть на Production, требуется ручная проверка.");
     return;
   }
 
@@ -160,10 +164,10 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
         try {
           await registerStaffQaWebhook(productionUrl.toString());
         } catch {
-          await postReleaseStatus(row, "опубликовано, но Telegram webhook не переключился на Production; требуется ручная проверка.");
+          await postReleaseStatus(row, "published", "Деплой опубликован, но Telegram webhook не переключился на Production; требуется ручная проверка.");
           return;
         }
-        await postReleaseStatus(row, `опубликовано. SHA ${row.commit_sha}; Production deployment ${productionId}.`);
+        await postReleaseStatus(row, "published", `Деплой готов и привязан к Production. SHA ${row.commit_sha}; deployment ${productionId}.`);
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 2500));
@@ -182,7 +186,7 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
       await registerStaffQaWebhook(env("STAFF_QA_PRODUCTION_URL"));
       webhookRestored = true;
     } catch { /* Preserve the original release failure and report webhook recovery separately. */ }
-    await postReleaseStatus(row, `публикация не подтверждена. Причина: ${reason}${webhookRestored ? " Webhook возвращён на Production." : " Webhook не удалось вернуть на Production; требуется ручная проверка."}`);
+    await postReleaseStatus(row, "not_published", `${reason}${webhookRestored ? " Webhook возвращён на Production." : " Webhook не удалось вернуть на Production; требуется ручная проверка."}`);
   }
 }
 
@@ -294,15 +298,10 @@ export async function POST(request: Request) {
       report_id: report.id, event_type: "photo_saved", old_status: "receiving", new_status: "new", actor_type: "system",
       details: { bytes: bytes.byteLength, mime_type: contentType },
     });
-    const ack = await telegramCall<{ message_id: number }>("sendMessage", {
-      chat_id: message.chat.id, message_thread_id: message.message_thread_id,
-      reply_to_message_id: message.message_id,
-      text: `STAFF QA · заявка №${report.request_no} принята.`,
-    });
-    await supabase.from("staff_telegram_qa_reports").update({ acknowledgement_message_id: ack.message_id, status: "new" }).eq("id", report.id);
+    await supabase.from("staff_telegram_qa_reports").update({ status: "new" }).eq("id", report.id);
     await supabase.from("staff_telegram_qa_report_history").insert({
       report_id: report.id, event_type: "acknowledged", old_status: "new", new_status: "new", actor_type: "telegram",
-      details: { acknowledgement_message_id: ack.message_id },
+      details: { group_notification_suppressed: true },
     });
     return NextResponse.json({ ok: true, request_no: report.request_no });
   } catch (error) {

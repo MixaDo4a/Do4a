@@ -87,6 +87,10 @@ if (command === "next") {
   const { report_id, ...release } = await readStdinJson();
   if (!report_id) throw new Error("report_id is required");
   process.stdout.write(JSON.stringify(await api(`/api/staff-telegram-qa/${encodeURIComponent(report_id)}/prepare-release`, { body: release })));
+} else if (command === "reconcile-release") {
+  const { approval_id } = await readStdinJson();
+  if (!approval_id) throw new Error("approval_id is required");
+  process.stdout.write(JSON.stringify(await api("/api/staff-telegram-qa/reconcile-release", { body: { approval_id } })));
 } else {
-  throw new Error("Command must be next, review, release, or prepare-release");
+  throw new Error("Command must be next, review, release, prepare-release, or reconcile-release");
 }

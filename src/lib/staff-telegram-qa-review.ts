@@ -30,9 +30,9 @@ export async function saveStaffQaReview(reportId: string, review: StaffQaReview)
   const rejected = Boolean(review.ignore);
   const message = [
     `STAFF QA · заявка №${report.request_no}`,
-    rejected ? "Результат: заявка отклонена." : "Результат проверки: разбор завершён.",
+    rejected ? "Итог: не опубликовано." : "Итог: исправление принято в работу; публикация ожидает согласования владельца.",
     `Причина: ${review.summary.trim()}`,
-    review.next_step?.trim() ? `Дальше: ${review.next_step.trim()}` : "",
+    rejected && review.next_step?.trim() ? `Дальше: ${review.next_step.trim()}` : "",
   ].filter(Boolean).join("\n\n").slice(0, 3900);
 
   let groupNotified = false;
