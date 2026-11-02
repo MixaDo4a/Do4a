@@ -47,12 +47,18 @@ export async function POST(request: Request, context: { params: Promise<{ report
     const sha = (deployment.gitSource?.sha ?? deployment.meta?.githubCommitSha ?? deployment.meta?.gitCommitSha ?? "").toLowerCase();
     const candidateUrl = deployment.url ? `https://${deployment.url}` : "";
     const canonicalDeploymentId = deployment.id ?? deployment.uid;
-    if (!response.ok || !canonicalDeploymentId || (!requestedPreviewOrigin && canonicalDeploymentId !== requestedReference)
-        || deployment.projectId !== projectId ||
-        deployment.readyState !== "READY" || deployment.target === "production" || !/^[0-9a-f]{40,64}$/.test(sha) ||
-        !candidateUrl || new URL(candidateUrl).hostname.endsWith(".vercel.app") === false ||
-        (requestedPreviewOrigin && deployment.target !== "preview")) {
-      return NextResponse.json({ error: "Not a ready Preview deployment for this Staff project" }, { status: 422 });
+    const invalidReasons = [
+      !response.ok ? `Vercel API returned ${response.status}` : null,
+      !canonicalDeploymentId ? "deployment ID unavailable" : null,
+      !requestedPreviewOrigin && canonicalDeploymentId !== requestedReference ? "deployment ID mismatch" : null,
+      deployment.projectId !== projectId ? "project mismatch" : null,
+      deployment.readyState !== "READY" ? `deployment state is ${deployment.readyState ?? "unknown"}` : null,
+      deployment.target === "production" ? "deployment is Production" : null,
+      !/^[0-9a-f]{40,64}$/.test(sha) ? "commit SHA unavailable" : null,
+      !candidateUrl || new URL(candidateUrl).hostname.endsWith(".vercel.app") === false ? "deployment URL is invalid" : null,
+    ].filter((reason): reason is string => Boolean(reason));
+    if (invalidReasons.length) {
+      return NextResponse.json({ error: "Not a ready Preview deployment for this Staff project", details: invalidReasons }, { status: 422 });
     }
 
     const supabase = staffQaSupabase();
