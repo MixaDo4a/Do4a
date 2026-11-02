@@ -94,7 +94,7 @@ export default async function PayrollStatementPage({ searchParams }: PageProps) 
   if (!user) redirect("/login");
 
   const { roles } = await getCurrentRoleCodes();
-  const canViewPayroll = hasAnyRole(roles, [...MANAGE_ROLES, "manager"]);
+  const canViewPayroll = hasAnyRole(roles, [...MANAGE_ROLES, "manager", "warehouse_manager"]);
   if (!canViewPayroll) redirect("/payroll");
 
   const { employeeId: currentEmployeeId } = await getCurrentEmployeeId();

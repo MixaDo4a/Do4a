@@ -26,7 +26,29 @@ export default async function FinancesPage({ searchParams }: { searchParams: Pro
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { roles } = await getCurrentRoleCodes(supabase, user);
-  if (!hasAnyRole(roles, [...MANAGE_ROLES, "auditor"])) redirect("/");
+  const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
+  if (!hasAnyRole(roles, [...MANAGE_ROLES, "auditor"]) && !warehouseManagerOnly) redirect("/");
+
+  if (warehouseManagerOnly) {
+    return (
+      <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
+        <div className="mx-auto max-w-3xl">
+          <SectionHeader icon={ClipboardList} title="Финансы" showBack />
+          <Link className="mt-4 block ui-panel p-4 transition hover:border-brand/60" href="/payroll">
+            <div className="flex items-center gap-3">
+              <WalletCards className="text-brand" size={22} />
+              <div>
+                <p className="font-semibold">Зарплата сотрудников</p>
+                <p className="mt-1 text-sm text-muted">Просмотр начислений сотрудников доступного города</p>
+              </div>
+            </div>
+          </Link>
+        </div>
+        <BottomNav />
+      </main>
+    );
+  }
+
   const month = currentMonth();
   const academyMonth = month < "2026-11" ? "2026-11" : month;
   const accessibleStores = await getAccessibleStores();
