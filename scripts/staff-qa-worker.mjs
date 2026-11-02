@@ -6,6 +6,7 @@ import path from "node:path";
 
 const baseUrl = process.env.STAFF_QA_PREVIEW_URL?.replace(/\/$/, "");
 const workerToken = process.env.STAFF_QA_PREVIEW_WORKER_TOKEN;
+const protectionBypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 if (!baseUrl || !workerToken) throw new Error("Staff QA Preview worker configuration is missing");
 
 async function api(route, { method = "POST", body, binary = false } = {}) {
@@ -13,15 +14,24 @@ async function api(route, { method = "POST", body, binary = false } = {}) {
     method,
     headers: {
       Authorization: `Bearer ${workerToken}`,
+      ...(protectionBypass ? { "x-vercel-protection-bypass": protectionBypass } : {}),
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
     cache: "no-store",
   });
+  const contentType = response.headers.get("content-type") ?? "";
   if (binary) {
     if (!response.ok) throw new Error(`Photo request failed (${response.status})`);
-    return { bytes: Buffer.from(await response.arrayBuffer()), mime: response.headers.get("content-type") ?? "" };
+    if (!contentType.startsWith("image/")) throw new Error("Photo endpoint returned a non-image response");
+    const bytes = Buffer.from(await response.arrayBuffer());
+    const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    const isPng = bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    const isWebp = bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+    if (!isJpeg && !isPng && !isWebp) throw new Error("Photo response did not contain a supported image file");
+    return { bytes, mime: contentType };
   }
+  if (!contentType.includes("application/json")) throw new Error("Staff QA endpoint returned a non-JSON response (check Preview protection bypass)");
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error ?? `Staff QA request failed (${response.status})`);
   return result;
