@@ -29,14 +29,29 @@ export async function POST(request: Request, context: { params: Promise<{ report
     const teamId = requiredEnv("STAFF_QA_VERCEL_TEAM_ID");
     const projectId = requiredEnv("STAFF_QA_VERCEL_PROJECT_ID");
     const token = requiredEnv("STAFF_QA_VERCEL_TOKEN");
-    const deploymentUrl = new URL(`/v13/deployments/${encodeURIComponent(body.deployment_id)}?teamId=${encodeURIComponent(teamId)}&withGitRepoInfo=true`, "https://api.vercel.com");
+    const requestedReference = body.deployment_id.trim();
+    let referenceForApi = requestedReference;
+    let requestedPreviewOrigin: string | null = null;
+    if (requestedReference.includes("://")) {
+      const requestedUrl = new URL(requestedReference);
+      if (requestedUrl.protocol !== "https:" || !requestedUrl.hostname.endsWith(".vercel.app")
+        || requestedUrl.pathname !== "/" || requestedUrl.search || requestedUrl.hash) {
+        return NextResponse.json({ error: "Preview reference must be a Vercel deployment hostname" }, { status: 400 });
+      }
+      requestedPreviewOrigin = requestedUrl.origin;
+      referenceForApi = requestedUrl.hostname;
+    }
+    const deploymentUrl = new URL(`/v13/deployments/${encodeURIComponent(referenceForApi)}?teamId=${encodeURIComponent(teamId)}&withGitRepoInfo=true`, "https://api.vercel.com");
     const response = await fetch(deploymentUrl, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
     const deployment = await response.json() as Deployment;
     const sha = (deployment.gitSource?.sha ?? deployment.meta?.githubCommitSha ?? deployment.meta?.gitCommitSha ?? "").toLowerCase();
     const candidateUrl = deployment.url ? `https://${deployment.url}` : "";
-    if (!response.ok || (deployment.id ?? deployment.uid) !== body.deployment_id || deployment.projectId !== projectId ||
+    const canonicalDeploymentId = deployment.id ?? deployment.uid;
+    if (!response.ok || !canonicalDeploymentId || (!requestedPreviewOrigin && canonicalDeploymentId !== requestedReference)
+        || deployment.projectId !== projectId ||
         deployment.readyState !== "READY" || deployment.target === "production" || !/^[0-9a-f]{40,64}$/.test(sha) ||
-        !candidateUrl || new URL(candidateUrl).hostname.endsWith(".vercel.app") === false) {
+        !candidateUrl || new URL(candidateUrl).hostname.endsWith(".vercel.app") === false ||
+        (requestedPreviewOrigin && deployment.target !== "preview")) {
       return NextResponse.json({ error: "Not a ready Preview deployment for this Staff project" }, { status: 422 });
     }
 
@@ -47,7 +62,7 @@ export async function POST(request: Request, context: { params: Promise<{ report
     if (reportError || !report || report.status !== "reviewed") return NextResponse.json({ error: "Review the report before requesting publication" }, { status: 409 });
     const { data: approval, error: insertError } = await supabase.from("staff_telegram_qa_release_approvals").insert({
       report_id: report.id,
-      preview_deployment_id: body.deployment_id,
+      preview_deployment_id: canonicalDeploymentId,
       preview_url: candidateUrl,
       commit_sha: sha,
       summary: body.summary.trim(),
