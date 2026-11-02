@@ -22,6 +22,10 @@ const messages: Record<string, string> = {
   "vault-withdrawal-over-balance": "Нельзя списать больше текущего остатка сейфа.",
   "vault-withdrawal-denied": "Списывать из сейфа может только супер-администратор.",
   "vault-withdrawal-error": "Не удалось выполнить списание из сейфа.",
+  "vault-deposit-saved": "Пополнение сейфа сохранено.",
+  "vault-deposit-required": "Укажите положительную сумму и комментарий.",
+  "vault-deposit-denied": "Пополнять сейф может только управляющий или супер-администратор.",
+  "vault-deposit-error": "Не удалось пополнить сейф.",
   "store-updated": "Магазин обновлён.",
   "employee-updated": "Сотрудник обновлён.",
   "employee-deleted": "Сотрудник удалён.",
@@ -33,6 +37,7 @@ const messages: Record<string, string> = {
 };
 
 type VaultWithdrawalRow = { id: string; amount: number | string; comment: string; created_at: string };
+type VaultDepositRow = { id: string; amount: number | string; comment: string; created_at: string };
 
 function money(value: number | string) {
   return `${new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value))} ₽`;
@@ -63,12 +68,16 @@ export default async function AdminPage({ searchParams }: PageProps) {
 
   const canRunNotificationCron = roles.some((role) => ["super_admin", "developer"].includes(role));
   const canManageVault = roles.includes("super_admin");
-  const [vaultBalanceResult, vaultWithdrawalsResult] = canManageVault
+  const canDepositVault = canManageVault || roles.includes("store_manager");
+  const [vaultBalanceResult, vaultWithdrawalsResult, vaultDepositsResult] = canDepositVault
     ? await Promise.all([
       supabase.rpc("get_vault_cash_balance"),
-      supabase.from("vault_cash_withdrawals").select("id, amount, comment, created_at").order("created_at", { ascending: false }).limit(10).returns<VaultWithdrawalRow[]>(),
+      canManageVault
+        ? supabase.from("vault_cash_withdrawals").select("id, amount, comment, created_at").order("created_at", { ascending: false }).limit(10).returns<VaultWithdrawalRow[]>()
+        : Promise.resolve({ data: [] as VaultWithdrawalRow[], error: null }),
+      supabase.from("vault_cash_deposits").select("id, amount, comment, created_at").order("created_at", { ascending: false }).limit(10).returns<VaultDepositRow[]>(),
     ])
-    : [{ data: null, error: null }, { data: [] as VaultWithdrawalRow[], error: null }];
+    : [{ data: null, error: null }, { data: [] as VaultWithdrawalRow[], error: null }, { data: [] as VaultDepositRow[], error: null }];
 
   return (
     <>
@@ -91,25 +100,51 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </form>
         ) : null}
 
-        {canManageVault ? (
+        {canDepositVault ? (
           <section className="mt-4 ui-panel p-4 shadow-soft">
             <SectionHeader icon={Banknote} title="Сейф" />
             {vaultBalanceResult.error ? <p className="mt-3 text-sm text-brand">Не удалось загрузить остаток сейфа.</p> : (
               <p className="mt-3 text-2xl font-semibold tabular-nums">{money(vaultBalanceResult.data ?? 0)}</p>
             )}
-            <p className="mt-1 text-xs text-muted">Инкассации с 1 ноября 2026 года минус списания из сейфа.</p>
-            <form action="/admin/vault/withdraw" className="mt-4 grid gap-3 sm:grid-cols-[minmax(180px,0.5fr)_1fr_auto]" method="post">
+            <p className="mt-1 text-xs text-muted">Инкассации и ручные пополнения с 1 ноября 2026 года минус списания из сейфа.</p>
+            <form action="/admin/vault/deposit" className="mt-4 grid gap-3 sm:grid-cols-[minmax(180px,0.5fr)_1fr_auto]" method="post">
               <label className="grid gap-1 text-sm">
                 <span>Сумма, ₽</span>
-                <input className="h-11 rounded-md border border-line bg-surface px-3" max={vaultBalanceResult.data ?? undefined} min="0.01" name="amount" required step="0.01" type="number" />
+                <input className="h-11 rounded-md border border-line bg-surface px-3" min="0.01" name="amount" required step="0.01" type="number" />
               </label>
               <label className="grid gap-1 text-sm">
                 <span>Комментарий</span>
                 <input className="h-11 rounded-md border border-line bg-surface px-3" maxLength={1000} name="comment" required />
               </label>
-              <div className="flex items-end"><button className="h-11 w-full rounded-md bg-brand px-4 font-semibold text-white sm:w-auto" type="submit">Списать</button></div>
+              <div className="flex items-end"><button className="h-11 w-full rounded-md bg-brand px-4 font-semibold text-white sm:w-auto" type="submit">Внести</button></div>
             </form>
+            {canManageVault ? (
+              <form action="/admin/vault/withdraw" className="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-[minmax(180px,0.5fr)_1fr_auto]" method="post">
+                <label className="grid gap-1 text-sm">
+                  <span>Сумма списания, ₽</span>
+                  <input className="h-11 rounded-md border border-line bg-surface px-3" max={vaultBalanceResult.data ?? undefined} min="0.01" name="amount" required step="0.01" type="number" />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Комментарий</span>
+                  <input className="h-11 rounded-md border border-line bg-surface px-3" maxLength={1000} name="comment" required />
+                </label>
+                <div className="flex items-end"><button className="h-11 w-full rounded-md border border-line px-4 font-semibold text-ink sm:w-auto" type="submit">Списать</button></div>
+              </form>
+            ) : null}
             <div className="mt-5 border-t border-line pt-4">
+              <h3 className="text-sm font-semibold">Последние пополнения</h3>
+              {vaultDepositsResult.error ? <p className="mt-2 text-sm text-brand">Не удалось загрузить историю пополнений.</p> : null}
+              {!vaultDepositsResult.error && (vaultDepositsResult.data ?? []).length === 0 ? <p className="mt-2 text-sm text-muted">Пополнений пока нет.</p> : null}
+              <div className="mt-2 divide-y divide-line">
+                {(vaultDepositsResult.data ?? []).map((deposit) => (
+                  <div key={deposit.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+                    <span className="min-w-0 break-words text-muted">{deposit.comment}<span className="mt-1 block text-xs">{new Date(deposit.created_at).toLocaleString("ru-RU")}</span></span>
+                    <strong className="shrink-0">+{money(deposit.amount)}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {canManageVault ? <div className="mt-5 border-t border-line pt-4">
               <h3 className="text-sm font-semibold">Последние списания</h3>
               {vaultWithdrawalsResult.error ? <p className="mt-2 text-sm text-brand">Не удалось загрузить историю списаний.</p> : null}
               {!vaultWithdrawalsResult.error && (vaultWithdrawalsResult.data ?? []).length === 0 ? <p className="mt-2 text-sm text-muted">Списаний пока нет.</p> : null}
@@ -121,7 +156,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
                   </div>
                 ))}
               </div>
-            </div>
+            </div> : null}
           </section>
         ) : null}
 
