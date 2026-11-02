@@ -152,6 +152,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   const { roles } = await getCurrentRoleCodes(supabase, user);
   const reviewerOnly = roles.includes("auditor") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  const canDepositVault = roles.includes("store_manager") || roles.includes("super_admin");
+  const canWithdrawVault = roles.includes("super_admin");
   if (!hasAnyRole(roles, ["store_manager", "auditor", "super_admin", "developer"])) redirect("/");
 
   const [accessibleStores, vaultBalanceResult] = await Promise.all([
@@ -199,7 +201,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     return <ChecklistDashboardView period={period} submittedCount={submittedChecklists.length} averageScore={averageScore} missingEmployees={missingEmployees} vaultBalance={vaultBalance} />;
   }
   if (!storeIds.length) {
-    return <DashboardView initialPeriod={period} periods={periods} initialMainTab={mainTab} initialStoreTab={storeTab} stores={[]} storeMetrics={[]} employeeMetrics={[]} missingChecklistEmployees={[]} openShifts={0} vaultBalance={vaultBalance} message={params.message} detail={params.detail} />;
+    return <DashboardView initialPeriod={period} periods={periods} initialMainTab={mainTab} initialStoreTab={storeTab} stores={[]} storeMetrics={[]} employeeMetrics={[]} missingChecklistEmployees={[]} openShifts={0} vaultBalance={vaultBalance} canDepositVault={canDepositVault} canWithdrawVault={canWithdrawVault} message={params.message} detail={params.detail} />;
   }
 
   const [storeDetailsResult, plansResult, nextPlanRowsResult, shiftRows, taskRows, checklistRows, scheduleRows, cashRows, assignments, payrollPeriod, historicalRowsResult, historicalDayRows, yearlyShiftRows, yearPlansResult] = await Promise.all([
@@ -666,6 +668,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     missingChecklistEmployees={missingChecklistEmployees}
     openShifts={openShifts}
     vaultBalance={vaultBalance}
+    canDepositVault={canDepositVault}
+    canWithdrawVault={canWithdrawVault}
     message={params.message}
     detail={params.detail}
   />;
