@@ -37,17 +37,18 @@ export async function saveStaffQaReview(reportId: string, review: StaffQaReview)
 
   let groupNotified = false;
   let ownerNotified: boolean | null = rejected ? false : null;
-  try {
-    await telegramCall("sendMessage", {
-      chat_id: report.telegram_chat_id,
-      message_thread_id: report.telegram_thread_id,
-      reply_to_message_id: report.telegram_message_id,
-      text: message,
-    });
-    groupNotified = true;
-  } catch { /* A notification failure must not roll back the saved review. */ }
 
   if (rejected) {
+    try {
+      await telegramCall("sendMessage", {
+        chat_id: report.telegram_chat_id,
+        message_thread_id: report.telegram_thread_id,
+        reply_to_message_id: report.telegram_message_id,
+        text: message,
+      });
+      groupNotified = true;
+    } catch { /* A notification failure must not roll back the saved review. */ }
+
     const approverId = Number(process.env.STAFF_QA_TELEGRAM_APPROVER_ID);
     if (Number.isSafeInteger(approverId)) {
       try {

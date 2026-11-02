@@ -55,10 +55,13 @@ async function vercelRequest(path: string, init?: RequestInit) {
 }
 
 async function postReleaseStatus(approval: { report_id: string; commit_sha: string }, message: string) {
+  const { data: report } = await staffQaSupabase().from("staff_telegram_qa_reports")
+    .select("request_no").eq("id", approval.report_id).maybeSingle();
+  const requestLabel = report?.request_no ? `заявка №${report.request_no}` : `заявка ${approval.report_id.slice(0, 8)}`;
   await telegramCall("sendMessage", {
     chat_id: env("STAFF_QA_TELEGRAM_CHAT_ID"),
     message_thread_id: Number(env("STAFF_QA_TELEGRAM_THREAD_ID")),
-    text: `STAFF QA · заявка ${approval.report_id.slice(0, 8)} · ${message}`,
+    text: `STAFF QA · ${requestLabel} · ${message}`,
   }).catch(() => undefined);
 }
 
