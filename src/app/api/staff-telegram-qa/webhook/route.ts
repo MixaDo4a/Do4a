@@ -299,27 +299,20 @@ export async function POST(request: Request) {
       details: { bytes: bytes.byteLength, mime_type: contentType },
     });
     await supabase.from("staff_telegram_qa_reports").update({ status: "new" }).eq("id", report.id);
-    let acknowledgementMessageId: number | null = null;
-    let acknowledgementError: string | null = null;
-    try {
-      const acknowledgement = await telegramCall<{ message_id: number }>("sendMessage", {
-        chat_id: message.chat.id,
-        message_thread_id: message.message_thread_id,
-        text: `Заявка №${report.request_no} принята.`,
-      });
-      acknowledgementMessageId = acknowledgement.message_id;
-      await supabase.from("staff_telegram_qa_reports")
-        .update({ acknowledgement_message_id: acknowledgementMessageId })
-        .eq("id", report.id);
-    } catch (error) {
-      acknowledgementError = (error instanceof Error ? error.message : "Telegram acknowledgement failed").slice(0, 500);
-    }
+    const acknowledgement = await telegramCall<{ message_id: number }>("sendMessage", {
+      chat_id: message.chat.id,
+      message_thread_id: message.message_thread_id,
+      text: `Заявка №${report.request_no} принята.`,
+    });
+    const acknowledgementMessageId = acknowledgement.message_id;
+    await supabase.from("staff_telegram_qa_reports")
+      .update({ acknowledgement_message_id: acknowledgementMessageId })
+      .eq("id", report.id);
     await supabase.from("staff_telegram_qa_report_history").insert({
       report_id: report.id, event_type: "acknowledged", old_status: "new", new_status: "new", actor_type: "telegram",
       details: {
         group_notification_suppressed: false,
         acknowledgement_message_id: acknowledgementMessageId,
-        ...(acknowledgementError ? { acknowledgement_error: acknowledgementError } : {}),
       },
     });
     return NextResponse.json({ ok: true, request_no: report.request_no });
