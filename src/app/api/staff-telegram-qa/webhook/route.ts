@@ -10,6 +10,7 @@ type Update = {
   message?: {
     message_id: number; message_thread_id?: number; date: number;
     chat: { id: number; type?: string };
+    reply_to_message?: { message_id: number };
     from?: { id: number; username?: string; first_name?: string; last_name?: string };
     text?: string;
     caption?: string;
@@ -190,6 +191,76 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
   }
 }
 
+async function processOwnerQuestionCallback(callback: NonNullable<Update["callback_query"]>) {
+  const match = callback.data?.match(/^staffqa:owner:(yes|no):([0-9a-f-]{36})$/i);
+  const approverId = Number(env("STAFF_QA_TELEGRAM_APPROVER_ID"));
+  const message = callback.message;
+  if (!match || callback.from.id !== approverId || message?.chat.type !== "private" || message.chat.id !== approverId) {
+    await telegramCall("answerCallbackQuery", { callback_query_id: callback.id, text: "Нет доступа к этому решению.", show_alert: true }).catch(() => undefined);
+    return;
+  }
+
+  const [, decision, questionId] = match;
+  const supabase = staffQaSupabase();
+  const { data: question, error: questionError } = await supabase.from("staff_telegram_qa_owner_questions")
+    .select("id,report_id,question,telegram_message_id,status,staff_telegram_qa_reports(request_no)")
+    .eq("id", questionId).maybeSingle();
+  const report = question?.staff_telegram_qa_reports as { request_no?: number } | null;
+  if (questionError || !question || question.status !== "pending" || question.telegram_message_id !== message.message_id || !report?.request_no) {
+    await telegramCall("answerCallbackQuery", { callback_query_id: callback.id, text: "Запрос уже обработан или устарел.", show_alert: true }).catch(() => undefined);
+    return;
+  }
+
+  const answer = decision === "yes" ? "Да, разрешаю. Продолжайте." : "Нет, не разрешаю. Остановитесь по этому изменению.";
+  const { data: saved, error } = await supabase.rpc("staff_answer_telegram_qa_owner_question", {
+    p_question_id: questionId,
+    p_response_type: decision,
+    p_response_text: answer,
+    p_actor_telegram_user_id: approverId,
+  });
+  if (error || !saved?.length) {
+    await telegramCall("answerCallbackQuery", { callback_query_id: callback.id, text: "Не удалось сохранить решение.", show_alert: true }).catch(() => undefined);
+    return;
+  }
+
+  await telegramCall("answerCallbackQuery", {
+    callback_query_id: callback.id,
+    text: `Сохранено по заявке №${report.request_no}. Продолжу обработку.`,
+  }).catch(() => undefined);
+  await telegramCall("editMessageReplyMarkup", {
+    chat_id: message.chat.id,
+    message_id: message.message_id,
+    reply_markup: { inline_keyboard: [] },
+  }).catch(() => undefined);
+}
+
+async function processOwnerTextReply(message: NonNullable<Update["message"]>) {
+  const approverId = Number(env("STAFF_QA_TELEGRAM_APPROVER_ID"));
+  const replyMessageId = message.reply_to_message?.message_id;
+  const response = message.text?.trim();
+  if (message.chat.type !== "private" || message.chat.id !== approverId || message.from?.id !== approverId || !replyMessageId || !response) return false;
+
+  const supabase = staffQaSupabase();
+  const { data: question, error } = await supabase.from("staff_telegram_qa_owner_questions")
+    .select("id,telegram_message_id,status,staff_telegram_qa_reports(request_no)")
+    .eq("telegram_message_id", replyMessageId).maybeSingle();
+  const report = question?.staff_telegram_qa_reports as { request_no?: number } | null;
+  if (error || !question || question.status !== "pending" || !report?.request_no) return false;
+
+  const { data: saved, error: saveError } = await supabase.rpc("staff_answer_telegram_qa_owner_question", {
+    p_question_id: question.id,
+    p_response_type: "text",
+    p_response_text: response.slice(0, 4000),
+    p_actor_telegram_user_id: approverId,
+  });
+  if (saveError || !saved?.length) return false;
+  await telegramCall("sendMessage", {
+    chat_id: approverId,
+    text: `Ответ по заявке №${report.request_no} записан. Продолжу обработку.`,
+  }).catch(() => undefined);
+  return true;
+}
+
 export async function POST(request: Request) {
   const secret = process.env.STAFF_QA_WEBHOOK_SECRET;
   const chatId = process.env.STAFF_QA_TELEGRAM_CHAT_ID;
@@ -208,7 +279,10 @@ export async function POST(request: Request) {
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
   if (update.callback_query) {
-    try { await processApprovalCallback(update.callback_query); }
+    try {
+      if (update.callback_query.data?.startsWith("staffqa:owner:")) await processOwnerQuestionCallback(update.callback_query);
+      else await processApprovalCallback(update.callback_query);
+    }
     catch { return NextResponse.json({ error: "Could not process release callback" }, { status: 503 }); }
     return NextResponse.json({ ok: true, action: "release_callback_processed" });
   }
@@ -221,6 +295,10 @@ export async function POST(request: Request) {
       await telegramCall("sendMessage", { chat_id: approverId, text: "Staff QA bot подключён. Запросы на публикацию будут приходить сюда." }).catch(() => undefined);
     }
     return NextResponse.json({ ok: true, action: senderId === approverId ? "owner_started_bot" : "ignored_private_start" });
+  }
+  if (message.chat.type === "private" && message.from?.id === approverId && message.reply_to_message?.message_id) {
+    const saved = await processOwnerTextReply(message);
+    return NextResponse.json({ ok: true, action: saved ? "owner_answer_saved" : "owner_reply_ignored" });
   }
   if (String(message.chat.id) !== chatId || String(message.message_thread_id ?? "") !== threadId) {
     return NextResponse.json({ ok: true, ignored: "outside_configured_topic" });
