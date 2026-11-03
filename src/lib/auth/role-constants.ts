@@ -3,6 +3,7 @@ export const ROLE_HIERARCHY = [
   "super_admin",
   "store_manager",
   "buyer",
+  "marketer",
   "warehouse_manager",
   "auditor",
   "warehouse_assistant",

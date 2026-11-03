@@ -18,6 +18,7 @@ type StoreRow = {
   workday_end_time: string | null;
   status: string;
   sales_share_percent: number | null;
+  is_warehouse: boolean;
 };
 
 type TemplateItemRow = {
@@ -87,7 +88,7 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
     accessibleStoreIds.length > 0
       ? supabase
           .from("stores")
-          .select("id, city, name, address, timezone, workday_start_time, workday_end_time, status, sales_share_percent")
+          .select("id, city, name, address, timezone, workday_start_time, workday_end_time, status, sales_share_percent, is_warehouse")
           .in("id", accessibleStoreIds)
           .order("city")
           .order("name")
@@ -150,6 +151,7 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
             <form action="/admin/stores/create" className="mt-4 grid gap-3" method="post">
               <input className="h-11 rounded-md border border-line px-3" name="city" placeholder="Город" required />
               <input className="h-11 rounded-md border border-line px-3" name="name" placeholder="Название" required />
+              <label className="flex items-center gap-2 text-sm"><input className="h-4 w-4" name="is_warehouse" type="checkbox" /> Это склад, не магазин</label>
               <input className="h-11 rounded-md border border-line px-3" name="address" placeholder="Адрес" />
               <select className="h-11 rounded-md border border-line px-3" defaultValue="Asia/Vladivostok" name="timezone">
                 {STORE_TIME_ZONES.map((zone) => <option key={zone.value} value={zone.value}>{zone.label}</option>)}
@@ -183,6 +185,7 @@ export default async function AdminStoresPage({ searchParams }: PageProps) {
                     <div className="grid gap-2">
                       <input className="h-10 rounded-md border border-line px-3" name="city" defaultValue={storeItem.city} required />
                       <input className="h-10 rounded-md border border-line px-3" name="name" defaultValue={storeItem.name} required />
+                      {canEditAdvanced ? <label className="flex items-center gap-2 text-sm"><input className="h-4 w-4" defaultChecked={storeItem.is_warehouse} name="is_warehouse" type="checkbox" /> Это склад, не магазин</label> : <input name="is_warehouse" type="hidden" value={storeItem.is_warehouse ? "true" : "false"} />}
                     </div>
 
                     <input className="h-10 rounded-md border border-line px-3" name="address" defaultValue={storeItem.address ?? ""} placeholder="Адрес" />

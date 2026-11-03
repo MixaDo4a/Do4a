@@ -17,6 +17,7 @@ type RoleCode =
   | "auditor"
   | "store_manager"
   | "buyer"
+  | "marketer"
   | "warehouse_manager"
   | "warehouse_assistant"
   | "super_admin"

@@ -92,6 +92,10 @@ export async function POST(request: NextRequest) {
 
   const isDeveloper = roles.includes("developer");
   const canEditAdvanced = roles.some((role) => ADVANCED_ROLES.includes(role));
+  const { data: existingStore, error: existingStoreError } = await supabase.from("stores").select("is_warehouse").eq("id", storeId).maybeSingle<{ is_warehouse: boolean }>();
+  if (existingStoreError || !existingStore) {
+    return NextResponse.redirect(adminUrl(request, "admin-error", "Не удалось проверить параметры магазина."), 303);
+  }
 
   if (status === "archived" && !isDeveloper) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Скрывать магазины может только разработчик."), 303);
@@ -158,6 +162,9 @@ export async function POST(request: NextRequest) {
     .update({
       city,
       name,
+      is_warehouse: canEditAdvanced
+        ? formData.get("is_warehouse") === "on" || formData.get("is_warehouse") === "true"
+        : existingStore.is_warehouse,
       address: address || null,
       workday_start_time: startTime,
       workday_end_time: endTime,

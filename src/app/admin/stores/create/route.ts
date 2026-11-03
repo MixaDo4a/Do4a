@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
     .insert({
       city,
       name,
+      is_warehouse: formData.has("is_warehouse"),
       address: address || null,
       workday_start_time: startTime,
       workday_end_time: endTime,
