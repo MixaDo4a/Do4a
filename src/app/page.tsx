@@ -435,6 +435,9 @@ export default async function HomePage() {
     redirectInvalidSession(profileError);
     throw new Error(profileError.message);
   }
+  if (roleState.roles.includes("marketer") && !roleState.roles.some((role) => ["developer", "super_admin", "store_manager", "buyer"].includes(role))) {
+    redirect("/marketing");
+  }
 
   const roles = roleState.roles.map((code) => ({ code, name: roleLabels[code] ?? code }));
   const allRoleCodes = roleState.allRoles;

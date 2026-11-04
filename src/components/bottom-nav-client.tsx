@@ -20,6 +20,7 @@ let lastBottomNavPosition: { index: number; signature: string } | null = null;
 
 const items: BottomNavItem[] = [
   { href: "/", label: "Главная", icon: Home, roles: null, hideForAuditorOnly: false },
+  { href: "/marketing", label: "Маркетинг", icon: BadgePercent, roles: ["marketer"], hideForAuditorOnly: false },
   { href: "/shifts", label: "Смены", icon: ShieldCheck, roles: null, hideForAuditorOnly: true },
   { href: "/tasks", label: "Задачи", icon: ListTodo, roles: null, hideForAuditorOnly: false },
   {
@@ -98,6 +99,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !roles.some((role) => managementRoles.includes(role));
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !roles.some((role) => managementRoles.includes(role));
   const buyerOnly = roles.includes("buyer") && !roles.some((role) => managementRoles.includes(role));
+  const marketerOnly = roles.includes("marketer") && !roles.some((role) => [...managementRoles, "buyer"].includes(role));
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
   const managementView = roles.some((role) => ["store_manager", "super_admin"].includes(role));
 
@@ -187,6 +189,9 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
         if (buyerOnly && !["/", "/procurement", "/notifications"].includes(item.href)) {
           return false;
         }
+        if (marketerOnly && !["/", "/marketing", "/tasks", "/notifications"].includes(item.href)) {
+          return false;
+        }
         if (managerOnly && ["/shifts", "/routine"].includes(item.href)) {
           return false;
         }
@@ -199,7 +204,7 @@ export function BottomNavClient({ roles, unreadCount }: { roles: string[]; unrea
 
         return !item.roles || item.roles.some((role) => roles.includes(role));
       }),
-    [auditorOnly, buyerOnly, managerOnly, managementView, roles, warehouseAssistantOnly, warehouseManagerOnly],
+    [auditorOnly, buyerOnly, managerOnly, managementView, marketerOnly, roles, warehouseAssistantOnly, warehouseManagerOnly],
   );
 
   const activeIndex = useMemo(() => resolveActiveIndex(pathname, visibleItems), [pathname, visibleItems]);

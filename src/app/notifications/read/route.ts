@@ -5,9 +5,11 @@ import { notificationCutoffIso } from "@/lib/notification-retention";
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const notificationId = String(formData.get("notification_id") ?? "").trim();
+  const returnTo = String(formData.get("return_to") ?? "");
+  const destination = returnTo === "/marketing?tab=notifications" ? returnTo : "/notifications";
 
   if (!notificationId) {
-    return NextResponse.redirect(new URL("/notifications", request.url), 303);
+    return NextResponse.redirect(new URL(destination, request.url), 303);
   }
 
   const supabase = await createSupabaseServerClient();
@@ -26,5 +28,5 @@ export async function POST(request: NextRequest) {
     .gte("created_at", notificationCutoffIso())
     .eq("recipient_profile_id", user.id);
 
-  return NextResponse.redirect(new URL("/notifications", request.url), 303);
+  return NextResponse.redirect(new URL(destination, request.url), 303);
 }

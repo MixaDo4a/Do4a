@@ -4,7 +4,7 @@ import { getAccessibleStores } from "@/lib/auth/stores";
 import { appRedirectUrl } from "@/lib/http/redirect-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const CREATE_ROLES = ["store_manager", "buyer", "super_admin", "developer"];
+const CREATE_ROLES = ["store_manager", "buyer", "marketer", "super_admin", "developer"];
 
 type StoreRow = {
   id: string;
@@ -12,8 +12,9 @@ type StoreRow = {
   city: string;
 };
 
-function procurementUrl(request: NextRequest, message: string, detail?: string) {
-  const url = appRedirectUrl(request, "/procurement");
+function procurementUrl(request: NextRequest, message: string, detail?: string, returnTo = "/procurement") {
+  const safeReturnTo = returnTo.startsWith("/marketing") ? "/marketing?tab=promotions" : "/procurement";
+  const url = appRedirectUrl(request, safeReturnTo);
   url.searchParams.set("message", message);
   if (detail) url.searchParams.set("detail", detail);
   return url;
@@ -21,6 +22,7 @@ function procurementUrl(request: NextRequest, message: string, detail?: string) 
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
+  const returnTo = String(formData.get("return_to") ?? "");
   const storeIds = Array.from(
     new Set(
       formData
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
   const endsOn = String(formData.get("ends_on") ?? "").trim() || null;
 
   if (storeIds.length === 0 || !supplierName || !productName || !promotionTerms) {
-    return NextResponse.redirect(procurementUrl(request, "required"), 303);
+    return NextResponse.redirect(procurementUrl(request, "required", undefined, returnTo), 303);
   }
 
   const supabase = await createSupabaseServerClient();
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
 
   const { roles } = await getCurrentRoleCodes();
   if (!hasAnyRole(roles, CREATE_ROLES)) {
-    return NextResponse.redirect(procurementUrl(request, "save-error", "Недостаточно прав."), 303);
+    return NextResponse.redirect(procurementUrl(request, "save-error", "Недостаточно прав.", returnTo), 303);
   }
 
   const accessibleStores = await getAccessibleStores();
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
     .filter(Boolean) as StoreRow[];
 
   if (selectedStores.length !== storeIds.length) {
-    return NextResponse.redirect(procurementUrl(request, "save-error", "Магазин недоступен."), 303);
+    return NextResponse.redirect(procurementUrl(request, "save-error", "Магазин недоступен.", returnTo), 303);
   }
 
   const { data: createdPromotions, error } = await supabase
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
     .select("id, store_id");
 
   if (error || !createdPromotions) {
-    return NextResponse.redirect(procurementUrl(request, "save-error", error?.message ?? "Не удалось сохранить данные."), 303);
+    return NextResponse.redirect(procurementUrl(request, "save-error", error?.message ?? "Не удалось сохранить данные.", returnTo), 303);
   }
 
   await Promise.all(
@@ -101,5 +103,5 @@ export async function POST(request: NextRequest) {
     }),
   );
 
-  return NextResponse.redirect(procurementUrl(request, "saved"), 303);
+  return NextResponse.redirect(procurementUrl(request, "saved", undefined, returnTo), 303);
 }
