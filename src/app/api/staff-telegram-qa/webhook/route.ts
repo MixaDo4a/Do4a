@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { constantTimeSecretMatches, registerStaffQaWebhook, staffQaSupabase, STAFF_QA_BUCKET, telegramCall } from "@/lib/staff-telegram-qa";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 300;
 
 type Update = {
   update_id?: number;
@@ -70,12 +70,22 @@ async function postReleaseStatus(approval: { report_id: string; commit_sha: stri
     .select("request_no").eq("id", approval.report_id).maybeSingle();
   const requestLabel = report?.request_no ? `заявка №${report.request_no}` : `заявка ${approval.report_id.slice(0, 8)}`;
   const text = [`STAFF QA · ${requestLabel}`, `Итог: ${outcome === "published" ? "опубликовано" : "не опубликовано"}.`, `Причина: ${reason}`].join("\n\n");
-  await telegramCall("sendMessage", {
-    chat_id: env("STAFF_QA_TELEGRAM_CHAT_ID"),
-    message_thread_id: Number(env("STAFF_QA_TELEGRAM_THREAD_ID")),
-    text,
-  }).catch(() => undefined);
-  await telegramCall("sendMessage", { chat_id: Number(env("STAFF_QA_TELEGRAM_APPROVER_ID")), text }).catch(() => undefined);
+  const destinations = [
+    { chat_id: env("STAFF_QA_TELEGRAM_CHAT_ID"), message_thread_id: Number(env("STAFF_QA_TELEGRAM_THREAD_ID")), text },
+    { chat_id: Number(env("STAFF_QA_TELEGRAM_APPROVER_ID")), text },
+  ];
+  for (const payload of destinations) {
+    let delivered = false;
+    for (let attempt = 0; attempt < 3 && !delivered; attempt += 1) {
+      try {
+        await telegramCall("sendMessage", payload);
+        delivered = true;
+      } catch {
+        if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+    }
+    if (!delivered) throw new Error("Итог публикации не доставлен в Telegram после повторных попыток.");
+  }
 }
 
 async function processApprovalCallback(callback: NonNullable<Update["callback_query"]>) {
@@ -117,6 +127,9 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
   }
 
   let productionId: string | null = null;
+  let deploymentConfirmed = false;
+  let terminalFailure = false;
+  let releaseRecordedPublished = false;
   try {
     const projectId = env("STAFF_QA_VERCEL_PROJECT_ID");
     const candidateRes = await vercelRequest(`/v13/deployments/${encodeURIComponent(row.preview_deployment_id)}?withGitRepoInfo=true`);
@@ -145,23 +158,41 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
       p_production_deployment_id: productionId, p_production_url: created.url ?? null,
     });
     if (stateError) throw new Error("Production запущен, но журнал статуса не обновился; требуется ручная сверка в Vercel.");
-    const deadline = Date.now() + 50_000;
+    deploymentConfirmed = true;
+    const deadline = Date.now() + 290_000;
     while (Date.now() < deadline) {
-      const statusResponse = await vercelRequest(`/v13/deployments/${encodeURIComponent(productionId)}?withGitRepoInfo=true`);
-      const current = await statusResponse.json() as VercelDeployment;
-      if (!statusResponse.ok || current.projectId !== projectId || current.target !== "production" || deploymentSha(current) !== row.commit_sha.toLowerCase()) {
+      let statusResponse: Response;
+      let current: VercelDeployment;
+      try {
+        statusResponse = await vercelRequest(`/v13/deployments/${encodeURIComponent(productionId)}?withGitRepoInfo=true`);
+        if (!statusResponse.ok) {
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          continue;
+        }
+        current = await statusResponse.json() as VercelDeployment;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+        continue;
+      }
+      if (current.projectId !== projectId || current.target !== "production" || deploymentSha(current) !== row.commit_sha.toLowerCase()) {
+        terminalFailure = true;
         throw new Error("Идентификатор Production-деплоя не совпал с проверенным коммитом.");
       }
       if (current.readyState === "ERROR" || current.readyState === "CANCELED") {
+        terminalFailure = true;
         throw new Error(`Production-деплой ${current.readyState}: ${current.errorCode ?? ""} ${current.errorMessage ?? ""}`.trim().slice(0, 500));
       }
       if (current.readyState === "READY") {
-        if (!current.aliasAssigned) throw new Error(`Деплой готов, но домен не привязан: ${current.aliasError?.message ?? ""}`.slice(0, 500));
+        if (!current.aliasAssigned) {
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          continue;
+        }
         const { error: publishError } = await supabase.rpc("staff_record_telegram_qa_release_state", {
           p_approval_id: id, p_status: "published", p_error: null,
           p_production_deployment_id: productionId, p_production_url: current.url ? `https://${current.url}` : env("STAFF_QA_PRODUCTION_URL"),
         });
         if (publishError) throw new Error("Деплой готов, но итог не записался в журнал; требуется ручная сверка.");
+        releaseRecordedPublished = true;
         try {
           await registerStaffQaWebhook(productionUrl.toString());
         } catch {
@@ -173,8 +204,9 @@ async function processApprovalCallback(callback: NonNullable<Update["callback_qu
       }
       await new Promise((resolve) => setTimeout(resolve, 2500));
     }
-    throw new Error(`Production деплой ${productionId} ещё выполняется; проверьте Vercel перед повторными действиями.`);
+    return;
   } catch (error) {
+    if (releaseRecordedPublished || (productionId && deploymentConfirmed && !terminalFailure)) return;
     const reason = (error instanceof Error ? error.message : "Release failed").slice(0, 1800);
     try {
       await supabase.rpc("staff_record_telegram_qa_release_state", {
@@ -279,12 +311,17 @@ export async function POST(request: Request) {
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
   if (update.callback_query) {
-    try {
-      if (update.callback_query.data?.startsWith("staffqa:owner:")) await processOwnerQuestionCallback(update.callback_query);
-      else await processApprovalCallback(update.callback_query);
+    if (update.callback_query.data?.startsWith("staffqa:owner:")) {
+      try {
+        await processOwnerQuestionCallback(update.callback_query);
+      } catch { return NextResponse.json({ error: "Could not process owner decision" }, { status: 503 }); }
+      return NextResponse.json({ ok: true, action: "owner_decision_processed" });
     }
-    catch { return NextResponse.json({ error: "Could not process release callback" }, { status: 503 }); }
-    return NextResponse.json({ ok: true, action: "release_callback_processed" });
+    after(async () => {
+      try { await processApprovalCallback(update.callback_query!); }
+      catch { /* The callback was accepted; completion work remains within this invocation. */ }
+    });
+    return NextResponse.json({ ok: true, action: "release_callback_accepted" });
   }
 
   const message = update.message;
