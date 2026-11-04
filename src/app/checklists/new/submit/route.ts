@@ -305,6 +305,7 @@ export async function POST(request: NextRequest) {
         description: "Зайди, проверь и исправь недочёты выявленные на чек листе",
         status: "open",
         priority: "normal",
+        due_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         source_checklist_submission_id: submission.id,
       })
       .select("id")
