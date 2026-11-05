@@ -61,6 +61,10 @@ export async function POST(request: NextRequest) {
   const dueAt = value(formData, "due_at");
   const priority = value(formData, "priority") || "normal";
   const recurrenceFrequency = value(formData, "recurrence_frequency");
+  const ordinarySubtaskTitles = value(formData, "ordinary_subtasks")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 
   if (taskType === "ordinary" && (storeIds.length === 0 || (!storeWideTask && assigneeEmployeeIds.length === 0) || !title)) {
     return NextResponse.redirect(tasksUrl(request, "task-required"), 303);
@@ -70,6 +74,10 @@ export async function POST(request: NextRequest) {
   }
   if (taskType !== "ordinary" && taskType !== "expiration") {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Неизвестный тип задачи."), 303);
+  }
+
+  if (taskType === "ordinary" && (title.length > 200 || description.length > 5000 || ordinarySubtaskTitles.length > 20 || ordinarySubtaskTitles.some((item) => item.length > 240))) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Допустимо не более 20 подзадач длиной до 240 символов."), 303);
   }
 
   if (!["low", "normal", "high", "urgent"].includes(priority)) {
@@ -342,6 +350,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(tasksUrl(request, "task-error", error?.message), 303);
   }
 
+  let subtaskWarning: string | undefined;
+  if (ordinarySubtaskTitles.length > 0) {
+    const { error: subtaskError } = await supabase.rpc("create_ordinary_task_subtasks", {
+      p_task_ids: data.map((task) => task.id),
+      p_titles: ordinarySubtaskTitles,
+    });
+    if (subtaskError) {
+      subtaskWarning = `Основные задачи созданы, но подзадачи сохранить не удалось: ${subtaskError.message}`;
+    }
+  }
+
   const [{ data: storeRows }, { data: employeeRow }, { data: assigneeRows }] = await Promise.all([
     supabase.from("stores").select("id, name, city").in("id", storeIds).returns<{ id: string; name: string; city: string }[]>(),
     employeeId
@@ -401,7 +420,7 @@ export async function POST(request: NextRequest) {
     }),
   );
 
-  return NextResponse.redirect(tasksUrl(request, "task-created"), 303);
+  return NextResponse.redirect(tasksUrl(request, "task-created", subtaskWarning), 303);
 }
 
 

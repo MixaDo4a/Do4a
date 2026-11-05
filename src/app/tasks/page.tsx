@@ -16,7 +16,7 @@ import {
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { cleanText } from "@/lib/display";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formatStoreDateTime } from "@/lib/timezone";
+import { formatStoreDateTime, formatStoreDateTimeLocalInput } from "@/lib/timezone";
 
 type TaskRow = {
   id: string;
@@ -68,6 +68,7 @@ const messageLabels: Record<string, string> = {
   "task-failed": "Задача помечена как невыполненная.",
   "task-created": "Задача создана.",
   "task-reopened": "Подзадача возобновлена.",
+  "task-updated": "Задача обновлена.",
 };
 
 const priorityLabels: Record<TaskRow["priority"], string> = {
@@ -131,7 +132,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
   const [tasksResult, employeesResult, profilesResult, userRolesResult] = await Promise.all([
     canSeeAllTasks
       ? (() => {
-          let query = buildTasksQuery(supabase).in("store_id", accessibleStoreIds);
+          let query = buildTasksQuery(supabase);
 
           if (storeId) {
             query = query.eq("store_id", storeId);
@@ -393,7 +394,10 @@ export default async function TasksPage({ searchParams }: PageProps) {
               ) : null}
 
               {subtasks.length > 0 ? <section className="mt-4 grid gap-2">
-                <h3 className="text-sm font-semibold">Подзадачи</h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">Подзадачи</h3>
+                  <span className="text-xs text-muted">{subtasks.filter((item) => item.status === "done").length} из {subtasks.length}</span>
+                </div>
                 {subtasks.map((subtask) => <div key={subtask.id} className="rounded-md border border-line p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div><p className="text-sm font-medium">{subtask.title}</p>{subtask.instructions ? <p className="mt-1 text-xs text-muted">{subtask.instructions}</p> : null}</div>
@@ -410,6 +414,28 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   </form> : null}
                 </div>)}
               </section> : null}
+
+              {task.task_type === "ordinary" && task.created_by === user.id && !["done", "cancelled"].includes(task.status) ? (
+                <details className="mt-4 rounded-md border border-line p-3">
+                  <summary className="cursor-pointer text-sm font-semibold">Редактировать задачу</summary>
+                  <form action="/tasks/edit" method="post" className="mt-3 grid gap-3">
+                    <input type="hidden" name="task_id" value={task.id} />
+                    <input className="h-11 rounded-md border border-line px-3" name="title" defaultValue={task.title} maxLength={200} required />
+                    <textarea className="min-h-20 rounded-md border border-line px-3 py-2" name="description" defaultValue={task.description ?? ""} maxLength={5000} placeholder="Описание" />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <input className="h-11 rounded-md border border-line px-3" name="due_at" type="datetime-local" defaultValue={formatStoreDateTimeLocalInput(task.due_at, task.stores?.timezone)} />
+                      <select className="h-11 rounded-md border border-line px-3" name="priority" defaultValue={task.priority}>
+                        <option value="low">Низкий</option><option value="normal">Обычный</option><option value="high">Высокий</option><option value="urgent">Срочно</option>
+                      </select>
+                    </div>
+                    <label className="grid gap-1 text-sm font-medium"><span>Подзадачи</span>
+                      <span className="text-xs font-normal text-muted">Каждая с новой строки. Изменение текста сбросит отметку выполнения этой подзадачи.</span>
+                      <textarea className="min-h-24 rounded-md border border-line px-3 py-2 font-normal" name="subtasks" defaultValue={subtasks.map((item) => item.title).join("\n")} maxLength={5000} />
+                    </label>
+                    <button className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">Сохранить изменения</button>
+                  </form>
+                </details>
+              ) : null}
 
               {task.status !== "done" && task.status !== "cancelled" ? (
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
