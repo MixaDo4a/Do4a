@@ -39,7 +39,6 @@ export async function POST(request: Request, context: { params: Promise<{ questi
   }
 
   const { data, error } = await supabase.rpc("staff_resolve_telegram_qa_owner_question", {
-  const { data, error } = await supabase.rpc("staff_resolve_telegram_qa_owner_question", {
     p_question_id: questionId,
     p_summary: body.summary.trim(),
   });
