@@ -60,8 +60,11 @@ type EntryRow = {
   manual_bonus_amount: number | string;
   advance_amount: number | string; expiration_writeoff_amount: number | string;
   inventory_loss_amount: number | string; product_writeoff_amount: number | string;
+  carryover_debt_amount: number | string; total_payout_amount: number | string;
   calculation_snapshot: Record<string, unknown> | null;
 };
+type PriorPayrollPeriod = { id: string; period_month: string };
+type PriorPayrollEntry = { payroll_period_id: string; employee_id: string; total_payout_amount: number | string };
 type ModeRow = { city: string; effective_from: string; calculation_mode: "legacy" | "academy"; created_at: string };
 type PaidPackageRow = { employee_id: string; amount: number | string; package_type: "mentorship" };
 
@@ -144,6 +147,29 @@ export async function applyAcademyPayrollToCalculatedRows(
 
   const activeEmployees = employees ?? [];
   const allEmployeeIds = activeEmployees.map((employee) => employee.id);
+  const debtCarryoverByEmployee = new Map<string, number>();
+  const debtCarryoverFromByEmployee = new Map<string, string>();
+  if (periodMonth >= "2026-11-01") {
+    const priorPeriods = await fetchPages<PriorPayrollPeriod>((from, to) => db.from("payroll_periods")
+      .select("id, period_month").lt("period_month", periodMonth).order("period_month", { ascending: false })
+      .range(from, to).returns<PriorPayrollPeriod[]>());
+    const periodOrder = new Map(priorPeriods.map((row, index) => [row.id, index]));
+    const priorPeriodIds = priorPeriods.map((row) => row.id);
+    if (priorPeriodIds.length && allEmployeeIds.length) {
+      const priorEntries = await fetchPages<PriorPayrollEntry>((from, to) => db.from("payroll_entries")
+        .select("payroll_period_id, employee_id, total_payout_amount")
+        .in("payroll_period_id", priorPeriodIds).in("employee_id", allEmployeeIds)
+        .range(from, to).returns<PriorPayrollEntry[]>());
+      priorEntries.sort((a, b) => (periodOrder.get(a.payroll_period_id) ?? Number.MAX_SAFE_INTEGER)
+        - (periodOrder.get(b.payroll_period_id) ?? Number.MAX_SAFE_INTEGER));
+      for (const row of priorEntries) {
+        if (debtCarryoverByEmployee.has(row.employee_id)) continue;
+        debtCarryoverByEmployee.set(row.employee_id, roundMoney(Math.max(0, -amount(row.total_payout_amount))));
+        const priorPeriod = priorPeriods.find((periodRow) => periodRow.id === row.payroll_period_id);
+        if (priorPeriod) debtCarryoverFromByEmployee.set(row.employee_id, priorPeriod.period_month);
+      }
+    }
+  }
   const storeRows = stores ?? [];
   const storeById = new Map(storeRows.map((store) => [store.id, store]));
   const modeRows = modes ?? [];
@@ -190,7 +216,7 @@ export async function applyAcademyPayrollToCalculatedRows(
       .eq("period_start", periodMonth).eq("period_end", monthEnd).returns<PlanRow[]>(),
     fetchPages<MetricRow>((from, to) => db.from("sales_metrics").select("employee_id, shift_id, store_id, gross_revenue, sales_pay_amount, receipt_count, items_sold_count")
       .eq("period_month", periodMonth).order("shift_id").range(from, to).returns<MetricRow[]>()),
-    fetchPages<EntryRow>((from, to) => db.from("payroll_entries").select("id, employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, calculation_snapshot")
+    fetchPages<EntryRow>((from, to) => db.from("payroll_entries").select("id, employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, carryover_debt_amount, total_payout_amount, calculation_snapshot")
       .eq("payroll_period_id", period.id).order("employee_id").range(from, to).returns<EntryRow[]>()),
     db.from("academy_payroll_packages").select("employee_id, amount, package_type")
       .eq("period_month", periodMonth).eq("status", "confirmed").returns<PaidPackageRow[]>(),
@@ -408,9 +434,11 @@ export async function applyAcademyPayrollToCalculatedRows(
     const salesPay = roundMoney(legacySales + academyCommission);
     const planBonus = roundMoney(legacyPlanBonus + academyAwards);
     const shiftCount = legacyShiftCount + academyShiftCount;
+    const tracksDebtCarryover = periodMonth >= "2026-11-01";
+    const carryoverDebt = tracksDebtCarryover ? debtCarryoverByEmployee.get(employeeId) ?? 0 : 0;
     const total = roundMoney(salesPay + planBonus + baseSalary + amount(entry.manual_bonus_amount)
       - amount(entry.advance_amount) - amount(entry.expiration_writeoff_amount)
-      - amount(entry.inventory_loss_amount) - amount(entry.product_writeoff_amount));
+      - amount(entry.inventory_loss_amount) - amount(entry.product_writeoff_amount) - carryoverDebt);
     const academyBreakdown = hasAcademyShift && academyResult ? {
       level: academyResult.level,
       confirmedShiftCount: academyResult.totalShiftCount,
@@ -435,6 +463,10 @@ export async function applyAcademyPayrollToCalculatedRows(
     const nextSnapshot = {
       ...(entry.calculation_snapshot ?? {}),
       calculation_mode: hasAcademyShift ? "mixed_by_city" : "legacy",
+      ...(tracksDebtCarryover ? {
+        carryover_debt_amount: carryoverDebt,
+        carryover_debt_from_period: carryoverDebt > 0 ? debtCarryoverFromByEmployee.get(employeeId) ?? null : null,
+      } : {}),
       legacy_city_payroll: { grossRevenue: roundMoney(legacyGrossRevenue), salesPay: roundMoney(legacySales), shiftCount: legacyShiftCount, planBonus: roundMoney(legacyPlanBonus) },
       academy_payroll: academyBreakdown,
     };
@@ -443,6 +475,8 @@ export async function applyAcademyPayrollToCalculatedRows(
       && amount(entry.sales_pay_amount) === salesPay
       && amount(entry.plan_bonus_amount) === planBonus
       && amount(entry.base_salary_amount) === baseSalary
+      && (!tracksDebtCarryover || amount(entry.carryover_debt_amount) === carryoverDebt)
+      && amount(entry.total_payout_amount) === total
       && amount(entry.shift_count) === shiftCount
       && JSON.stringify(entry.calculation_snapshot ?? {}) === JSON.stringify(nextSnapshot);
     if (valuesEqual) continue;
@@ -454,6 +488,7 @@ export async function applyAcademyPayrollToCalculatedRows(
       base_salary_amount: baseSalary,
       total_payout_amount: total,
       calculation_snapshot: nextSnapshot,
+      ...(tracksDebtCarryover ? { carryover_debt_amount: carryoverDebt } : {}),
     }).eq("id", entry.id);
     if (error) throw new Error(`Failed to apply Academy payroll for ${employee.full_name}: ${error.message}`);
   }

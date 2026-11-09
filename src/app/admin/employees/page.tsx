@@ -25,7 +25,7 @@ type EmployeeRow = {
   stores: { name: string } | null;
   employee_store_assignments: { store_id: string; is_primary: boolean; stores: { name: string; city: string } | null }[];
 };
-type RoleRow = { code: "manager" | "auditor" | "store_manager" | "buyer" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer"; name: string };
+type RoleRow = { code: "manager" | "auditor" | "store_manager" | "buyer" | "marketer" | "warehouse_manager" | "warehouse_assistant" | "super_admin" | "developer"; name: string };
 type ProfileRoleRow = { profile_id: string; roles: RoleRelation<RoleRow["code"]> };
 type ProfileEmployeeRow = { id: string; employee_id: string | null };
 type EmployeeTaskQualityRow = PersonalTaskDeadline & { assignee_employee_id: string | null };
@@ -42,6 +42,7 @@ const roleLabels: Record<RoleRow["code"], string> = {
   auditor: "Проверяющий",
   store_manager: "Управляющий",
   buyer: "Закупщик",
+  marketer: "Маркетолог",
   warehouse_manager: "Кладовщик",
   warehouse_assistant: "Помощник кладовщика",
   super_admin: "Супер-админ",

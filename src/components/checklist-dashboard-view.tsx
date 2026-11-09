@@ -2,11 +2,12 @@ import Link from "next/link";
 
 type MissingEmployee = { id: string; name: string; stores: string[] };
 
-export function ChecklistDashboardView({ period, submittedCount, averageScore, missingEmployees }: {
+export function ChecklistDashboardView({ period, submittedCount, averageScore, missingEmployees, vaultBalance }: {
   period: string;
   submittedCount: number;
   averageScore: number | null;
   missingEmployees: MissingEmployee[];
+  vaultBalance: number | null;
 }) {
   const monthLabel = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" })
     .format(new Date(`${period}-01T00:00:00Z`));
@@ -30,10 +31,11 @@ export function ChecklistDashboardView({ period, submittedCount, averageScore, m
         </div>
       </header>
 
-      <section className="mt-5 grid gap-3 sm:grid-cols-3" aria-label={`Итоги чек-листов за ${monthLabel}`}>
+      <section className="mt-5 grid gap-3 sm:grid-cols-4" aria-label={`Итоги чек-листов за ${monthLabel}`}>
         <Metric label="Проведено проверок" value={String(submittedCount)} />
         <Metric label="Средний балл" value={averageScore === null ? "—" : new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(averageScore)} />
         <Metric label="Сотрудники без чек-листа" value={String(missingEmployees.length)} alert={missingEmployees.length > 0} />
+        {vaultBalance !== null ? <Metric label="Остаток сейфа · вся компания" value={`${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(vaultBalance)} ₽`} /> : null}
       </section>
 
       <section className="mt-5 rounded-lg border border-white/10 bg-[#0c090a]/95 p-4">

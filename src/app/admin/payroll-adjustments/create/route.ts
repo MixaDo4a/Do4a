@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
   }
 
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
-  if (warehouseManagerOnly && !["fine", "inventory", "expiration", "product"].includes(adjustmentType)) {
+  if (warehouseManagerOnly && !["fine", "inventory", "product"].includes(adjustmentType)) {
     return NextResponse.redirect(adminUrl(request, "admin-error", "Кладовщик может вносить только вычеты.", returnTo), 303);
   }
 

@@ -28,6 +28,7 @@ type PayrollEntry = {
   expiration_writeoff_amount: number;
   inventory_loss_amount: number;
   product_writeoff_amount: number;
+  carryover_debt_amount: number;
   total_payout_amount: number;
   calculation_snapshot: Record<string, unknown> | null;
   employees: { full_name: string; is_active: boolean } | null;
@@ -170,7 +171,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
     ? supabase
         .from("payroll_entries")
         .select(
-          "id, employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, total_payout_amount, calculation_snapshot, employees(full_name, is_active)",
+          "id, employee_id, shift_count, gross_revenue, sales_pay_amount, plan_bonus_amount, checklist_salary_per_shift, base_salary_amount, manual_bonus_amount, advance_amount, expiration_writeoff_amount, inventory_loss_amount, product_writeoff_amount, carryover_debt_amount, total_payout_amount, calculation_snapshot, employees(full_name, is_active)",
         )
         .eq("payroll_period_id", payrollPeriod.id)
     : null;
@@ -187,12 +188,27 @@ export default async function PayrollPage({ searchParams }: PageProps) {
     throw new Error(error.message);
   }
 
-  const accessibleStores = managerOnly ? [] : await getAccessibleStores(supabase);
+  const accessibleStores = managerOnly
+    ? []
+    : roles.includes("warehouse_manager")
+      ? await (async () => {
+          const { data, error } = await supabase.rpc("list_warehouse_payroll_stores");
+          if (error) throw new Error(error.message);
+          return (data ?? []) as Awaited<ReturnType<typeof getAccessibleStores>>;
+        })()
+      : await getAccessibleStores(supabase);
   const storeById = new Map(accessibleStores.map((store) => [store.id, store]));
   const employeeIds = entries.map((entry) => entry.employee_id);
+  const assignmentsQuery = roles.includes("warehouse_manager")
+    ? supabase.rpc("list_warehouse_payroll_employee_stores", { p_period_month: monthStart(month) }).returns<StoreAssignment[]>()
+    : supabase
+        .from("employee_store_assignments")
+        .select("employee_id, store_id, valid_from, valid_to")
+        .in("employee_id", employeeIds)
+        .returns<StoreAssignment[]>();
   const [{ data: assignments, error: assignmentsError }, { data: salesStores, error: salesStoresError }, { data: checklistStores, error: checklistStoresError }] = employeeIds.length > 0 && !managerOnly
     ? await Promise.all([
-        supabase.from("employee_store_assignments").select("employee_id, store_id, valid_from, valid_to").in("employee_id", employeeIds).returns<StoreAssignment[]>(),
+        assignmentsQuery,
         supabase.from("sales_metrics").select("employee_id, store_id").eq("period_month", monthStart(month)).in("employee_id", employeeIds).returns<EmployeeStoreActivity[]>(),
         supabase.from("checklist_submissions").select("employee_id, store_id").eq("period_month", monthStart(month)).in("employee_id", employeeIds).returns<EmployeeStoreActivity[]>(),
       ])
@@ -205,10 +221,11 @@ export default async function PayrollPage({ searchParams }: PageProps) {
   if (salesStoresError) throw new Error(salesStoresError.message);
   if (checklistStoresError) throw new Error(checklistStoresError.message);
 
+  const assignmentRows = Array.isArray(assignments) ? assignments as StoreAssignment[] : [];
   const periodStart = monthStart(month);
   const periodEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const storeIdsByEmployee = new Map<string, Set<string>>();
-  for (const assignment of assignments) {
+  for (const assignment of assignmentRows) {
     if (!storeById.has(assignment.store_id) || assignment.valid_from > periodEnd || (assignment.valid_to && assignment.valid_to < periodStart)) continue;
     const storeIds = storeIdsByEmployee.get(assignment.employee_id) ?? new Set<string>();
     storeIds.add(assignment.store_id);
@@ -385,6 +402,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
                   <span>Просрок: -{money(entry.expiration_writeoff_amount)}</span>
                   <span>Инвента: -{money(entry.inventory_loss_amount)}</span>
                   <span>Под ЗП: -{money(entry.product_writeoff_amount)}</span>
+                  {entry.carryover_debt_amount > 0 ? <span>Долг с прошлого месяца: -{money(entry.carryover_debt_amount)}</span> : null}
                 </div>
               </Link>
               );
@@ -464,6 +482,7 @@ export default async function PayrollPage({ searchParams }: PageProps) {
                   <p className="flex justify-between border-b border-line pb-2"><span>Просрочка</span><span>-{money(selectedEntry.expiration_writeoff_amount)}</span></p>
                   <p className="flex justify-between border-b border-line pb-2"><span>Инвентарные потери</span><span>-{money(selectedEntry.inventory_loss_amount)}</span></p>
                   <p className="flex justify-between border-b border-line pb-2"><span>Корректировки под ЗП</span><span>-{money(selectedEntry.product_writeoff_amount)}</span></p>
+                  {selectedEntry.carryover_debt_amount > 0 ? <p className="flex justify-between border-b border-line pb-2"><span>Долг с прошлого месяца</span><span>-{money(selectedEntry.carryover_debt_amount)}</span></p> : null}
                 </div>
               </div>
             </div>

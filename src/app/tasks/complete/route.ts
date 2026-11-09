@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
   const canManageTasks = hasAnyRole(roles, ["developer", "super_admin"]);
   const { data: task, error: readError } = await supabase
     .from("tasks")
-    .select("id, assignee_employee_id, store_id, title, created_by")
+    .select("id, assignee_employee_id, store_id, title, created_by, task_type")
     .eq("id", taskId)
-    .maybeSingle<{ id: string; assignee_employee_id: string | null; store_id: string; title: string; created_by: string | null }>();
+    .maybeSingle<{ id: string; assignee_employee_id: string | null; store_id: string; title: string; created_by: string | null; task_type: string }>();
 
   if (readError || !task) {
     return NextResponse.redirect(tasksUrl(request, "task-error", readError?.message ?? "Задача не найдена."), 303);
@@ -44,6 +44,39 @@ export async function POST(request: NextRequest) {
   const canAccessStore = (await getAccessibleStores(supabase)).some((store) => store.id === task.store_id);
   if (!canManageTasks && task.assignee_employee_id !== employeeId && !canAccessStore) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Недостаточно прав для изменения задачи."), 303);
+  }
+
+  if (task.task_type === "expiration_store" || task.task_type === "expiration_checker") {
+    const outcome = String(formData.get("completion_outcome") ?? "").trim();
+    const completionComment = String(formData.get("completion_comment") ?? "").trim();
+    const { data: completionResult, error: completionError } = await supabase.rpc("set_expiration_task_completion", {
+      p_task_id: taskId,
+      p_outcome: outcome,
+      p_comment: completionComment,
+    });
+    const completion = completionResult as { task_type: string; outcome: string } | null;
+    if (completionError || !completion) return NextResponse.redirect(tasksUrl(request, "task-error", completionError?.message ?? "Не удалось завершить сроковую задачу."), 303);
+    if (task.created_by) {
+      const { data: creator } = await supabase.from("profiles").select("employee_id").eq("id", task.created_by).maybeSingle<{ employee_id: string | null }>();
+      if (creator?.employee_id && creator.employee_id !== employeeId) {
+        const detail = completion.outcome === "writeoff" ? `Часть товара отмечена к списанию: ${completionComment}` : completion.outcome === "distributed" ? `Остатки распределены: ${completionComment}` : "Весь товар распродан.";
+        await supabase.rpc("send_employee_notification", {
+          p_employee_id: creator.employee_id,
+          p_event_type: "task_completed",
+          p_title: "Сроковая задача выполнена",
+          p_body: `${task.title}. ${detail}`,
+          p_related_entity_type: "task",
+          p_related_entity_id: taskId,
+        });
+        await dispatchPushNotificationsFromEvent(supabase, {
+          eventType: "task_completed",
+          relatedEntityType: "task",
+          relatedEntityId: taskId,
+          recipientProfileId: task.created_by,
+        }).catch(() => null);
+      }
+    }
+    return NextResponse.redirect(tasksUrl(request, "task-done"), 303);
   }
 
   const { data, error } = await supabase.rpc("set_store_task_status", {

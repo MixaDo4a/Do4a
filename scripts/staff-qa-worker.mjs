@@ -79,6 +79,10 @@ if (command === "next") {
   const { report_id, ...review } = await readStdinJson();
   if (!report_id) throw new Error("report_id is required");
   process.stdout.write(JSON.stringify(await api(`/api/staff-telegram-qa/${encodeURIComponent(report_id)}/review`, { body: review })));
+} else if (command === "complete") {
+  const { report_id, ...completion } = await readStdinJson();
+  if (!report_id) throw new Error("report_id is required");
+  process.stdout.write(JSON.stringify(await api(`/api/staff-telegram-qa/${encodeURIComponent(report_id)}/complete`, { body: completion })));
 } else if (command === "release") {
   const { report_id, error } = await readStdinJson();
   if (!report_id) throw new Error("report_id is required");
@@ -102,5 +106,5 @@ if (command === "next") {
   if (!question_id) throw new Error("question_id is required");
   process.stdout.write(JSON.stringify(await api(`/api/staff-telegram-qa/owner-questions/${encodeURIComponent(question_id)}/resolve`, { body: resolution })));
 } else {
-  throw new Error("Command must be next, review, release, prepare-release, reconcile-release, ask-owner, owner-answers, or resolve-owner-question");
+  throw new Error("Command must be next, review, complete, release, prepare-release, reconcile-release, ask-owner, owner-answers, or resolve-owner-question");
 }

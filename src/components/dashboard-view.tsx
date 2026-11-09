@@ -71,6 +71,9 @@ type Props = DashboardData & {
   initialStoreTab: "employees" | "stores" | "goals";
   stores: Array<{ id: string; name: string; city: string }>;
   openShifts: number;
+  vaultBalance: number | null;
+  canDepositVault: boolean;
+  canWithdrawVault: boolean;
   message?: string;
   detail?: string;
 };
@@ -127,8 +130,8 @@ function Progress({ value, tone = "red" }: { value: number | null; tone?: "red" 
   return <div className="h-1.5 overflow-hidden rounded-full bg-white/8"><div className={`h-full rounded-full ${color}`} style={{ width: `${width}%` }} /></div>;
 }
 
-function MetricCard({ label, value, hint, icon: Icon, alert = false }: {
-  label: string; value: string; hint: string; icon: typeof Store; alert?: boolean;
+function MetricCard({ label, value, hint, icon: Icon, alert = false, children }: {
+  label: string; value: string; hint: string; icon: typeof Store; alert?: boolean; children?: React.ReactNode;
 }) {
   return <article className={`min-w-0 rounded-lg border bg-[#0c090a]/95 px-4 py-3 ${alert ? "border-red-400/35" : "border-white/8"}`}>
     <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-wide text-white/55">
@@ -136,6 +139,7 @@ function MetricCard({ label, value, hint, icon: Icon, alert = false }: {
     </div>
     <div className="mt-2 truncate text-[22px] font-semibold leading-none tabular-nums">{value}</div>
     <div className="mt-2 truncate text-[11px] text-white/45">{hint}</div>
+    {children ? <div className="mt-2 flex flex-wrap gap-2">{children}</div> : null}
   </article>;
 }
 
@@ -264,7 +268,7 @@ function Bars({ points, period, emptyLabel }: { points: DailyPoint[]; period: st
   </div>;
 }
 
-export function DashboardView({ initialPeriod, periods, initialMainTab, initialStoreTab, stores, storeMetrics, employeeMetrics, missingChecklistEmployees, openShifts, message, detail }: Props) {
+export function DashboardView({ initialPeriod, periods, initialMainTab, initialStoreTab, stores, storeMetrics, employeeMetrics, missingChecklistEmployees, openShifts, vaultBalance, canDepositVault, canWithdrawVault, message, detail }: Props) {
   const router = useRouter();
   const [city, setCity] = useState("");
   const [storeId, setStoreId] = useState("");
@@ -274,6 +278,7 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [quickTaskOpen, setQuickTaskOpen] = useState(false);
   const [missingChecklistsOpen, setMissingChecklistsOpen] = useState(false);
+  const [vaultAction, setVaultAction] = useState<"deposit" | "withdraw" | null>(null);
   const [taskStoreId, setTaskStoreId] = useState(stores[0]?.id ?? "");
   const [periodChoices, setPeriodChoices] = useState(periods);
   useEffect(() => setPeriodChoices(periods), [periods]);
@@ -337,7 +342,20 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
   }, [filteredStores, employeesInStores, initialPeriod]);
   const availableStores = stores.filter((store) => !city || store.city === city);
   const visibleEmployees = filteredEmployees;
-  const messageText = message === "task-created" ? "Задача создана и уведомления отправлены." : message === "dashboard-goals-saved" || message === "dashboard-bulk-goals-saved" ? "Цели магазинов сохранены." : message === "dashboard-error" ? detail ?? "Не удалось сохранить изменения." : null;
+  const vaultMessages: Record<string, string> = {
+    "vault-deposit-saved": "Пополнение сейфа сохранено.",
+    "vault-deposit-required": "Укажите положительную сумму и комментарий.",
+    "vault-deposit-denied": "Пополнять сейф может только управляющий или супер-администратор.",
+    "vault-deposit-error": "Не удалось пополнить сейф.",
+    "vault-withdrawal-saved": "Списание из сейфа сохранено.",
+    "vault-withdrawal-required": "Укажите положительную сумму и комментарий.",
+    "vault-withdrawal-over-balance": "Нельзя списать больше текущего остатка сейфа.",
+    "vault-withdrawal-denied": "Списывать из сейфа может только супер-администратор.",
+    "vault-withdrawal-error": "Не удалось выполнить списание из сейфа.",
+  };
+  const messageText = message === "task-created" ? "Задача создана и уведомления отправлены." : message === "dashboard-goals-saved" || message === "dashboard-bulk-goals-saved" ? "Цели магазинов сохранены." : message === "dashboard-error" ? detail ?? "Не удалось сохранить изменения." : (message ? vaultMessages[message] : null) ?? null;
+  const dashboardReturnTo = `/dashboard?${new URLSearchParams({ overviewPeriod: periodChoices.overview, employeesPeriod: periodChoices.employees, storesPeriod: periodChoices.stores, goalsPeriod: periodChoices.goals, mainTab, tab }).toString()}`;
+  const isErrorMessage = message === "dashboard-error" || Boolean(message && /-(required|denied|error|over-balance)$/.test(message));
 
   return <main className="dashboard-font min-h-screen overflow-x-hidden px-4 py-4 text-[#f7f2ea] xl:h-screen xl:overflow-hidden xl:px-6 xl:py-5 2xl:px-8">
     <div className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-[1900px] flex-col gap-3 xl:h-full xl:min-h-0">
@@ -360,8 +378,8 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
         </div>
       </header>
 
-      {messageText ? <div role="status" className={`shrink-0 rounded-md border px-3 py-2 text-xs ${message === "dashboard-error" ? "border-red-400/25 bg-red-950/40 text-red-100" : "border-emerald-400/20 bg-emerald-950/25 text-emerald-100"}`}>
-        {messageText}{detail && message !== "dashboard-error" ? <span className="ml-2 text-white/50">{detail}</span> : null}
+      {messageText ? <div role="status" className={`shrink-0 rounded-md border px-3 py-2 text-xs ${isErrorMessage ? "border-red-400/25 bg-red-950/40 text-red-100" : "border-emerald-400/20 bg-emerald-950/25 text-emerald-100"}`}>
+        {messageText}{detail && message !== "dashboard-error" && !isErrorMessage ? <span className="ml-2 text-white/50">{detail}</span> : null}
       </div> : null}
 
       <nav className="flex shrink-0 items-center gap-1 border-b border-white/10" aria-label="Разделы дашборда" role="tablist">
@@ -379,7 +397,7 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
         </div>
       </div>
       {overview.hasCashHistory ? <p className="shrink-0 rounded-md border border-amber-200/10 bg-black/45 px-3 py-2 text-[11px] text-white/55">Пропуски чеков и товаров в старой кассовой истории считаются как 0. Каждая строка кассы с ненулевой выручкой считается закрытой сменой. Персональные смены, задачи и чек-листы из старого источника не импортированы.</p> : null}
-      <section className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
+      <section className="grid shrink-0 grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-6">
         <MetricCard label="Выручка" value={rubles(overview.revenue)} hint="Оборот магазина за выбранный период" icon={WalletCards} />
         <MetricCard label="Возвраты" value={rubles(overview.returns)} hint="Сумма возвратов за выбранный период" icon={ArrowUpRight} />
         <MetricCard label="Средний чек" value={rubles(overview.avg)} hint={`${number.format(overview.receipts)} чеков${overview.missingReceiptData ? " · пропуски = 0" : ""}`} icon={ArrowUpRight} />
@@ -393,8 +411,27 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
           <span className="mt-2 block truncate text-[11px] text-white/45">Сотрудники с рабочими сменами</span>
         </button>
         <MetricCard label="Остаток наличных" value={rubles(overview.cash)} hint="Последний пересчёт по магазинам" icon={WalletCards} />
+        {vaultBalance !== null ? <MetricCard label="Остаток сейфа" value={rubles(vaultBalance)} hint="Общий по компании · инкассации с 01.11.2026 минус операции" icon={Banknote}>
+          {canDepositVault ? <button type="button" onClick={() => setVaultAction("deposit")} className="rounded border border-white/15 px-2 py-1 text-[11px] font-semibold text-white/75 hover:border-emerald-300/50 hover:text-white">Внести</button> : null}
+          {canWithdrawVault ? <button type="button" onClick={() => setVaultAction("withdraw")} className="rounded border border-white/15 px-2 py-1 text-[11px] font-semibold text-white/75 hover:border-red-300/50 hover:text-white">Списать</button> : null}
+        </MetricCard> : null}
         <MetricCard label="Начислено в зарплату" value={rubles(overview.payout)} hint={overview.payout === null ? "Ведомость за месяц не рассчитана" : "Сумма рассчитанных зарплат сотрудников"} icon={UsersRound} />
       </section>
+
+      {vaultAction ? <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setVaultAction(null); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="vault-action-title" className="w-full max-w-md rounded-lg border border-white/12 bg-[#100c0d] p-4 shadow-2xl">
+          <div className="flex items-start justify-between gap-4">
+            <div><h2 id="vault-action-title" className="text-base font-semibold">{vaultAction === "deposit" ? "Пополнить сейф" : "Списать из сейфа"}</h2><p className="mt-1 text-sm tabular-nums text-white/55">Текущий остаток: {rubles(vaultBalance)}</p></div>
+            <button type="button" onClick={() => setVaultAction(null)} aria-label="Закрыть" className="grid size-9 shrink-0 place-items-center rounded-md border border-white/10 text-white/70 hover:text-white">×</button>
+          </div>
+          <form action={`/admin/vault/${vaultAction}`} method="post" className="mt-4 grid gap-3">
+            <input name="return_to" type="hidden" value={dashboardReturnTo} />
+            <label className="grid gap-1 text-sm"><span>Сумма, ₽</span><input autoFocus className="h-11 rounded-md border border-white/15 bg-black/40 px-3 text-white" max={vaultAction === "withdraw" ? vaultBalance ?? undefined : undefined} min="0.01" name="amount" required step="0.01" type="number" /></label>
+            <label className="grid gap-1 text-sm"><span>Комментарий</span><textarea className="min-h-20 rounded-md border border-white/15 bg-black/40 px-3 py-2 text-white" maxLength={1000} name="comment" required /></label>
+            <div className="flex justify-end gap-2"><button type="button" onClick={() => setVaultAction(null)} className="h-10 rounded-md border border-white/15 px-3 text-sm text-white/70">Отмена</button><button type="submit" className="h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white">{vaultAction === "deposit" ? "Внести деньги" : "Списать деньги"}</button></div>
+          </form>
+        </section>
+      </div> : null}
 
       {missingChecklistsOpen ? <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMissingChecklistsOpen(false); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="missing-checklists-title" className="max-h-[min(80vh,720px)] w-full max-w-xl overflow-y-auto rounded-lg border border-white/12 bg-[#100c0d] p-4 shadow-2xl">

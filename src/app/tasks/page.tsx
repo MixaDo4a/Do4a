@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
-import { TaskVoiceDescription } from "@/components/task-voice-description";
+import { TaskCreateForm } from "@/components/task-create-form";
 import {
   getCurrentEmployeeId,
   getCurrentRoleCodes,
@@ -21,6 +21,11 @@ import { formatStoreDateTime } from "@/lib/timezone";
 type TaskRow = {
   id: string;
   recurrence_rule_id: string | null;
+  created_by: string | null;
+  task_type: "ordinary" | "expiration_store" | "expiration_checker" | "expiration_marketer";
+  expiration_campaign_id: string | null;
+  completion_outcome: "sold_out" | "writeoff" | "distributed" | null;
+  completion_comment: string | null;
   title: string;
   description: string | null;
   created_at: string;
@@ -35,10 +40,12 @@ type TaskRow = {
 type EmployeeRow = {
   id: string;
   full_name: string;
-  employee_store_assignments: { store_id: string }[];
+  employee_store_assignments: { store_id: string; valid_from: string; valid_to: string | null }[];
 };
 
 type ProfileRoleRow = { profile_id: string; roles: RoleRelation };
+type CampaignRow = { id: string; product_name: string; expiry_date: string; discount_type: "percent" | "new_price"; discount_value: number };
+type SubtaskRow = { id: string; task_id: string; title: string; instructions: string; is_required: boolean; status: "open" | "done"; completed_by: string | null; completed_at: string | null };
 
 type PageProps = {
   searchParams: Promise<{
@@ -60,6 +67,7 @@ const messageLabels: Record<string, string> = {
   "task-done": "Задача выполнена.",
   "task-failed": "Задача помечена как невыполненная.",
   "task-created": "Задача создана.",
+  "task-reopened": "Подзадача возобновлена.",
 };
 
 const priorityLabels: Record<TaskRow["priority"], string> = {
@@ -91,7 +99,7 @@ function buildTasksQuery(supabase: Awaited<ReturnType<typeof createSupabaseServe
   return supabase
     .from("tasks")
     .select(
-      "id, recurrence_rule_id, title, description, created_at, due_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)",
+      "id, recurrence_rule_id, created_by, task_type, expiration_campaign_id, completion_outcome, completion_comment, title, description, created_at, due_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)",
     )
     .in("status", activeTaskStatuses)
     .order("due_at", { ascending: true, nullsFirst: false })
@@ -154,7 +162,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
         : Promise.resolve({ data: [] as TaskRow[], error: null }),
     supabase
       .from("employees")
-      .select("id, full_name, employee_store_assignments(store_id)")
+      .select("id, full_name, employee_store_assignments(store_id,valid_from,valid_to)")
       .eq("is_active", true)
       .order("full_name"),
     supabase.from("profiles").select("id, employee_id"),
@@ -175,20 +183,59 @@ export default async function TasksPage({ searchParams }: PageProps) {
   }
 
   const tasks = (tasksResult.data ?? []) as unknown as TaskRow[];
-  const stores = accessibleStores.map((store) => ({ id: store.id, name: store.name }));
+  const { data: warehouseFlags, error: warehouseFlagsError } = accessibleStoreIds.length
+    ? await supabase.from("stores").select("id,is_warehouse").in("id", accessibleStoreIds).returns<{ id: string; is_warehouse: boolean }[]>()
+    : { data: [] as { id: string; is_warehouse: boolean }[], error: null };
+  if (warehouseFlagsError) throw new Error(warehouseFlagsError.message);
+  const isWarehouseByStoreId = new Map((warehouseFlags ?? []).map((row) => [row.id, row.is_warehouse]));
+  const stores = accessibleStores.map((store) => ({ id: store.id, name: store.name, isWarehouse: isWarehouseByStoreId.get(store.id) ?? /^склад\b/i.test(store.name) }));
   const profileIdByEmployeeId = new Map(profilesResult.data.map((profile) => [profile.employee_id ?? "", profile.id]));
-  const roleByProfileId = new Map(userRolesResult.data.map((row: ProfileRoleRow) => [row.profile_id, roleCodeFromRelation(row.roles)]));
+  const rolesByProfileId = new Map<string, string[]>();
+  for (const row of userRolesResult.data as ProfileRoleRow[]) {
+    const role = roleCodeFromRelation(row.roles);
+    if (!role) continue;
+    const existing = rolesByProfileId.get(row.profile_id) ?? [];
+    if (!existing.includes(role)) existing.push(role);
+    rolesByProfileId.set(row.profile_id, existing);
+  }
+  const employeeRoles = new Map<string, string[]>();
+  for (const [profileId, codes] of rolesByProfileId) {
+    const employee = profilesResult.data.find((profile) => profile.id === profileId)?.employee_id;
+    if (employee) employeeRoles.set(employee, codes);
+  }
+  const today = new Date().toISOString().slice(0, 10);
   const employeesInAccessibleStores = (employeesResult.data as EmployeeRow[]).filter((employee) =>
-    employee.employee_store_assignments.some((assignment) => accessibleStoreIds.includes(assignment.store_id)),
+    employee.employee_store_assignments.some((assignment) => accessibleStoreIds.includes(assignment.store_id)
+      && assignment.valid_from <= today && (!assignment.valid_to || assignment.valid_to >= today)),
   );
   const taskAssignees = warehouseAssistantOnly
     ? (employeesResult.data as EmployeeRow[]).filter((employee) => employee.id === employeeId)
     : warehouseManagerOnly
       ? employeesInAccessibleStores.filter((employee) => {
           const profileId = profileIdByEmployeeId.get(employee.id);
-          return profileId ? roleByProfileId.get(profileId) === "warehouse_assistant" : false;
+          return profileId ? rolesByProfileId.get(profileId)?.includes("warehouse_assistant") ?? false : false;
         })
       : employeesInAccessibleStores;
+
+  const campaignAssignees = employeesInAccessibleStores.map((employee) => ({ id: employee.id, name: employee.full_name, roles: employeeRoles.get(employee.id) ?? [] }));
+  const normalAssignees = taskAssignees.map((employee) => ({ id: employee.id, name: employee.full_name, roles: employeeRoles.get(employee.id) ?? [] }));
+  const assigneeById = new Map([...campaignAssignees, ...normalAssignees].map((employee) => [employee.id, employee]));
+  const createFormEmployees = [...assigneeById.values()];
+  const campaignIds = [...new Set(tasks.map((task) => task.expiration_campaign_id).filter((id): id is string => Boolean(id)))];
+  const taskIds = tasks.map((task) => task.id);
+  const [campaignResult, subtasksResult] = await Promise.all([
+    campaignIds.length ? supabase.from("expiration_campaigns").select("id,product_name,expiry_date,discount_type,discount_value").in("id", campaignIds).returns<CampaignRow[]>() : Promise.resolve({ data: [] as CampaignRow[], error: null }),
+    taskIds.length ? supabase.from("task_subtasks").select("id,task_id,title,instructions,is_required,status,completed_by,completed_at").in("task_id", taskIds).order("sort_order").returns<SubtaskRow[]>() : Promise.resolve({ data: [] as SubtaskRow[], error: null }),
+  ]);
+  if (campaignResult.error) throw new Error(campaignResult.error.message);
+  if (subtasksResult.error) throw new Error(subtasksResult.error.message);
+  const campaignById = new Map((campaignResult.data ?? []).map((campaign) => [campaign.id, campaign]));
+  const subtasksByTaskId = new Map<string, SubtaskRow[]>();
+  for (const subtask of subtasksResult.data ?? []) {
+    const items = subtasksByTaskId.get(subtask.task_id) ?? [];
+    items.push(subtask);
+    subtasksByTaskId.set(subtask.task_id, items);
+  }
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -262,67 +309,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
               </span>
               <span className="text-xs font-normal text-muted">Создание задачи и повторений</span>
             </summary>
-            <form action="/tasks/create" className="mt-4 grid gap-3" method="post">
-              <input className="h-11 rounded-md border border-line px-3 outline-none focus:border-brand" name="title" placeholder="Название" />
-              <TaskVoiceDescription />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <fieldset className="rounded-md border border-line p-3 sm:col-span-2">
-                  <legend className="px-1 text-sm font-medium">Магазины</legend>
-                  <p className="mt-1 text-xs text-muted">Можно выбрать несколько магазинов.</p>
-                  <div className="mt-3 grid max-h-48 gap-2 overflow-auto pr-1">
-                    {stores.map((store) => (
-                      <label key={store.id} className="flex cursor-pointer items-center gap-3 rounded-md border border-line px-3 py-2 text-sm transition hover:border-brand/40 hover:bg-brand/5">
-                        <input className="h-4 w-4 accent-brand" name="store_ids" type="checkbox" value={store.id} />
-                        <span>{store.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-                <fieldset className="rounded-md border border-line p-3 sm:col-span-2">
-                  <legend className="px-1 text-sm font-medium">Ответственные продавцы</legend>
-                  <div className="mt-2 grid max-h-48 gap-2 overflow-auto">
-                    <label className="flex items-center gap-3 rounded-md border border-line px-3 py-2 text-sm">
-                      <input className="h-4 w-4 accent-brand" name="assignee_employee_ids" type="checkbox" value="__store_all__" />
-                      <span>не выбрано</span>
-                    </label>
-                    {taskAssignees.map((employee) => (
-                      <label key={employee.id} className="flex items-center gap-3 rounded-md border border-line px-3 py-2 text-sm">
-                        <input className="h-4 w-4 accent-brand" name="assignee_employee_ids" type="checkbox" value={employee.id} />
-                        <span>{employee.full_name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-                <input className="h-11 rounded-md border border-line px-3" name="due_at" type="datetime-local" />
-                <select className="h-11 rounded-md border border-line px-3" name="priority" defaultValue="normal">
-                  <option value="low">Низкий</option>
-                  <option value="normal">Обычный</option>
-                  <option value="high">Высокий</option>
-                  <option value="urgent">Срочно</option>
-                </select>
-                <select className="h-11 rounded-md border border-line px-3 sm:col-span-2" name="recurrence_frequency" defaultValue="none">
-                  <option value="none">Без повторения</option>
-                  <option value="daily">Каждый день</option>
-                  <option value="weekly">Каждую неделю</option>
-                  <option value="monthly">Каждый месяц</option>
-                </select>
-              </div>
-              <p className="text-xs text-muted">При выборе «не выбрано» задача назначается всем сотрудникам выбранного магазина.</p>
-              <p className="text-xs text-muted">
-                Если дата не указана, задача считается бессрочной и остаётся в активных до закрытия.
-              </p>
-              {stores.length === 0 || taskAssignees.length === 0 ? (
-                <p className="rounded-md bg-surface p-3 text-sm text-muted">
-                  Нет доступных магазинов или сотрудников для создания задачи.
-                </p>
-              ) : null}
-              <button
-                className="h-11 rounded-md bg-brand px-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={stores.length === 0 || taskAssignees.length === 0}
-              >
-                Создать задачу
-              </button>
-            </form>
+            <TaskCreateForm stores={stores} employees={createFormEmployees} />
           </details>
         ) : null}
 
@@ -353,6 +340,11 @@ export default async function TasksPage({ searchParams }: PageProps) {
 
           {tasks.map((task) => (
             <article id={task.id} key={task.id} className="ui-panel p-4">
+              {(() => {
+                const campaign = task.expiration_campaign_id ? campaignById.get(task.expiration_campaign_id) : null;
+                const subtasks = subtasksByTaskId.get(task.id) ?? [];
+                const discountLabel = campaign ? campaign.discount_type === "percent" ? `${campaign.discount_value}%` : `${new Intl.NumberFormat("ru-RU").format(campaign.discount_value)} ₽` : "";
+                return <>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold">{cleanText(task.title, "Задача")}</p>
@@ -360,6 +352,12 @@ export default async function TasksPage({ searchParams }: PageProps) {
                     {cleanText(task.employees?.full_name, "не выбрано")} · {cleanText(task.stores?.name, "Магазин")}
                   </p>
                   {task.description ? <p className="mt-2 text-sm text-muted">{cleanText(task.description, "Описание")}</p> : null}
+                  {campaign ? <div className="mt-3 rounded-md border border-brand/20 bg-brand/5 p-3 text-sm">
+                    <p className="font-semibold">Сроковая акция · {campaign.product_name}</p>
+                    <p className="mt-1 text-muted">Годен до {campaign.expiry_date.split("-").reverse().join(".")} · {campaign.discount_type === "percent" ? "Скидка" : "Цена акции"}: {discountLabel}</p>
+                    {task.task_type === "expiration_marketer" ? <p className="mt-2 text-muted">Основная задача закроется автоматически после выполнения обеих обязательных подзадач.</p> : null}
+                    {task.task_type === "expiration_checker" ? <p className="mt-2 text-muted">После распределения остатка по магазинам подтвердите выполнение с кратким комментарием.</p> : null}
+                  </div> : null}
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   {task.recurrence_rule_id ? (
@@ -394,14 +392,31 @@ export default async function TasksPage({ searchParams }: PageProps) {
                 </div>
               ) : null}
 
+              {subtasks.length > 0 ? <section className="mt-4 grid gap-2">
+                <h3 className="text-sm font-semibold">Подзадачи</h3>
+                {subtasks.map((subtask) => <div key={subtask.id} className="rounded-md border border-line p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="text-sm font-medium">{subtask.title}</p>{subtask.instructions ? <p className="mt-1 text-xs text-muted">{subtask.instructions}</p> : null}</div>
+                    <span className="shrink-0 text-xs text-muted">{subtask.status === "done" ? "Выполнена" : "Открыта"}</span>
+                  </div>
+                  {subtask.status === "open" && task.status !== "done" ? <form action="/tasks/subtasks/status" method="post" className="mt-2">
+                    <input name="subtask_id" type="hidden" value={subtask.id} /><input name="status" type="hidden" value="done" />
+                    <button className="inline-flex h-9 items-center justify-center rounded-md border border-line px-3 text-sm font-semibold">Отметить выполненной</button>
+                  </form> : null}
+                  {subtask.status === "done" && task.created_by === user.id ? <form action="/tasks/subtasks/status" method="post" className="mt-2 grid gap-2">
+                    <input name="subtask_id" type="hidden" value={subtask.id} /><input name="status" type="hidden" value="open" />
+                    <input className="h-10 rounded-md border border-line px-3 text-sm" name="comment" placeholder="Почему нужно переделать?" required />
+                    <button className="h-9 rounded-md border border-line px-3 text-sm font-semibold">Возобновить подзадачу</button>
+                  </form> : null}
+                </div>)}
+              </section> : null}
+
               {task.status !== "done" && task.status !== "cancelled" ? (
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <form action="/tasks/complete" method="post">
-                    <input name="task_id" type="hidden" value={task.id} />
-                    <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold">
-                      <CheckCircle2 size={16} /> Выполнить
-                    </button>
-                  </form>
+                  {task.task_type === "expiration_store" ? <>
+                    <form action="/tasks/complete" method="post"><input name="task_id" type="hidden" value={task.id} /><input name="completion_outcome" type="hidden" value="sold_out" /><button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Весь товар распродан</button></form>
+                    <form action="/tasks/complete" method="post" className="grid gap-2"><input name="task_id" type="hidden" value={task.id} /><input name="completion_outcome" type="hidden" value="writeoff" /><input className="h-10 rounded-md border border-line px-3 text-sm" name="completion_comment" placeholder="Какая часть товара останется к списанию" required /><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Не всё продано, остаток списан</button></form>
+                  </> : task.task_type === "expiration_checker" ? <form action="/tasks/complete" method="post" className="grid gap-2 sm:col-span-2"><input name="task_id" type="hidden" value={task.id} /><input name="completion_outcome" type="hidden" value="distributed" /><input className="h-10 rounded-md border border-line px-3 text-sm" name="completion_comment" placeholder="По каким магазинам распределён остаток" required /><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Остатки распределены</button></form> : task.task_type === "ordinary" ? <form action="/tasks/complete" method="post"><input name="task_id" type="hidden" value={task.id} /><button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Выполнить</button></form> : null}
                   <form action="/tasks/fail" className="grid gap-2" method="post">
                     <input name="task_id" type="hidden" value={task.id} />
                     <input
@@ -415,6 +430,8 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   </form>
                 </div>
               ) : null}
+                </>;
+              })()}
             </article>
           ))}
         </div> : null}

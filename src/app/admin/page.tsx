@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BottomNav } from "@/components/bottom-nav";
-import { ClipboardCheck, PackageSearch } from "lucide-react";
+import { Banknote, ClipboardCheck, PackageSearch } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { DEDUCTION_ROLES, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -17,6 +17,17 @@ const messages: Record<string, string> = {
   "schedule-created": "График сохранён.",
   "store-plan-saved": "План магазина сохранён.",
   "payroll-adjustment-saved": "Корректировка зарплаты сохранена.",
+  "expiration-writeoff-saved": "Списание просрочки сохранено, зарплатные расчёты обновлены.",
+  "expiration-writeoff-recalc-error": "Списание сохранено, но автоматический перерасчёт зарплаты не завершён. Не отправляйте его повторно; обратитесь к супер-администратору.",
+  "vault-withdrawal-saved": "Списание из сейфа сохранено.",
+  "vault-withdrawal-required": "Укажите положительную сумму и комментарий.",
+  "vault-withdrawal-over-balance": "Нельзя списать больше текущего остатка сейфа.",
+  "vault-withdrawal-denied": "Списывать из сейфа может только супер-администратор.",
+  "vault-withdrawal-error": "Не удалось выполнить списание из сейфа.",
+  "vault-deposit-saved": "Пополнение сейфа сохранено.",
+  "vault-deposit-required": "Укажите положительную сумму и комментарий.",
+  "vault-deposit-denied": "Пополнять сейф может только управляющий или супер-администратор.",
+  "vault-deposit-error": "Не удалось пополнить сейф.",
   "store-updated": "Магазин обновлён.",
   "employee-updated": "Сотрудник обновлён.",
   "employee-deleted": "Сотрудник удалён.",
@@ -26,6 +37,13 @@ const messages: Record<string, string> = {
   "admin-required": "Заполните обязательные поля.",
   "admin-error": "Что-то пошло не так.",
 };
+
+type VaultWithdrawalRow = { id: string; amount: number | string; comment: string; created_at: string };
+type VaultDepositRow = { id: string; amount: number | string; comment: string; created_at: string };
+
+function money(value: number | string) {
+  return `${new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(value))} ₽`;
+}
 
 export default async function AdminPage({ searchParams }: PageProps) {
   const { message, detail } = await searchParams;
@@ -48,9 +66,24 @@ export default async function AdminPage({ searchParams }: PageProps) {
   const { data: warehouseEmployees, error: employeesError } = warehouseManagerOnly
     ? await supabase.rpc("list_warehouse_deduction_employees")
     : { data: [], error: null };
+  const { data: warehouseStores, error: storesError } = warehouseManagerOnly
+    ? await supabase.rpc("list_warehouse_deduction_stores")
+    : { data: [], error: null };
   const accessibleEmployees = (warehouseEmployees ?? []) as { id: string; full_name: string }[];
+  const accessibleStores = (warehouseStores ?? []) as { id: string; name: string }[];
 
   const canRunNotificationCron = roles.some((role) => ["super_admin", "developer"].includes(role));
+  const canManageVault = roles.includes("super_admin");
+  const canDepositVault = canManageVault || roles.includes("store_manager");
+  const [vaultBalanceResult, vaultWithdrawalsResult, vaultDepositsResult] = canDepositVault
+    ? await Promise.all([
+      supabase.rpc("get_vault_cash_balance"),
+      canManageVault
+        ? supabase.from("vault_cash_withdrawals").select("id, amount, comment, created_at").order("created_at", { ascending: false }).limit(10).returns<VaultWithdrawalRow[]>()
+        : Promise.resolve({ data: [] as VaultWithdrawalRow[], error: null }),
+      supabase.from("vault_cash_deposits").select("id, amount, comment, created_at").order("created_at", { ascending: false }).limit(10).returns<VaultDepositRow[]>(),
+    ])
+    : [{ data: null, error: null }, { data: [] as VaultWithdrawalRow[], error: null }, { data: [] as VaultDepositRow[], error: null }];
 
   return (
     <>
@@ -73,9 +106,99 @@ export default async function AdminPage({ searchParams }: PageProps) {
           </form>
         ) : null}
 
+        {canDepositVault ? (
+          <section className="mt-4 ui-panel p-4 shadow-soft">
+            <SectionHeader icon={Banknote} title="Сейф" />
+            {vaultBalanceResult.error ? <p className="mt-3 text-sm text-brand">Не удалось загрузить остаток сейфа.</p> : (
+              <p className="mt-3 text-2xl font-semibold tabular-nums">{money(vaultBalanceResult.data ?? 0)}</p>
+            )}
+            <p className="mt-1 text-xs text-muted">Инкассации и ручные пополнения с 1 ноября 2026 года минус списания из сейфа.</p>
+            <form action="/admin/vault/deposit" className="mt-4 grid gap-3 sm:grid-cols-[minmax(180px,0.5fr)_1fr_auto]" method="post">
+              <label className="grid gap-1 text-sm">
+                <span>Сумма, ₽</span>
+                <input className="h-11 rounded-md border border-line bg-surface px-3" min="0.01" name="amount" required step="0.01" type="number" />
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span>Комментарий</span>
+                <input className="h-11 rounded-md border border-line bg-surface px-3" maxLength={1000} name="comment" required />
+              </label>
+              <div className="flex items-end"><button className="h-11 w-full rounded-md bg-brand px-4 font-semibold text-white sm:w-auto" type="submit">Внести</button></div>
+            </form>
+            {canManageVault ? (
+              <form action="/admin/vault/withdraw" className="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-[minmax(180px,0.5fr)_1fr_auto]" method="post">
+                <label className="grid gap-1 text-sm">
+                  <span>Сумма списания, ₽</span>
+                  <input className="h-11 rounded-md border border-line bg-surface px-3" max={vaultBalanceResult.data ?? undefined} min="0.01" name="amount" required step="0.01" type="number" />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Комментарий</span>
+                  <input className="h-11 rounded-md border border-line bg-surface px-3" maxLength={1000} name="comment" required />
+                </label>
+                <div className="flex items-end"><button className="h-11 w-full rounded-md border border-line px-4 font-semibold text-ink sm:w-auto" type="submit">Списать</button></div>
+              </form>
+            ) : null}
+            <div className="mt-5 border-t border-line pt-4">
+              <h3 className="text-sm font-semibold">Последние пополнения</h3>
+              {vaultDepositsResult.error ? <p className="mt-2 text-sm text-brand">Не удалось загрузить историю пополнений.</p> : null}
+              {!vaultDepositsResult.error && (vaultDepositsResult.data ?? []).length === 0 ? <p className="mt-2 text-sm text-muted">Пополнений пока нет.</p> : null}
+              <div className="mt-2 divide-y divide-line">
+                {(vaultDepositsResult.data ?? []).map((deposit) => (
+                  <div key={deposit.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+                    <span className="min-w-0 break-words text-muted">{deposit.comment}<span className="mt-1 block text-xs">{new Date(deposit.created_at).toLocaleString("ru-RU")}</span></span>
+                    <strong className="shrink-0">+{money(deposit.amount)}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {canManageVault ? <div className="mt-5 border-t border-line pt-4">
+              <h3 className="text-sm font-semibold">Последние списания</h3>
+              {vaultWithdrawalsResult.error ? <p className="mt-2 text-sm text-brand">Не удалось загрузить историю списаний.</p> : null}
+              {!vaultWithdrawalsResult.error && (vaultWithdrawalsResult.data ?? []).length === 0 ? <p className="mt-2 text-sm text-muted">Списаний пока нет.</p> : null}
+              <div className="mt-2 divide-y divide-line">
+                {(vaultWithdrawalsResult.data ?? []).map((withdrawal) => (
+                  <div key={withdrawal.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+                    <span className="min-w-0 break-words text-muted">{withdrawal.comment}<span className="mt-1 block text-xs">{new Date(withdrawal.created_at).toLocaleString("ru-RU")}</span></span>
+                    <strong className="shrink-0">−{money(withdrawal.amount)}</strong>
+                  </div>
+                ))}
+              </div>
+            </div> : null}
+          </section>
+        ) : null}
+
         {warehouseManagerOnly ? (
           <section className="mt-4 ui-panel p-4">
-            <h2 className="font-semibold">Новый вычет</h2>
+            <h2 className="font-semibold">Вычеты</h2>
+            <h3 className="mt-4 text-sm font-semibold">Списание просрочки по магазину</h3>
+            {storesError ? <p className="mt-2 text-sm text-brand">Не удалось загрузить магазины.</p> : null}
+            {accessibleStores.length === 0 && !storesError ? <p className="mt-2 text-sm text-muted">Нет доступных магазинов в вашем городе.</p> : null}
+            {accessibleStores.length > 0 ? (
+              <form action="/admin/expiration-writeoffs/create" className="mt-3 grid gap-3" method="post">
+                <label className="grid gap-1 text-sm">
+                  <span>Магазин</span>
+                  <select className="h-11 rounded-md border border-line bg-surface px-3" name="store_id" required defaultValue="">
+                    <option value="" disabled>Выберите магазин</option>
+                    {accessibleStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Месяц списания</span>
+                  <input className="h-11 rounded-md border border-line bg-surface px-3" defaultValue={new Date().toISOString().slice(0, 7)} min="2026-11" name="month" required type="month" />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Сумма просрочки, ₽</span>
+                  <input className="h-11 rounded-md border border-line bg-surface px-3" min="0.01" name="amount" required step="0.01" type="number" />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span>Причина / комментарий</span>
+                  <textarea className="min-h-20 rounded-md border border-line bg-surface px-3 py-2" maxLength={1000} name="reason" required />
+                </label>
+                <p className="text-xs text-muted">Покрытие рассчитывается как 0,2% выручки магазина после возвратов; половина остатка распределяется по подтверждённым часам подходящих сотрудников.</p>
+                <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white" type="submit">Сохранить списание</button>
+              </form>
+            ) : null}
+            <details className="mt-6 border-t border-line pt-4">
+              <summary className="cursor-pointer text-sm font-semibold">Другие индивидуальные вычеты</summary>
             {employeesError ? <p className="mt-3 text-sm text-brand">Не удалось загрузить сотрудников: {employeesError.message}</p> : null}
             {!employeesError && (accessibleEmployees?.length ?? 0) === 0 ? (
               <p className="mt-3 text-sm text-muted">Нет сотрудников, привязанных к магазинам вашего города.</p>
@@ -98,7 +221,6 @@ export default async function AdminPage({ searchParams }: PageProps) {
                   <select className="h-11 rounded-md border border-line bg-surface px-3" name="adjustment_type" required>
                     <option value="fine">Штраф</option>
                     <option value="inventory">Инвентаризация</option>
-                    <option value="expiration">Просрочка</option>
                     <option value="product">Товар</option>
                   </select>
                 </label>
@@ -113,6 +235,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
                 <button className="h-11 rounded-md bg-brand px-4 font-semibold text-white" type="submit">Сохранить вычет</button>
               </form>
             ) : null}
+            </details>
           </section>
         ) : null}
 

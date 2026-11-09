@@ -9,6 +9,7 @@ import {
   TASK_CREATOR_ROLES,
 } from "@/lib/auth/roles";
 import { getAccessibleStores } from "@/lib/auth/stores";
+import { cleanText } from "@/lib/display";
 import { advanceTaskRecurrenceRun, type TaskRecurrenceFrequency } from "@/lib/task-recurrence";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
@@ -36,10 +37,10 @@ function tasksUrl(request: NextRequest, message: string, detail?: string) {
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
-  const storeIds = Array.from(
+  const taskType = value(formData, "task_type") || "ordinary";
+  let storeIds = Array.from(
     new Set(
-      formData
-        .getAll("store_ids")
+      formData.getAll(taskType === "expiration" ? "campaign_store_ids" : "store_ids")
         .map((entry) => String(entry).trim())
         .filter(Boolean),
     ),
@@ -61,8 +62,14 @@ export async function POST(request: NextRequest) {
   const priority = value(formData, "priority") || "normal";
   const recurrenceFrequency = value(formData, "recurrence_frequency");
 
-  if (storeIds.length === 0 || (!storeWideTask && assigneeEmployeeIds.length === 0) || !title) {
+  if (taskType === "ordinary" && (storeIds.length === 0 || (!storeWideTask && assigneeEmployeeIds.length === 0) || !title)) {
     return NextResponse.redirect(tasksUrl(request, "task-required"), 303);
+  }
+  if (taskType === "expiration" && (!value(formData, "product_name") || !value(formData, "expiry_date"))) {
+    return NextResponse.redirect(tasksUrl(request, "task-required", "Укажите товар, срок годности и магазины."), 303);
+  }
+  if (taskType !== "ordinary" && taskType !== "expiration") {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Неизвестный тип задачи."), 303);
   }
 
   if (!["low", "normal", "high", "urgent"].includes(priority)) {
@@ -109,8 +116,104 @@ export async function POST(request: NextRequest) {
   const { employeeId } = await getCurrentEmployeeId();
   const accessibleStores = await getAccessibleStores();
   const accessibleStoreIds = new Set(accessibleStores.map((store) => store.id));
+  if (taskType === "expiration") {
+    if (accessibleStoreIds.size === 0) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "У вас нет доступных магазинов для сроковой кампании."), 303);
+    }
+    const { data: campaignStores, error: storesError } = await supabase
+      .from("stores")
+      .select("id,is_warehouse")
+      .in("id", [...accessibleStoreIds])
+      .eq("status", "active")
+      .returns<{ id: string; is_warehouse: boolean }[]>();
+    if (storesError) return NextResponse.redirect(tasksUrl(request, "task-error", storesError.message), 303);
+    storeIds = (campaignStores ?? []).filter((store) => !store.is_warehouse).map((store) => store.id);
+  }
+  if (taskType === "expiration" && storeIds.length === 0) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "У вас нет доступных магазинов для сроковой кампании."), 303);
+  }
   if (storeIds.some((storeId) => !accessibleStoreIds.has(storeId))) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Можно ставить задачи только по доступным магазинам."), 303);
+  }
+
+  if (taskType === "expiration") {
+    const productName = value(formData, "product_name");
+    const expiryDate = value(formData, "expiry_date");
+    const discountType = value(formData, "discount_type");
+    const discountValue = Number(value(formData, "discount_value").replace(",", "."));
+    const auditorEmployeeId = value(formData, "auditor_employee_id");
+    const marketerEmployeeId = value(formData, "marketer_employee_id");
+    const extraSubtasks = value(formData, "extra_subtasks").split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(expiryDate) || !Number.isFinite(discountValue) ||
+      !["percent", "new_price"].includes(discountType) || extraSubtasks.length > 10 || extraSubtasks.some((item) => item.length > 250)) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Проверьте срок, скидку и список подзадач."), 303);
+    }
+    const { data: selectedStores, error: selectedStoresError } = await supabase.from("stores")
+      .select("id,is_warehouse").in("id", storeIds).returns<{ id: string; is_warehouse: boolean }[]>();
+    if (selectedStoresError || selectedStores?.length !== storeIds.length || selectedStores.some((store) => store.is_warehouse)) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Склад нельзя включать в сроковую кампанию."), 303);
+    }
+    const { data: campaignResult, error: campaignError } = await supabase.rpc("create_expiration_task_campaign", {
+      p_product_name: productName,
+      p_expiry_date: expiryDate,
+      p_discount_type: discountType,
+      p_discount_value: discountValue,
+      p_store_ids: storeIds,
+      p_auditor_employee_id: auditorEmployeeId,
+      p_marketer_employee_id: marketerEmployeeId,
+      p_extra_subtasks: extraSubtasks,
+    });
+    const campaign = campaignResult as { campaign_id: string; store_task_ids: string[]; auditor_task_id: string; marketer_task_id: string } | null;
+    if (campaignError || !campaign) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", campaignError?.message ?? "Не удалось создать сроковую кампанию."), 303);
+    }
+    const createdTaskIds = [...campaign.store_task_ids, campaign.auditor_task_id, campaign.marketer_task_id];
+    const [{ data: createdTasks }, { data: storeRows }, { data: employeeRows }] = await Promise.all([
+      supabase.from("tasks").select("id,store_id,assignee_employee_id,title").in("id", createdTaskIds)
+        .returns<{ id: string; store_id: string; assignee_employee_id: string | null; title: string }[]>(),
+      supabase.from("stores").select("id,name,city").in("id", storeIds)
+        .returns<{ id: string; name: string; city: string }[]>(),
+      supabase.from("employees").select("id,full_name").in("id", [auditorEmployeeId, marketerEmployeeId])
+        .returns<{ id: string; full_name: string }[]>(),
+    ]);
+    const storeById = new Map((storeRows ?? []).map((store) => [store.id, store]));
+    const employeeById = new Map((employeeRows ?? []).map((employee) => [employee.id, employee.full_name]));
+    await Promise.all((createdTasks ?? []).map(async (task) => {
+      const store = storeById.get(task.store_id);
+      const storeLabel = store ? `${store.name}, ${store.city}` : "магазин";
+      const assigneeName = task.assignee_employee_id ? employeeById.get(task.assignee_employee_id) ?? "Сотрудник" : "";
+      if (task.assignee_employee_id) {
+        await supabase.rpc("send_employee_notification", {
+          p_employee_id: task.assignee_employee_id,
+          p_event_type: "new_task",
+          p_title: "Сроковая задача",
+          p_body: `${cleanText(assigneeName, "Сотрудник")} · ${storeLabel} · ${task.title}`,
+          p_related_entity_type: "task",
+          p_related_entity_id: task.id,
+        });
+      } else {
+        await supabase.rpc("send_store_employees_notification", {
+          p_store_id: task.store_id,
+          p_event_type: "new_task",
+          p_title: "Сроковая задача",
+          p_body: `${storeLabel} · ${task.title}`,
+          p_exclude_profile_id: user.id,
+          p_related_entity_type: "task",
+          p_related_entity_id: task.id,
+        });
+      }
+      await supabase.rpc("send_store_managers_notification", {
+        p_store_id: task.store_id,
+        p_event_type: "new_task",
+        p_title: "Сроковая задача",
+        p_body: `${storeLabel} · ${task.title}`,
+        p_exclude_profile_id: user.id,
+        p_related_entity_type: "task",
+        p_related_entity_id: task.id,
+      });
+      await dispatchPushNotificationsFromEvent(supabase, { eventType: "new_task", relatedEntityType: "task", relatedEntityId: task.id }).catch(() => null);
+    }));
+    return NextResponse.redirect(tasksUrl(request, "task-created"), 303);
   }
 
   const taskPairs = storeWideTask

@@ -11,6 +11,11 @@ import { formatStoreDateTime } from "@/lib/timezone";
 
 type TaskRow = {
   id: string;
+  created_by: string | null;
+  task_type: "ordinary" | "expiration_store" | "expiration_checker" | "expiration_marketer";
+  expiration_campaign_id: string | null;
+  completion_outcome: "sold_out" | "writeoff" | "distributed" | null;
+  completion_comment: string | null;
   title: string;
   description: string | null;
   created_at: string;
@@ -22,6 +27,8 @@ type TaskRow = {
   employees: { id: string; full_name: string } | null;
   task_comments: { id: string; body: string; created_at: string }[];
 };
+type CampaignRow = { id: string; product_name: string; expiry_date: string; discount_type: "percent" | "new_price"; discount_value: number };
+type SubtaskRow = { id: string; task_id: string; title: string; instructions: string; status: "open" | "done" };
 
 type PageProps = {
   searchParams: Promise<{
@@ -73,7 +80,7 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
 
   let query = supabase
     .from("tasks")
-    .select("id, title, description, created_at, due_at, completed_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)")
+    .select("id, created_by, task_type, expiration_campaign_id, completion_outcome, completion_comment, title, description, created_at, due_at, completed_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)")
     .in("status", ["done", "overdue", "cancelled"])
     .in("store_id", accessibleStoreIds)
     .order("completed_at", { ascending: false, nullsFirst: false })
@@ -103,6 +110,23 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
 
   const tasks = (data ?? []) as unknown as TaskRow[];
   const stores = accessibleStores.map((store) => ({ id: store.id, name: store.name }));
+  const campaignIds = [...new Set(tasks.map((task) => task.expiration_campaign_id).filter((id): id is string => Boolean(id)))];
+  const taskIds = tasks.map((task) => task.id);
+  const [campaignResult, subtaskResult] = await Promise.all([
+    campaignIds.length
+      ? supabase.from("expiration_campaigns").select("id,product_name,expiry_date,discount_type,discount_value").in("id", campaignIds).returns<CampaignRow[]>()
+      : Promise.resolve({ data: [] as CampaignRow[], error: null }),
+    taskIds.length
+      ? supabase.from("task_subtasks").select("id,task_id,title,instructions,status").in("task_id", taskIds).order("sort_order").returns<SubtaskRow[]>()
+      : Promise.resolve({ data: [] as SubtaskRow[], error: null }),
+  ]);
+  if (campaignResult.error) throw new Error(campaignResult.error.message);
+  if (subtaskResult.error) throw new Error(subtaskResult.error.message);
+  const campaignById = new Map((campaignResult.data ?? []).map((campaign) => [campaign.id, campaign]));
+  const subtasksByTaskId = new Map<string, SubtaskRow[]>();
+  for (const subtask of subtaskResult.data ?? []) {
+    subtasksByTaskId.set(subtask.task_id, [...(subtasksByTaskId.get(subtask.task_id) ?? []), subtask]);
+  }
 
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
@@ -163,6 +187,17 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
                     {cleanText(task.employees?.full_name, "не выбрано")} · {cleanText(task.stores?.name, "Магазин")}
                   </p>
                   {task.description ? <p className="mt-2 text-sm text-muted">{cleanText(task.description, "Описание")}</p> : null}
+                  {task.completion_outcome ? <div className="mt-3 rounded-md bg-surface p-3 text-sm">
+                    <p className="font-semibold">Итог: {task.completion_outcome === "sold_out" ? "товар распродан" : task.completion_outcome === "writeoff" ? "часть товара отмечена к списанию" : "остатки распределены"}</p>
+                    {task.completion_comment ? <p className="mt-1 text-muted">{cleanText(task.completion_comment, "Комментарий")}</p> : null}
+                  </div> : null}
+                  {task.expiration_campaign_id && campaignById.get(task.expiration_campaign_id) ? (() => {
+                    const campaign = campaignById.get(task.expiration_campaign_id as string)!;
+                    return <div className="mt-3 rounded-md border border-brand/20 bg-brand/5 p-3 text-sm">
+                      <p className="font-semibold">Сроковая акция · {campaign.product_name}</p>
+                      <p className="mt-1 text-muted">Годен до {campaign.expiry_date.split("-").reverse().join(".")} · {campaign.discount_type === "percent" ? `Скидка ${campaign.discount_value}%` : `Цена акции ${new Intl.NumberFormat("ru-RU").format(campaign.discount_value)} ₽`}</p>
+                    </div>;
+                  })() : null}
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <span className="rounded-md bg-surface px-2 py-1 text-xs font-medium">{priorityLabels[task.priority]}</span>
@@ -194,6 +229,20 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
                   </div>
                 </div>
               ) : null}
+
+              {(subtasksByTaskId.get(task.id) ?? []).length > 0 ? <section className="mt-4 grid gap-2">
+                <h3 className="text-sm font-semibold">Подзадачи</h3>
+                {(subtasksByTaskId.get(task.id) ?? []).map((subtask) => <div key={subtask.id} className="rounded-md border border-line p-3">
+                  <p className="text-sm font-medium">{subtask.title}</p>
+                  {subtask.instructions ? <p className="mt-1 text-xs text-muted">{subtask.instructions}</p> : null}
+                  <p className="mt-1 text-xs text-muted">{subtask.status === "done" ? "Выполнена" : "Открыта"}</p>
+                  {subtask.status === "done" && task.created_by === user.id ? <form action="/tasks/subtasks/status" method="post" className="mt-2 grid gap-2">
+                    <input name="subtask_id" type="hidden" value={subtask.id} /><input name="status" type="hidden" value="open" />
+                    <input className="h-10 rounded-md border border-line px-3 text-sm" name="comment" placeholder="Почему нужно переделать?" required />
+                    <button className="h-9 rounded-md border border-line px-3 text-sm font-semibold">Возобновить подзадачу</button>
+                  </form> : null}
+                </div>)}
+              </section> : null}
             </article>
           ))}
         </div>
