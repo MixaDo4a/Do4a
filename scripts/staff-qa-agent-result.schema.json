@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "action": { "type": "string", "enum": ["complete", "ask_owner", "retry"] },
+    "category": { "type": "string", "enum": ["bug", "content", "user_error", "question", "duplicate", "needs_info"] },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 10000 },
+    "basis": { "type": "string", "maxLength": 10000 },
+    "next_step": { "type": "string", "maxLength": 5000 },
+    "commit_sha": { "type": "string", "maxLength": 64 },
+    "deployment_id": { "type": "string", "maxLength": 128 },
+    "ignore": { "type": "boolean" },
+    "owner_question": { "type": "string", "maxLength": 4000 },
+    "owner_context": { "type": "string", "maxLength": 5000 },
+    "resolution_summary": { "type": "string", "maxLength": 4000 }
+  },
+  "required": ["action", "category", "summary", "basis", "next_step", "commit_sha", "deployment_id", "ignore", "owner_question", "owner_context", "resolution_summary"]
+}
