@@ -11,6 +11,9 @@
     "start": "next start",
     "smoke:production": "node scripts/smoke-production.mjs",
     "staff-qa:worker": "node scripts/staff-qa-worker.mjs",
+    "staff-qa:listen": "node --env-file=.env.local scripts/staff-qa-event-worker.mjs",
+    "staff-qa:install-worker": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-staff-qa-worker.ps1",
+    "staff-qa:uninstall-worker": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-staff-qa-worker.ps1 -Uninstall",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
