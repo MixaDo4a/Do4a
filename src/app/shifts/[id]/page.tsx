@@ -1,4 +1,5 @@
-import { Banknote, Camera, CalendarDays, Clock3, ReceiptText, Store, UserRound } from "lucide-react";
+import { ArrowLeft, Banknote, Camera, CalendarDays, Clock3, ReceiptText, Store, UserRound } from "lucide-react";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Image from "next/image";
 import { BottomNav } from "@/components/bottom-nav";
@@ -260,11 +261,11 @@ function buildWorkTimeDiff(audit: WorkTimeAudit | undefined, timeZone: string | 
   });
 }
 
-function Metric({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
+function Metric({ label, value, highlight = false, dashboard = false }: { label: string; value: string; highlight?: boolean; dashboard?: boolean }) {
   return (
-    <div className={`rounded-md border p-3 ${highlight ? "border-amber-500/70 bg-amber-50" : "border-line bg-surface"}`}>
-      <p className="text-xs text-muted">{label}</p>
-      <p className="mt-1 text-base font-semibold">{value}{highlight ? <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-950">Изменено</span> : null}</p>
+    <div className={`rounded-md border p-2.5 ${highlight ? "border-amber-400/70 bg-amber-300/10" : dashboard ? "border-white/8 bg-black/20" : "border-line bg-surface"}`}>
+      <p className={`text-[11px] ${dashboard ? "text-white/45" : "text-muted"}`}>{label}</p>
+      <p className="mt-1 text-sm font-semibold">{value}{highlight ? <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-950">Изменено</span> : null}</p>
     </div>
   );
 }
@@ -346,6 +347,7 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
   const canEditClosedReport = canCorrectWork && (shift.status === "closed" || shift.status === "auto_closed");
   const canShowManagerAudit = managerOnlyRole && managerHasStoreAccess && canEditClosedReport;
   const shiftIsOpen = shift.status === "opened" || shift.status === "correction_required";
+  const dashboardInput = "rounded-md border border-white/10 bg-black/35 px-2.5 text-xs text-white outline-none focus:border-brand";
 
   const report = single(shift.shift_closing_reports);
   const { data: cashCounts, error: cashCountsError } = report
@@ -421,17 +423,26 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
   const cashCountTotal = (cashCounts ?? []).reduce((sum, row) => sum + Number(row.line_amount ?? 0), 0);
 
   return (
-    <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
-      <div className="mx-auto max-w-5xl">
-        <SectionHeader icon={ReceiptText} title="Отчет смены" showBack />
+    <main className={managementRole ? "min-h-dvh bg-[#080607] px-3 pb-8 pt-3 text-white sm:px-5 lg:px-8" : "app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink"}>
+      <div className={`mx-auto w-full ${managementRole ? "max-w-[1800px]" : "max-w-5xl"}`}>
+        {managementRole ? <header className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-white/8 pb-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link href="/dashboard?mainTab=stores&tab=shifts" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded border border-white/10 px-2.5 text-xs text-white/65 hover:border-brand/40 hover:text-white"><ArrowLeft size={15} />К списку</Link>
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold">Отчет смены · {formatDate(shift.shift_date)}</h1>
+              <p className="mt-0.5 truncate text-xs text-white/45">{shift.stores?.name ?? "Магазин не указан"} · {statusLabels[shift.status] ?? shift.status}</p>
+            </div>
+          </div>
+          {shift.is_erroneous ? <span className="rounded border border-red-400/30 bg-red-400/10 px-2 py-1 text-[11px] text-red-200">Ошибочная смена</span> : null}
+        </header> : <SectionHeader icon={ReceiptText} title="Отчет смены" showBack />}
 
-        {workMessage === "saved" ? <p className="ui-panel mt-4 p-3 text-sm">Время работы сохранено.</p> : null}
-        {workMessage === "error" ? <p className="ui-panel mt-4 p-3 text-sm text-red-400">Не удалось сохранить время работы. {workDetail}</p> : null}
-        {correctionMessage === "saved" ? <p role="status" className="ui-panel mt-4 p-3 text-sm">Исправления сохранены. Изменённые поля подсвечены ниже.</p> : null}
-        {correctionMessage === "error" ? <p role="alert" className="ui-panel mt-4 p-3 text-sm text-red-400">Не удалось исправить смену. {workDetail}</p> : null}
-        {correctionMessage === "payroll-error" ? <p role="alert" className="ui-panel mt-4 p-3 text-sm text-red-400">Отчёт сохранён, но пересчёт рассчитанной зарплаты завершился ошибкой. {workDetail}</p> : null}
+        {workMessage === "saved" ? <p className={`mt-2 rounded border p-2 text-xs ${managementRole ? "border-white/10 bg-white/5" : "ui-panel"}`}>Время работы сохранено.</p> : null}
+        {workMessage === "error" ? <p className={`mt-2 rounded border p-2 text-xs text-red-300 ${managementRole ? "border-red-400/25 bg-red-400/10" : "ui-panel"}`}>Не удалось сохранить время работы. {workDetail}</p> : null}
+        {correctionMessage === "saved" ? <p role="status" className={`mt-2 rounded border p-2 text-xs ${managementRole ? "border-emerald-400/25 bg-emerald-400/10" : "ui-panel"}`}>Исправления сохранены. Изменённые поля подсвечены ниже.</p> : null}
+        {correctionMessage === "error" ? <p role="alert" className={`mt-2 rounded border p-2 text-xs text-red-300 ${managementRole ? "border-red-400/25 bg-red-400/10" : "ui-panel"}`}>Не удалось исправить смену. {workDetail}</p> : null}
+        {correctionMessage === "payroll-error" ? <p role="alert" className={`mt-2 rounded border p-2 text-xs ${managementRole ? "border-amber-400/25 bg-amber-400/10" : "ui-panel"}`}>Отчёт сохранён, но пересчёт рассчитанной зарплаты завершился ошибкой. {workDetail}</p> : null}
 
-        <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
+        <section className={`mt-3 rounded-md border ${managementRole ? "border-white/10 bg-[#100c0d] p-3" : "border-line bg-white p-4 shadow-soft"}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-lg font-semibold">{formatDate(shift.shift_date)}</p>
@@ -443,72 +454,73 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
               {statusLabels[shift.status] ?? shift.status}
             </span>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Metric label="Открыта" value={formatDateTime(shift.opened_at, shift.stores?.timezone)} highlight={latestChangedFields.has("opened_at")} />
-            <Metric label="Закрыта" value={formatDateTime(shift.closed_at, shift.stores?.timezone)} highlight={latestChangedFields.has("closed_at")} />
-            {report ? <Metric label="Наличные по Z-отчёту" value={`${formatMoney(report.actual_cash_amount)} руб.`} highlight={latestChangedFields.has("actual_cash_amount")} /> : null}
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <Metric dashboard={managementRole} label="Открыта" value={formatDateTime(shift.opened_at, shift.stores?.timezone)} highlight={latestChangedFields.has("opened_at")} />
+            <Metric dashboard={managementRole} label="Закрыта" value={formatDateTime(shift.closed_at, shift.stores?.timezone)} highlight={latestChangedFields.has("closed_at")} />
+            {report ? <Metric dashboard={managementRole} label="Наличные по Z-отчёту" value={`${formatMoney(report.actual_cash_amount)} руб.`} highlight={latestChangedFields.has("actual_cash_amount")} /> : null}
+            {report ? <Metric dashboard={managementRole} label="Выручка после возвратов" value={`${formatMoney(report.net_revenue)} руб.`} highlight={latestChangedFields.has("net_revenue")} /> : null}
           </div>
         </section>
 
         {canEditClosedReport ? (
-          <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
+          <section className={`mt-3 rounded-md border ${managementRole ? "border-white/10 bg-[#100c0d] p-3" : "border-line bg-white p-4 shadow-soft"}`}>
             <h2 className="text-base font-semibold">{canShowManagerAudit ? "История изменений и корректировка" : "Корректировка закрытия"}</h2>
             {canShowManagerAudit && correctionAudit.length ? (
               <div className="mt-3 grid gap-2">
-                {correctionAudit.map((entry, index) => <article key={entry.id} className={`rounded-md border p-3 ${index === 0 ? "border-amber-400/50 bg-amber-50" : "border-line bg-surface"}`}>
+                {correctionAudit.map((entry, index) => <article key={entry.id} className={`rounded-md border p-2.5 ${index === 0 ? "border-amber-400/35 bg-amber-300/5" : "border-white/8 bg-black/20"}`}>
                   <p className="text-sm font-semibold">Изменено управляющим: {actorNameById.get(entry.changed_by_employee_id ?? "") ?? "Управляющий"}</p>
-                  <p className="mt-1 text-xs text-muted">{formatAuditDateTime(entry.created_at, shift.stores?.timezone)} · Причина: {entry.reason}</p>
+                  <p className={`mt-1 text-xs ${managementRole ? "text-white/45" : "text-muted"}`}>{formatAuditDateTime(entry.created_at, shift.stores?.timezone)} · Причина: {entry.reason}</p>
                   {correctionDiffs[index]?.length ? <div className="mt-3 grid gap-2">
-                    {correctionDiffs[index].map((change) => <div key={change.key} className="grid gap-1 rounded border border-amber-300/50 bg-white px-2 py-1.5 text-xs sm:grid-cols-[minmax(140px,0.8fr)_1fr_1fr]">
-                      <span className="font-semibold">{change.label}</span><span className="text-muted">Было: {change.before}</span><span className="font-medium text-ink">Стало: {change.after}</span>
+                    {correctionDiffs[index].map((change) => <div key={change.key} className="grid gap-1 rounded border border-amber-300/25 bg-black/25 px-2 py-1.5 text-xs sm:grid-cols-[minmax(140px,0.8fr)_1fr_1fr]">
+                      <span className="font-semibold">{change.label}</span><span className="text-white/55">Было: {change.before}</span><span className="font-medium text-white">Стало: {change.after}</span>
                     </div>)}
-                  </div> : <p className="mt-2 text-xs text-muted">Сохранённых отличий не найдено.</p>}
+                  </div> : <p className={`mt-2 text-xs ${managementRole ? "text-white/45" : "text-muted"}`}>Сохранённых отличий не найдено.</p>}
                 </article>)}
               </div>
-            ) : canShowManagerAudit ? <p className="mt-2 text-sm text-muted">Изменений закрытия управляющим ещё не было.</p> : null}
+            ) : canShowManagerAudit ? <p className={`mt-2 text-sm ${managementRole ? "text-white/45" : "text-muted"}`}>Изменений закрытия управляющим ещё не было.</p> : null}
 
-            <details className="mt-4 border-t border-line pt-3">
+            <details className={`mt-3 border-t pt-3 ${managementRole ? "border-white/10" : "border-line"}`}>
               <summary className="cursor-pointer font-semibold">Исправить данные закрытия</summary>
-              <form action={`/shifts/${shift.id}/correction`} method="post" className="mt-3 grid gap-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="grid gap-1 text-sm">Время открытия
-                    <input className="h-10 rounded-md border border-line bg-surface px-3" name="opened_local" type="datetime-local" required defaultValue={localInputValue(shift.opened_at, shift.stores?.timezone)} />
+              <form action={`/shifts/${shift.id}/correction`} method="post" className="mt-3 grid gap-3">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Время открытия
+                    <input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="opened_local" type="datetime-local" required defaultValue={localInputValue(shift.opened_at, shift.stores?.timezone)} />
                   </label>
-                  <label className="grid gap-1 text-sm">Время закрытия
-                    <input className="h-10 rounded-md border border-line bg-surface px-3" name="closed_local" type="datetime-local" required defaultValue={localInputValue(shift.closed_at, shift.stores?.timezone)} />
-                  </label>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <label className="grid gap-1 text-sm">Наличные, руб.<input className="h-10 rounded-md border border-line bg-surface px-3" name="cash_revenue" type="number" min="0" step="0.01" required defaultValue={report?.cash_revenue ?? 0} /></label>
-                  <label className="grid gap-1 text-sm">Безналичные, руб.<input className="h-10 rounded-md border border-line bg-surface px-3" name="card_revenue" type="number" min="0" step="0.01" required defaultValue={report?.card_revenue ?? 0} /></label>
-                  <label className="grid gap-1 text-sm">Возвраты наличными, руб.<input className="h-10 rounded-md border border-line bg-surface px-3" name="cash_returns" type="number" min="0" step="0.01" required defaultValue={report?.cash_returns ?? 0} /></label>
-                  <label className="grid gap-1 text-sm">Возвраты безналом, руб.<input className="h-10 rounded-md border border-line bg-surface px-3" name="card_returns" type="number" min="0" step="0.01" required defaultValue={report?.card_returns ?? 0} /></label>
-                  <label className="grid gap-1 text-sm">Количество чеков<input className="h-10 rounded-md border border-line bg-surface px-3" name="receipt_count" type="number" min="0" step="1" required defaultValue={report?.receipt_count ?? 0} /></label>
-                  <label className="grid gap-1 text-sm">Продано товаров<input className="h-10 rounded-md border border-line bg-surface px-3" name="items_sold_count" type="number" min="0" step="1" defaultValue={report?.items_sold_count ?? ""} /></label>
-                  <label className="grid gap-1 text-sm">Глубина чека<input className="h-10 rounded-md border border-line bg-surface px-3" name="check_depth" type="number" min="0" step="0.01" defaultValue={report?.check_depth ?? ""} /></label>
-                  <label className="grid gap-1 text-sm">Инкассация, руб.<input className="h-10 rounded-md border border-line bg-surface px-3" name="cash_collection_amount" type="number" min="0" step="0.01" defaultValue={report?.cash_collection_amount ?? ""} /></label>
-                  <label className="grid gap-1 text-sm">Аванс, руб.<input className="h-10 rounded-md border border-line bg-surface px-3" name="advance_amount" type="number" min="0" step="0.01" defaultValue={report?.advance_amount ?? ""} /></label>
-                  <label className="grid gap-1 text-sm">Наличные по Z-отчёту, руб.<input className="h-10 rounded-md border border-line bg-surface px-3" name="actual_cash_amount" type="number" min="0" step="0.01" defaultValue={report?.actual_cash_amount ?? ""} /></label>
-                  <label className="grid gap-1 text-sm sm:col-span-2 lg:col-span-3">Комментарий к инкассации
-                    <textarea className="min-h-20 rounded-md border border-line bg-surface px-3 py-2" name="cash_collection_comment" defaultValue={report?.cash_collection_comment ?? ""} />
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Время закрытия
+                    <input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="closed_local" type="datetime-local" required defaultValue={localInputValue(shift.closed_at, shift.stores?.timezone)} />
                   </label>
                 </div>
-                <fieldset className="rounded-md border border-line p-3">
-                  <legend className="px-1 text-sm font-semibold">Покупюрник</legend>
-                  <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Наличные, руб.<input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="cash_revenue" type="number" min="0" step="0.01" required defaultValue={report?.cash_revenue ?? 0} /></label>
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Безналичные, руб.<input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="card_revenue" type="number" min="0" step="0.01" required defaultValue={report?.card_revenue ?? 0} /></label>
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Возвраты наличными, руб.<input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="cash_returns" type="number" min="0" step="0.01" required defaultValue={report?.cash_returns ?? 0} /></label>
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Возвраты безналом, руб.<input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="card_returns" type="number" min="0" step="0.01" required defaultValue={report?.card_returns ?? 0} /></label>
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Количество чеков<input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="receipt_count" type="number" min="0" step="1" required defaultValue={report?.receipt_count ?? 0} /></label>
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Продано товаров<input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="items_sold_count" type="number" min="0" step="1" defaultValue={report?.items_sold_count ?? ""} /></label>
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Глубина чека<input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="check_depth" type="number" min="0" step="0.01" defaultValue={report?.check_depth ?? ""} /></label>
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Инкассация, руб.<input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="cash_collection_amount" type="number" min="0" step="0.01" defaultValue={report?.cash_collection_amount ?? ""} /></label>
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Аванс, руб.<input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="advance_amount" type="number" min="0" step="0.01" defaultValue={report?.advance_amount ?? ""} /></label>
+                  <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Наличные по Z-отчёту, руб.<input className={managementRole ? `${dashboardInput} h-9` : "h-10 rounded-md border border-line bg-surface px-3"} name="actual_cash_amount" type="number" min="0" step="0.01" defaultValue={report?.actual_cash_amount ?? ""} /></label>
+                  <label className={`grid gap-1 sm:col-span-2 xl:col-span-4 ${managementRole ? "text-xs" : "text-sm"}`}>Комментарий к инкассации
+                    <textarea className={managementRole ? `${dashboardInput} min-h-16 py-2` : "min-h-20 rounded-md border border-line bg-surface px-3 py-2"} name="cash_collection_comment" defaultValue={report?.cash_collection_comment ?? ""} />
+                  </label>
+                </div>
+                <fieldset className={`rounded-md border p-3 ${managementRole ? "border-white/10" : "border-line"}`}>
+                  <legend className="px-1 text-xs font-semibold">Покупюрник</legend>
+                  <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 xl:grid-cols-4">
                     {(denominationResult.data ?? []).map((denomination) => {
                       const existing = (cashCounts ?? []).find((row) => row.denomination_id === denomination.id)?.quantity ?? 0;
-                      return <label key={denomination.id} className="flex items-center justify-between gap-3 text-sm">
+                      return <label key={denomination.id} className="flex items-center justify-between gap-3 text-xs">
                         <span>{formatMoney(denomination.value)} руб. · {denomination.kind === "coin" ? "монеты" : "купюры"}{!denomination.is_active ? " · архивная" : ""}</span>
-                        <input className="h-9 w-24 rounded-md border border-line bg-surface px-2 text-right" name={`cash_count_${denomination.id}`} type="number" min="0" step="1" defaultValue={existing} />
+                        <input className={managementRole ? `${dashboardInput} h-8 w-20 text-right` : "h-9 w-24 rounded-md border border-line bg-surface px-2 text-right"} name={`cash_count_${denomination.id}`} type="number" min="0" step="1" defaultValue={existing} />
                       </label>;
                     })}
                   </div>
                 </fieldset>
-                <label className="grid gap-1 text-sm">Причина исправления
-                  <textarea className="min-h-20 rounded-md border border-line bg-surface px-3 py-2" name="reason" minLength={3} maxLength={500} required />
+                <label className={`grid gap-1 ${managementRole ? "text-xs" : "text-sm"}`}>Причина исправления
+                  <textarea className={managementRole ? `${dashboardInput} min-h-16 py-2` : "min-h-20 rounded-md border border-line bg-surface px-3 py-2"} name="reason" minLength={3} maxLength={500} required />
                 </label>
-                <button type="submit" className="h-10 justify-self-start rounded-md bg-brand px-4 text-sm font-semibold text-white">Сохранить исправления</button>
+                <button type="submit" className="h-9 justify-self-start rounded-md bg-brand px-4 text-xs font-semibold text-white">Сохранить исправления</button>
               </form>
             </details>
           </section>
@@ -516,7 +528,7 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
 
         {shift.is_erroneous ? <p className="mt-4 rounded-md border border-danger/40 bg-danger/10 p-3 text-sm font-semibold text-danger">Ошибочная смена. Она сохранена в архиве, но исключена из зарплаты, выручки и показателей.</p> : null}
 
-        <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
+        <section className={`mt-3 rounded-md border p-3 ${managementRole ? "border-white/10 bg-[#100c0d]" : "border-line bg-white p-4 shadow-soft"}`}>
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <UserRound size={18} /> Продавцы
           </h2>
@@ -530,20 +542,20 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
               return (
               <div
                 key={participant.id}
-                className="rounded-md bg-surface p-3 text-sm"
+                className={`rounded-md p-2.5 text-sm ${managementRole ? "border border-white/8 bg-black/20" : "bg-surface"}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold">{participant.employees?.full_name ?? "Сотрудник не указан"}</p>
-                    <p className="text-muted">{participantLabels[participant.participant_role]}</p>
+                    <p className={managementRole ? "text-white/45" : "text-muted"}>{participantLabels[participant.participant_role]}</p>
                   </div>
                   <span className="font-semibold">{Number(participant.sales_percent) * 100}%</span>
                 </div>
                 {isOwnWork || canCorrectWork ? (
-                  <div className="mt-3 grid gap-1 text-muted">
+                  <div className={`mt-3 grid gap-1 ${managementRole ? "text-white/55" : "text-muted"}`}>
                     <p className={workFieldsChanged.has("started_at") ? "rounded bg-amber-100 px-1 text-amber-950" : ""}>Начало: {formatDateTime(work?.started_at ?? null, shift.stores?.timezone)}{workFieldsChanged.has("started_at") ? " · изменено" : ""}</p>
                     <p className={workFieldsChanged.has("ended_at") ? "rounded bg-amber-100 px-1 text-amber-950" : ""}>Окончание: {formatDateTime(work?.ended_at ?? null, shift.stores?.timezone)}{workFieldsChanged.has("ended_at") ? " · изменено" : ""}</p>
-                    <p className="font-medium text-ink">
+                    <p className={`font-medium ${managementRole ? "text-white" : "text-ink"}`}>
                       {work?.confirmed_at
                         ? `Подтверждено: ${Number(work.paid_hours ?? 0).toLocaleString("ru-RU")} ч.`
                         : work?.ended_at ? "Ожидает проверки управляющим" : "Часы не подтверждены"}
@@ -559,21 +571,21 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
                   </form>
                 ) : null}
                 {canCorrectWork ? (
-                  <details className="mt-3 border-t border-line pt-3">
+                  <details className={`mt-3 border-t pt-3 ${managementRole ? "border-white/10" : "border-line"}`}>
                     <summary className="cursor-pointer font-medium">Исправить отметки</summary>
-                    <form action={`/shifts/${shift.id}/work`} method="post" className="mt-3 grid gap-3">
+                    <form action={`/shifts/${shift.id}/work`} method="post" className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                       <input type="hidden" name="action" value="correct" />
                       <input type="hidden" name="participant_id" value={participant.id} />
                       <label className="grid gap-1">Начало работы
-                        <input className="h-11 rounded-md border border-line bg-surface px-3 outline-none focus:border-brand" type="datetime-local" name="started_local" required
+                        <input className={managementRole ? `${dashboardInput} h-9` : "h-11 rounded-md border border-line bg-surface px-3 outline-none focus:border-brand"} type="datetime-local" name="started_local" required
                           defaultValue={localInputValue(work?.started_at ?? (participant.participant_role === "primary_seller" ? shift.opened_at : null), shift.stores?.timezone)} />
                       </label>
                       <label className="grid gap-1">Окончание работы
-                        <input className="h-11 rounded-md border border-line bg-surface px-3 outline-none focus:border-brand" type="datetime-local" name="ended_local" required
+                        <input className={managementRole ? `${dashboardInput} h-9` : "h-11 rounded-md border border-line bg-surface px-3 outline-none focus:border-brand"} type="datetime-local" name="ended_local" required
                           defaultValue={localInputValue(work?.ended_at ?? shift.closed_at, shift.stores?.timezone)} />
                       </label>
                       <label className="grid gap-1">Причина исправления
-                        <input className="h-11 rounded-md border border-line bg-surface px-3 outline-none focus:border-brand" type="text" name="reason" minLength={3} required />
+                        <input className={managementRole ? `${dashboardInput} h-9` : "h-11 rounded-md border border-line bg-surface px-3 outline-none focus:border-brand"} type="text" name="reason" minLength={3} required />
                       </label>
                       <button type="submit" className="rounded-md border border-line px-3 py-2 font-semibold">Сохранить время</button>
                     </form>
@@ -599,29 +611,29 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
           </div>
         </section>
 
-        <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
+        <section className={`mt-3 rounded-md border p-3 ${managementRole ? "border-white/10 bg-[#100c0d]" : "border-line bg-white p-4 shadow-soft"}`}>
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Banknote size={18} /> Касса
           </h2>
           {report ? (
             <>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Metric label="Выручка наличными" value={`${formatMoney(report.cash_revenue)} ?`} highlight={latestChangedFields.has("cash_revenue")} />
-                <Metric label="Выручка безналом" value={`${formatMoney(report.card_revenue)} ?`} highlight={latestChangedFields.has("card_revenue")} />
-                <Metric label="Возвраты наличными" value={`${formatMoney(report.cash_returns)} ?`} highlight={latestChangedFields.has("cash_returns")} />
-                <Metric label="Возвраты безналом" value={`${formatMoney(report.card_returns)} ?`} highlight={latestChangedFields.has("card_returns")} />
-                <Metric label="Выручка итого" value={`${formatMoney(report.gross_revenue)} ?`} highlight={latestChangedFields.has("gross_revenue")} />
-                <Metric label="Выручка после возвратов" value={`${formatMoney(report.net_revenue)} ?`} highlight={latestChangedFields.has("net_revenue")} />
-                <Metric label="Количество чеков" value={String(report.receipt_count)} highlight={latestChangedFields.has("receipt_count")} />
-                <Metric label="Глубина чека" value={report.check_depth ? String(report.check_depth) : "Не указано"} highlight={latestChangedFields.has("check_depth")} />
-                <Metric label="Количество товаров" value={report.items_sold_count ? String(report.items_sold_count) : "Не указано"} highlight={latestChangedFields.has("items_sold_count")} />
-                <Metric label="Инкассация" value={`${formatMoney(report.cash_collection_amount)} ?`} highlight={latestChangedFields.has("cash_collection_amount")} />
-                <Metric label="Аванс" value={`${formatMoney(report.advance_amount)} ?`} highlight={latestChangedFields.has("advance_amount")} />
-                <Metric label="Отчет заполнен" value={formatDateTime(report.created_at, shift.stores?.timezone)} />
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <Metric dashboard={managementRole} label="Выручка наличными" value={`${formatMoney(report.cash_revenue)} ?`} highlight={latestChangedFields.has("cash_revenue")} />
+                <Metric dashboard={managementRole} label="Выручка безналом" value={`${formatMoney(report.card_revenue)} ?`} highlight={latestChangedFields.has("card_revenue")} />
+                <Metric dashboard={managementRole} label="Возвраты наличными" value={`${formatMoney(report.cash_returns)} ?`} highlight={latestChangedFields.has("cash_returns")} />
+                <Metric dashboard={managementRole} label="Возвраты безналом" value={`${formatMoney(report.card_returns)} ?`} highlight={latestChangedFields.has("card_returns")} />
+                <Metric dashboard={managementRole} label="Выручка итого" value={`${formatMoney(report.gross_revenue)} ?`} highlight={latestChangedFields.has("gross_revenue")} />
+                <Metric dashboard={managementRole} label="Выручка после возвратов" value={`${formatMoney(report.net_revenue)} ?`} highlight={latestChangedFields.has("net_revenue")} />
+                <Metric dashboard={managementRole} label="Количество чеков" value={String(report.receipt_count)} highlight={latestChangedFields.has("receipt_count")} />
+                <Metric dashboard={managementRole} label="Глубина чека" value={report.check_depth ? String(report.check_depth) : "Не указано"} highlight={latestChangedFields.has("check_depth")} />
+                <Metric dashboard={managementRole} label="Количество товаров" value={report.items_sold_count ? String(report.items_sold_count) : "Не указано"} highlight={latestChangedFields.has("items_sold_count")} />
+                <Metric dashboard={managementRole} label="Инкассация" value={`${formatMoney(report.cash_collection_amount)} ?`} highlight={latestChangedFields.has("cash_collection_amount")} />
+                <Metric dashboard={managementRole} label="Аванс" value={`${formatMoney(report.advance_amount)} ?`} highlight={latestChangedFields.has("advance_amount")} />
+                <Metric dashboard={managementRole} label="Отчет заполнен" value={formatDateTime(report.created_at, shift.stores?.timezone)} />
               </div>
               {report.cash_collection_comment ? (
-                <div className={`mt-3 rounded-md p-3 text-sm ${latestChangedFields.has("cash_collection_comment") ? "border border-amber-400/60 bg-amber-50" : "bg-surface"}`}>
-                  <p className="text-xs text-muted">Комментарий к выемке / РКО</p>
+                <div className={`mt-3 rounded-md p-3 text-sm ${managementRole ? "border border-white/10 bg-black/20" : "bg-surface"} ${latestChangedFields.has("cash_collection_comment") ? "border-amber-400/60 bg-amber-50" : ""}`}>
+                  <p className={managementRole ? "text-xs text-white/45" : "text-xs text-muted"}>Комментарий к выемке / РКО</p>
                   <p className="mt-1">{report.cash_collection_comment}</p>
                 </div>
               ) : null}
@@ -631,17 +643,17 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
           )}
         </section>
 
-        <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
+        <section className={`mt-3 rounded-md border p-3 ${managementRole ? "border-white/10 bg-[#100c0d]" : "border-line bg-white p-4 shadow-soft"}`}>
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <CalendarDays size={18} /> Покупюрник
           </h2>
           {(cashCounts ?? []).length > 0 ? (
             <>
-              <div className="mt-3 overflow-hidden rounded-md border border-line">
+              <div className={`mt-3 overflow-hidden rounded-md border ${managementRole ? "border-white/10" : "border-line"}`}>
                 {(cashCounts ?? []).map((row) => (
                   <div
                     key={`${row.cash_denominations?.value}-${row.cash_denominations?.kind}`}
-                    className={`grid grid-cols-[1fr_80px_120px] gap-2 border-b border-line px-3 py-2 text-sm last:border-b-0 ${latestChangedDenominations.has(row.denomination_id) ? "bg-amber-50" : ""}`}
+                    className={`grid grid-cols-[1fr_80px_120px] gap-2 border-b px-3 py-2 text-sm last:border-b-0 ${managementRole ? "border-white/8" : "border-line"} ${latestChangedDenominations.has(row.denomination_id) ? managementRole ? "bg-amber-300/10" : "bg-amber-50" : ""}`}
                   >
                     <span>{formatMoney(row.cash_denominations?.value)} ?</span>
                     <span className="text-right">{row.quantity} шт.</span>
@@ -656,7 +668,7 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
           )}
         </section>
 
-        <section className="mt-4 rounded-md border border-line bg-white p-4 shadow-soft">
+        <section className={`mt-3 rounded-md border p-3 ${managementRole ? "border-white/10 bg-[#100c0d]" : "border-line bg-white p-4 shadow-soft"}`}>
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Camera size={18} /> Фото отчета ККМ
           </h2>
@@ -665,7 +677,7 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
               {photos.map((photo) => (
                 <a
                   key={photo.id}
-                  className="block overflow-hidden rounded-md border border-line bg-surface"
+                  className={`block overflow-hidden rounded-md border ${managementRole ? "border-white/10 bg-black/20" : "border-line bg-surface"}`}
                   href={photo.signedUrl ?? "#"}
                   target="_blank"
                   rel="noreferrer"
@@ -683,7 +695,7 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
           )}
         </section>
       </div>
-      <BottomNav />
+      {!managementRole ? <BottomNav /> : null}
     </main>
   );
 }

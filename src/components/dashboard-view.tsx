@@ -76,6 +76,7 @@ type Props = DashboardData & {
   initialStoreTab: "employees" | "stores" | "goals" | "shifts";
   stores: Array<{ id: string; name: string; city: string }>;
   closedShifts: ClosedShiftDashboardItem[];
+  closedShiftParentCity: string;
   openShifts: number;
   vaultBalance: number | null;
   canDepositVault: boolean;
@@ -274,7 +275,7 @@ function Bars({ points, period, emptyLabel }: { points: DailyPoint[]; period: st
   </div>;
 }
 
-export function DashboardView({ initialPeriod, periods, initialMainTab, initialStoreTab, stores, storeMetrics, employeeMetrics, missingChecklistEmployees, closedShifts, openShifts, vaultBalance, canDepositVault, canWithdrawVault, message, detail }: Props) {
+export function DashboardView({ initialPeriod, periods, initialMainTab, initialStoreTab, stores, storeMetrics, employeeMetrics, missingChecklistEmployees, closedShifts, closedShiftParentCity, openShifts, vaultBalance, canDepositVault, canWithdrawVault, message, detail }: Props) {
   const router = useRouter();
   const [city, setCity] = useState("");
   const [storeId, setStoreId] = useState("");
@@ -318,6 +319,7 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
     }
     return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right, "ru"));
   }, [closedShifts, city, storeId]);
+  const closedShiftCount = closedShiftsByCity.reduce((sum, [, rows]) => sum + rows.length, 0);
   const overview = useMemo(() => {
     const daily = new Map<string, number>();
     for (const store of filteredStores) for (const point of store.dailySales) daily.set(point.date, (daily.get(point.date) ?? 0) + point.amount);
@@ -492,7 +494,7 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
             <label className="flex h-9 items-center gap-2 rounded-md border border-white/10 bg-black/45 px-3"><span className="text-[10px] text-white/45">Город</span><select aria-label="Город показателей по магазинам" value={city} onChange={(event) => { setCity(event.target.value); setStoreId(""); }} className="max-w-[130px] border-0 bg-transparent p-0 text-xs text-white outline-none"><option value="">Все</option>{cities.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
             <label className="flex h-9 items-center gap-2 rounded-md border border-white/10 bg-black/45 px-3"><span className="text-[10px] text-white/45">Магазин</span><select aria-label="Магазин показателей по магазинам" value={storeId} onChange={(event) => setStoreId(event.target.value)} className="max-w-[150px] border-0 bg-transparent p-0 text-xs text-white outline-none"><option value="">Все</option>{availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
             {tab === "stores" && stores.length ? <button type="button" onClick={() => setQuickTaskOpen((value) => !value)} className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition ${quickTaskOpen ? "border-brand/40 bg-brand/10 text-white" : "border-white/10 text-white/65 hover:border-brand/40 hover:text-white"}`}><Plus size={14} className="text-brand" />Быстрая задача</button> : null}
-            <p className="text-[11px] text-white/40">{tab === "stores" ? `${filteredStores.length} магазинов · ${number.format(activeEmployees.length)} сотрудников с закрытыми сменами` : tab === "goals" ? `${filteredStores.length} магазинов · цели на ${formatMonth}` : tab === "shifts" ? `${number.format(closedShiftsByCity.reduce((sum, [, rows]) => sum + rows.length, 0))} смен · ${formatMonth}` : `${number.format(visibleEmployees.length)} сотрудников`}</p>
+            <p className="text-[11px] text-white/40">{tab === "stores" ? `${filteredStores.length} магазинов · ${number.format(activeEmployees.length)} сотрудников с закрытыми сменами` : tab === "goals" ? `${filteredStores.length} магазинов · цели на ${formatMonth}` : tab === "shifts" ? `${number.format(closedShiftCount)} смен · ${formatMonth}` : `${number.format(visibleEmployees.length)} сотрудников`}</p>
           </div>
         </div>
         {quickTaskOpen && tab === "stores" ? <form action={`/tasks/create?returnTo=dashboard&period=${initialPeriod}`} method="post" className="grid shrink-0 gap-2 border-b border-white/8 bg-[#100c0d]/80 p-3 lg:grid-cols-[1.1fr_1.4fr_1.5fr_1fr_1.1fr_auto]">
@@ -514,32 +516,38 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
               {!filteredStores.length ? <tr><td colSpan={13} className="px-4 py-10 text-center text-white/40">По выбранным фильтрам магазинов нет.</td></tr> : null}
             </tbody>
           </table> : tab === "shifts" ? <div className="flex flex-col gap-2 p-3">
-            {!closedShiftsByCity.length ? <div className="rounded-md border border-white/8 px-4 py-10 text-center text-white/45">Закрытых смен за выбранный месяц нет.</div> : null}
-            {closedShiftsByCity.map(([cityName, rows]) => <details key={cityName} className="rounded-md border border-white/8 bg-black/20">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-sm font-semibold marker:hidden">
-                <span className="flex min-w-0 items-center gap-2"><ChevronDown size={15} className="shrink-0 text-white/45" /><span className="truncate">{cityName}</span></span>
-                <span className="shrink-0 text-xs font-normal text-white/45">{rows.length} смен</span>
+            {!closedShiftCount ? <div className="rounded-md border border-white/8 px-4 py-10 text-center text-white/45">Закрытых смен за выбранный месяц нет.</div> : null}
+            {closedShiftCount ? <details className="rounded-md border border-white/10 bg-[#100c0d]/70">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-sm font-semibold marker:hidden sm:px-4">
+                <span className="flex min-w-0 items-center gap-2"><ChevronDown size={15} className="shrink-0 text-white/45" /><span className="truncate">{closedShiftParentCity}</span></span>
+                <span className="shrink-0 text-xs font-normal text-white/45">{closedShiftCount} смен · {closedShiftsByCity.length} городов</span>
               </summary>
-              <div className="grid gap-2 border-t border-white/8 p-2">
-                {rows.map((shift) => <article key={shift.id} className="flex flex-wrap items-center justify-between gap-3 rounded border border-white/8 bg-black/25 px-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                      <span className="font-semibold text-white">{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${shift.shiftDate}T00:00:00Z`))}</span>
-                      <span className="text-white/65">{shift.storeName}</span>
-                      <span className="text-white/40">{shift.status === "auto_closed" ? "Автозакрыта" : "Закрыта"}</span>
-                      {shift.isErroneous ? <span className="text-red-300">Ошибочная</span> : null}
-                    </div>
-                    <p className="mt-1 truncate text-[11px] text-white/45">{shift.employees.length ? shift.employees.join(" · ") : "Сотрудники не указаны"}</p>
+              <div className="grid gap-2 border-t border-white/8 p-2 sm:p-3">
+                {closedShiftsByCity.map(([cityName, rows]) => <details key={cityName} className="rounded border border-white/8 bg-black/20">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-xs font-semibold marker:hidden">
+                    <span className="flex min-w-0 items-center gap-2"><ChevronDown size={13} className="shrink-0 text-white/40" /><span className="truncate">{cityName}</span></span>
+                    <span className="shrink-0 text-[11px] font-normal text-white/45">{rows.length} смен</span>
+                  </summary>
+                  <div className="grid gap-1.5 border-t border-white/8 p-2">
+                    {rows.map((shift) => <article key={shift.id} className="grid items-center gap-2 rounded border border-white/8 bg-[#100c0d]/70 px-2.5 py-2 sm:grid-cols-[minmax(180px,1.4fr)_repeat(3,minmax(76px,auto))_auto]">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                          <span className="font-semibold text-white">{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${shift.shiftDate}T00:00:00Z`))}</span>
+                          <span className="text-white/65">{shift.storeName}</span>
+                          <span className="text-white/40">{shift.status === "auto_closed" ? "Автозакрыта" : "Закрыта"}</span>
+                          {shift.isErroneous ? <span className="text-red-300">Ошибочная</span> : null}
+                        </div>
+                        <p className="mt-0.5 truncate text-[10px] text-white/45">{shift.employees.length ? shift.employees.join(" · ") : "Сотрудники не указаны"}</p>
+                      </div>
+                      <span className="text-left text-[11px] text-white/65 sm:text-right">{shift.netRevenue === null ? "Нет отчёта" : rubles(shift.netRevenue)}</span>
+                      <span className="text-[11px] text-white/55 sm:text-right">{shift.receiptCount === null ? "—" : `${number.format(shift.receiptCount)} чеков`}</span>
+                      <span className="text-[11px] text-white/55 sm:text-right">{shift.itemsSoldCount === null ? "—" : `${number.format(shift.itemsSoldCount)} шт.`}</span>
+                      <Link className="inline-flex h-8 items-center justify-center rounded border border-white/12 px-2.5 text-xs font-semibold text-white/80 hover:border-brand/50 hover:text-white" href={`/shifts/${shift.id}`}>Открыть / исправить</Link>
+                    </article>)}
                   </div>
-                  <div className="flex items-center gap-3 text-right text-[11px] text-white/55">
-                    <span>{shift.netRevenue === null ? "Нет отчёта" : rubles(shift.netRevenue)}</span>
-                    <span>{shift.receiptCount === null ? "—" : `${number.format(shift.receiptCount)} чеков`}</span>
-                    <span>{shift.itemsSoldCount === null ? "—" : `${number.format(shift.itemsSoldCount)} шт.`}</span>
-                    <Link className="inline-flex h-8 items-center rounded border border-white/12 px-2.5 text-xs font-semibold text-white/80 hover:border-brand/50 hover:text-white" href={`/shifts/${shift.id}`}>Открыть / исправить</Link>
-                  </div>
-                </article>)}
+                </details>)}
               </div>
-            </details>)}
+            </details> : null}
           </div> : <div className="flex flex-col gap-3 p-3">
             {filteredStores.map((store) => <EmployeeStoreGroup
               key={store.id}
