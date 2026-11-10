@@ -528,7 +528,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     const storeTasks = taskRows.filter((task) => task.store_id === store.id);
     const dueTasks = storeTasks.filter((task) => {
       const dueLocalDate = localDateAt(task.due_at, store.timezone ?? "Asia/Vladivostok");
-      return dueLocalDate && dueLocalDate >= periodStart && dueLocalDate <= periodEnd && task.status !== "cancelled";
+      return dueLocalDate && dueLocalDate >= periodStart && dueLocalDate <= periodEnd && ["done", "overdue"].includes(task.status);
     });
     const checks = checklistRows.filter((row) => row.store_id === store.id);
     const plan = planByStore.get(store.id) ?? null;
@@ -607,7 +607,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         itemsReceipts: storeItemsReceipts,
         averageCheck: storeReceipts ? storeParticipations.reduce((sum, row) => sum + asNumber(row.report.net_revenue), 0) / storeReceipts : null,
         checkDepth: storeItemsReceipts && storeItems !== null ? storeItems / storeItemsReceipts : null,
-        taskDueCount: storeTasks.length,
+        taskDueCount: storeTasks.filter((task) => ["done", "overdue"].includes(task.status)).length,
         taskDone: storeTasks.filter((task) => task.status === "done").length,
         taskOnTime: storeTasks.filter((task) => task.status === "done" && task.completed_at && new Date(task.completed_at) <= new Date(task.due_at!)).length,
         checklistCount: storeChecks.length,
@@ -630,7 +630,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       receipts,
       itemsSold: participationsWithItems.length ? participationsWithItems.reduce((sum, row) => sum + Number(row.report.items_sold_count), 0) : null,
       averageCheck: receipts ? net / receipts : null,
-      taskDueCount: assignedTasks.length, taskDone: assignedTasks.filter((task) => task.status === "done").length,
+      taskDueCount: assignedTasks.filter((task) => ["done", "overdue"].includes(task.status)).length, taskDone: assignedTasks.filter((task) => task.status === "done").length,
       taskOnTime: assignedTasks.filter((task) => task.status === "done" && task.completed_at && new Date(task.completed_at) <= new Date(task.due_at!)).length,
       checklistCount: checks.length,
       checklistAverage: checks.length ? checks.reduce((sum, row) => sum + asNumber(row.average_score), 0) / checks.length : null,

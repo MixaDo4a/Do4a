@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { qualifiesForMonthlyTaskBonus } from "./task-quality.ts";
+import { qualifiesForMonthlyTaskBonus, summarizeTaskQuality } from "./task-quality.ts";
 
 const onTime = {
   due_at: "2026-11-10T10:00:00Z",
@@ -19,7 +19,18 @@ test("exactly 95 percent of tasks completed on time qualifies", () => {
   assert.equal(qualifiesForMonthlyTaskBonus([...Array(18).fill(onTime), late, late]), false);
 });
 
-test("late completion and unfinished tasks count against the threshold", () => {
+test("late, overdue, and open tasks remain in the monthly bonus threshold", () => {
   assert.equal(qualifiesForMonthlyTaskBonus([late]), false);
+  assert.equal(qualifiesForMonthlyTaskBonus([{ ...onTime, completed_at: null, status: "overdue" }]), false);
   assert.equal(qualifiesForMonthlyTaskBonus([{ ...onTime, completed_at: null, status: "open" }]), false);
+});
+
+test("quality percentage counts completed and overdue tasks but ignores tasks in progress", () => {
+  const result = summarizeTaskQuality([
+    onTime,
+    { ...late, status: "overdue", completed_at: null },
+    { ...onTime, status: "open", completed_at: null },
+    { ...onTime, status: "in_progress", completed_at: null },
+  ]);
+  assert.deepEqual(result, { percentage: 50, onTimeCount: 1, totalCount: 2 });
 });
