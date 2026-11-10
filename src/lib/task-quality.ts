@@ -37,7 +37,8 @@ export function missedTaskDeadlines<T extends PersonalTaskDeadline>(tasks: T[]):
   return tasks.filter((task) => {
     if (!task.due_at) return false;
     if (task.status === "overdue") return true;
-    if (task.status !== "done" || !task.completed_at) return false;
+    if (task.status !== "done") return false;
+    if (!task.completed_at) return true;
     return new Date(task.completed_at).getTime() > new Date(task.due_at).getTime();
   });
 }

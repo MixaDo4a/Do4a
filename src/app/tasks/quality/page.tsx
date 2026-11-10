@@ -143,7 +143,11 @@ export default async function TaskQualityPage({ searchParams }: PageProps) {
                   <span className="inline-flex items-center gap-1"><Clock3 size={14} /> Срок: {formatStoreDateTime(task.due_at, task.stores?.timezone)}</span>
                   {task.status === "done" && task.completed_at ? <span>Выполнена: {formatStoreDateTime(task.completed_at, task.stores?.timezone)}</span> : null}
                 </div>
-                <p className="mt-2 text-sm font-medium text-brand">{statusLabels[task.status] ?? "Не выполнена в срок"}</p>
+                <p className="mt-2 text-sm font-medium text-brand">
+                  {task.status === "done" && !task.completed_at
+                    ? "Выполнена, но время завершения не записано"
+                    : statusLabels[task.status] ?? "Не выполнена в срок"}
+                </p>
               </article>
             ))}
           </div>
