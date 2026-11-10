@@ -700,7 +700,11 @@ function EmployeeStoreRow({ employee, store, period, expanded, onToggle }: {
       <td className="px-2 py-2 text-right tabular-nums">{number.format(local.shiftCount)}</td><td className="px-2 py-2 text-right tabular-nums">{metric(local.confirmedHours, 1)} ч.</td>
       <td className="px-2 py-2 text-right font-medium tabular-nums">{rubles(local.netRevenue)}</td><td className="px-2 py-2 text-right tabular-nums">{number.format(local.receipts)}</td>
       <td className="px-2 py-2 text-right tabular-nums">{rubles(local.averageCheck)}</td><td className="px-2 py-2 text-right tabular-nums">{metric(rowDepth)}</td>
-      <td className={`px-2 py-2 text-right tabular-nums ${completion !== null && completion < 95 ? "text-red-300" : ""}`}>{local.taskDueCount ? `${pct(completion)} · ${local.taskOnTime}/${local.taskDueCount}` : "—"}</td>
+      <td className={`px-2 py-2 text-right tabular-nums ${completion !== null && completion < 95 ? "text-red-300" : ""}`}>{local.taskDueCount ? <Link
+        className="underline decoration-dotted underline-offset-4 hover:text-white"
+        href={`/tasks/quality?${new URLSearchParams({ employeeId: employee.id, storeId: store.id, period, filter: "all" })}`}
+        title={`Просроченные задачи: ${employee.name} · ${store.name}`}
+      >{pct(completion)} · {local.taskOnTime}/{local.taskDueCount}</Link> : "—"}</td>
       <td className="px-2 py-2 text-right tabular-nums">{employee.checklistCount === 0 ? <span className="text-red-300">Нет в месяце</span> : local.checklistAverage === null ? "—" : `${metric(local.checklistAverage)} · ${local.checklistCount}`}</td>
       <td className="px-3 py-2 text-right font-semibold tabular-nums">{rubles(employee.payroll)}</td>
     </tr>
