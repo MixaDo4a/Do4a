@@ -7,7 +7,7 @@ import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores"
 import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole, MANAGE_ROLES } from "@/lib/auth/roles";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatStoreDateTime } from "@/lib/timezone";
-import { getTaskQualityPeriod, missedTaskDeadlines, type PersonalTaskDeadline } from "@/lib/task-quality";
+import { getTaskQualityPeriod, isTaskCreditedToEmployee, missedTaskDeadlines, type PersonalTaskDeadline, type TaskCreditShift } from "@/lib/task-quality";
 
 type PageProps = { searchParams: Promise<{ employeeId?: string; storeId?: string; period?: string; filter?: string }> };
 type EmployeeAccessRow = {
@@ -20,6 +20,8 @@ type EmployeeAccessRow = {
 type TaskRow = PersonalTaskDeadline & {
   id: string;
   store_id: string;
+  assignee_employee_id: string | null;
+  created_at: string;
   title: string;
   description: string | null;
   priority: "low" | "normal" | "high" | "urgent";
@@ -93,19 +95,45 @@ export default async function TaskQualityPage({ searchParams }: PageProps) {
     }
     : getTaskQualityPeriod();
   let taskQuery = supabase.from("tasks")
-    .select("id, store_id, title, description, due_at, completed_at, status, priority, stores(name, timezone)")
-    .eq("assignee_employee_id", targetEmployeeId)
+    .select("id, store_id, assignee_employee_id, created_at, title, description, due_at, completed_at, status, priority, stores(name, timezone)")
     .gte("due_at", start)
     .lt("due_at", end)
     .neq("status", "cancelled");
-  if (requestedStoreId) taskQuery = taskQuery.eq("store_id", requestedStoreId);
+  if (requestedStoreId) {
+    taskQuery = taskQuery.eq("store_id", requestedStoreId).or(`assignee_employee_id.eq.${targetEmployeeId},assignee_employee_id.is.null`);
+  } else {
+    taskQuery = taskQuery.eq("assignee_employee_id", targetEmployeeId);
+  }
   const [{ data: targetEmployee }, { data: tasks, error }] = await Promise.all([
     supabase.from("employees").select("full_name").eq("id", targetEmployeeId).maybeSingle<{ full_name: string }>(),
     taskQuery.order("due_at", { ascending: true }).returns<TaskRow[]>(),
   ]);
   if (error) throw new Error(error.message);
 
-  const missed = missedTaskDeadlines(tasks ?? []).filter((task) =>
+  let creditShifts: TaskCreditShift[] = [];
+  if (requestedStoreId) {
+    const shiftStart = period
+      ? `${period}-01`
+      : new Date(Date.parse(start) - 86_400_000).toISOString().slice(0, 10);
+    const shiftEnd = period
+      ? new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 1)).toISOString().slice(0, 10)
+      : new Date(Date.parse(end) + 86_400_000).toISOString().slice(0, 10);
+    const { data: shifts, error: shiftsError } = await supabase.from("shifts")
+      .select("store_id, shift_date, status, is_erroneous, shift_participants(employee_id)")
+      .eq("store_id", requestedStoreId)
+      .eq("status", "closed")
+      .eq("is_erroneous", false)
+      .gte("shift_date", shiftStart)
+      .lt("shift_date", shiftEnd)
+      .returns<TaskCreditShift[]>();
+    if (shiftsError) throw new Error(shiftsError.message);
+    creditShifts = shifts ?? [];
+  }
+
+  const creditedTasks = (tasks ?? []).filter((task) =>
+    isTaskCreditedToEmployee(task, targetEmployeeId, creditShifts),
+  );
+  const missed = missedTaskDeadlines(creditedTasks).filter((task) =>
     !period || localDateAt(task.due_at, task.stores?.timezone)?.startsWith(period),
   );
   const visibleMissed = missed.filter((task) =>

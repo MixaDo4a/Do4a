@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { missedTaskDeadlines, qualifiesForMonthlyTaskBonus, summarizeTaskQuality } from "./task-quality.ts";
+import { isTaskCreditedToEmployee, missedTaskDeadlines, qualifiesForMonthlyTaskBonus, summarizeTaskQuality } from "./task-quality.ts";
 
 const onTime = {
   due_at: "2026-11-10T10:00:00Z",
@@ -52,4 +52,26 @@ test("done tasks without a completion timestamp appear in the missed-task drilld
   assert.equal(missed.length, 2);
   assert.ok(missed.includes(missingCompletionTime));
   assert.equal(missed.some((task) => task.status === "in_progress" || task.status === "open"), false);
+});
+
+test("store-wide tasks are credited to employees who worked a closed shift before the deadline", () => {
+  const task = {
+    store_id: "store-a",
+    assignee_employee_id: null,
+    created_at: "2026-11-01T00:00:00Z",
+    due_at: "2026-11-05T00:00:00Z",
+    stores: { timezone: "Asia/Vladivostok" },
+  };
+  const shifts = [{
+    store_id: "store-a",
+    shift_date: "2026-11-03",
+    status: "closed",
+    is_erroneous: false,
+    shift_participants: [{ employee_id: "employee-a" }],
+  }];
+
+  assert.equal(isTaskCreditedToEmployee(task, "employee-a", shifts), true);
+  assert.equal(isTaskCreditedToEmployee(task, "employee-b", shifts), false);
+  assert.equal(isTaskCreditedToEmployee({ ...task, assignee_employee_id: "employee-b" }, "employee-a", shifts), false);
+  assert.equal(isTaskCreditedToEmployee(task, "employee-a", [{ ...shifts[0], status: "auto_closed" }]), false);
 });
