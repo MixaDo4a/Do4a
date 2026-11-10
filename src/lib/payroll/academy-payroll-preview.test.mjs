@@ -81,10 +81,12 @@ test("task KPI includes assigned and store tasks only during the employee's elig
   const tasks = [
     { id: "personal", storeId: "", assigneeEmployeeId: "worker", createdLocalDate: "2026-10-01", dueLocalDate: "2026-10-20", dueAt: "2026-10-20T10:00:00Z", completedAt: "2026-10-20T09:00:00Z", status: "done" },
     { id: "store", storeId: "a", assigneeEmployeeId: null, createdLocalDate: "2026-10-10", dueLocalDate: "2026-10-15", dueAt: "2026-10-15T10:00:00Z", completedAt: "2026-10-16T10:00:00Z", status: "done" },
+    { id: "overdue", storeId: "", assigneeEmployeeId: "worker", createdLocalDate: "2026-10-01", dueLocalDate: "2026-10-25", dueAt: "2026-10-25T10:00:00Z", completedAt: null, status: "overdue" },
+    { id: "in-progress", storeId: "", assigneeEmployeeId: "worker", createdLocalDate: "2026-10-01", dueLocalDate: "2026-10-25", dueAt: "2026-10-25T10:00:00Z", completedAt: null, status: "in_progress" },
     { id: "before-work", storeId: "a", assigneeEmployeeId: null, createdLocalDate: "2026-10-01", dueLocalDate: "2026-10-05", dueAt: "2026-10-05T10:00:00Z", completedAt: null, status: "open" },
     { id: "no-deadline", storeId: "", assigneeEmployeeId: "worker", createdLocalDate: "2026-10-01", dueLocalDate: null, dueAt: null, completedAt: null, status: "open" },
   ];
-  assert.deepEqual(summarizeEmployeeTaskKpi(worker, tasks, "2026-10"), { total: 2, onTime: 1, percent: 50 });
+  assert.deepEqual(summarizeEmployeeTaskKpi(worker, tasks, "2026-10"), { total: 3, onTime: 1, percent: 33.33 });
 });
 
 test("distributes the network fund by confirmed Urban/Nautilus hours after four shifts", () => {
@@ -152,6 +154,21 @@ test("uses current task status in the October preview and timely completion in p
   const strict = calculateAcademyPayrollPreview([workingDuringWindow], [store("a")], options("on_time"));
   assert.equal(strict.employees[0].taskCompletionPercent, 0);
   assert.equal(strict.employees[0].taskBonus, 0);
+});
+
+test("task KPI excludes in-progress tasks and includes overdue tasks without changing bonus rules", () => {
+  const worker = employee("worker", {
+    shifts: [shift("a1", "a"), shift("a2", "a"), shift("a3", "a")],
+    tasks: [
+      { id: "done", storeId: "", assigneeEmployeeId: "worker", createdLocalDate: "2026-10-01", dueLocalDate: "2026-10-10", dueAt: "2026-10-10T10:00:00Z", completedAt: "2026-10-10T09:00:00Z", status: "done" },
+      { id: "overdue", storeId: "", assigneeEmployeeId: "worker", createdLocalDate: "2026-10-01", dueLocalDate: "2026-10-11", dueAt: "2026-10-11T10:00:00Z", completedAt: null, status: "overdue" },
+      { id: "in-progress", storeId: "", assigneeEmployeeId: "worker", createdLocalDate: "2026-10-01", dueLocalDate: "2026-10-12", dueAt: "2026-10-12T10:00:00Z", completedAt: null, status: "in_progress" },
+    ],
+  });
+  const result = calculateAcademyPayrollPreview([worker], [store("a")], options("on_time"));
+  assert.equal(result.employees[0].eligibleTaskCount, 2);
+  assert.equal(result.employees[0].taskCompletionPercent, 50);
+  assert.equal(result.employees[0].taskBonus, 0);
 });
 
 test("excludes store tasks without deadlines and canceled tasks", () => {

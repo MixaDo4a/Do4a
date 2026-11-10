@@ -17,7 +17,9 @@ export function getTaskQualityPeriod(now = new Date()) {
 }
 
 export function summarizeTaskQuality(tasks: PersonalTaskDeadline[]): TaskQuality {
-  const eligible = tasks.filter((task) => task.status !== "cancelled" && task.due_at);
+  const eligible = tasks.filter((task) =>
+    (task.status === "done" || task.status === "overdue") && task.due_at,
+  );
   const onTimeCount = eligible.filter((task) =>
     task.status === "done" &&
     task.completed_at !== null &&
@@ -33,13 +35,19 @@ export function summarizeTaskQuality(tasks: PersonalTaskDeadline[]): TaskQuality
 
 export function missedTaskDeadlines<T extends PersonalTaskDeadline>(tasks: T[]): T[] {
   return tasks.filter((task) => {
-    if (!task.due_at || task.status === "cancelled") return false;
-    if (task.status !== "done" || !task.completed_at) return true;
+    if (!task.due_at) return false;
+    if (task.status === "overdue") return true;
+    if (task.status !== "done" || !task.completed_at) return false;
     return new Date(task.completed_at).getTime() > new Date(task.due_at).getTime();
   });
 }
 
 export function qualifiesForMonthlyTaskBonus(tasks: PersonalTaskDeadline[]): boolean {
-  const { onTimeCount, totalCount } = summarizeTaskQuality(tasks);
-  return totalCount === 0 || onTimeCount * 100 >= totalCount * 95;
+  const eligible = tasks.filter((task) => task.status !== "cancelled" && task.due_at);
+  const onTimeCount = eligible.filter((task) =>
+    task.status === "done" &&
+    task.completed_at !== null &&
+    new Date(task.completed_at).getTime() <= new Date(task.due_at as string).getTime(),
+  ).length;
+  return eligible.length === 0 || onTimeCount * 100 >= eligible.length * 95;
 }

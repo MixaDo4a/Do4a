@@ -32,7 +32,7 @@ export type PreviewTask = {
   dueLocalDate: string | null;
   dueAt: string | null;
   completedAt: string | null;
-  status: "open" | "done" | "cancelled";
+  status: "open" | "in_progress" | "done" | "overdue" | "cancelled";
   eligibleEmployeeIds?: string[];
 };
 
@@ -183,7 +183,10 @@ export function summarizeEmployeeTaskKpi(
   tasks: PreviewTask[],
   periodMonth: string,
 ) {
-  const eligibleTasks = tasks.filter((task) => creditedTaskEmployees(task, [employee], periodMonth).includes(employee.id));
+  const eligibleTasks = tasks.filter((task) =>
+    (task.status === "done" || task.status === "overdue") &&
+    creditedTaskEmployees(task, [employee], periodMonth).includes(employee.id),
+  );
   const onTimeCount = eligibleTasks.filter((task) => taskWasCompleted(task, "on_time")).length;
   return {
     total: eligibleTasks.length,
@@ -245,12 +248,19 @@ export function calculateAcademyPayrollPreview(
   }
 
   const tasksByEmployee = new Map<string, { total: number; completed: number }>();
+  const taskKpiByEmployee = new Map<string, { total: number; onTime: number }>();
   for (const task of employees.flatMap((employee) => employee.tasks).filter((task, index, all) => all.findIndex((item) => item.id === task.id) === index)) {
     for (const employeeId of creditedTaskEmployees(task, employees, options.periodMonth)) {
       const counts = tasksByEmployee.get(employeeId) ?? { total: 0, completed: 0 };
       counts.total += 1;
       if (taskWasCompleted(task, options.taskScoring)) counts.completed += 1;
       tasksByEmployee.set(employeeId, counts);
+      if (task.status === "done" || task.status === "overdue") {
+        const kpiCounts = taskKpiByEmployee.get(employeeId) ?? { total: 0, onTime: 0 };
+        kpiCounts.total += 1;
+        if (taskWasCompleted(task, options.taskScoring)) kpiCounts.onTime += 1;
+        taskKpiByEmployee.set(employeeId, kpiCounts);
+      }
     }
   }
 
@@ -326,7 +336,8 @@ export function calculateAcademyPayrollPreview(
     }, 0);
 
     const taskCounts = tasksByEmployee.get(employee.id) ?? { total: 0, completed: 0 };
-    const taskCompletionPercent = taskCounts.total ? taskCounts.completed / taskCounts.total * 100 : null;
+    const taskKpiCounts = taskKpiByEmployee.get(employee.id) ?? { total: 0, onTime: 0 };
+    const taskCompletionPercent = taskKpiCounts.total ? taskKpiCounts.onTime / taskKpiCounts.total * 100 : null;
     const eligibleForMonthlyAwards = (employee.eligibilityShiftCount ?? shiftCount) >= 3;
     const taskBonus = employee.level >= 3 && eligibleForMonthlyAwards && (taskCounts.total === 0 || taskCounts.completed * 100 >= taskCounts.total * 95)
       ? TASK_BONUS
@@ -362,7 +373,7 @@ export function calculateAcademyPayrollPreview(
       commission: roundMoney(commission),
       taskBonus,
       taskCompletionPercent: taskCompletionPercent === null ? null : roundMoney(taskCompletionPercent),
-      eligibleTaskCount: taskCounts.total,
+      eligibleTaskCount: taskKpiCounts.total,
       checklistBonus,
       checklistMissing,
       checklistQualityByStore: Object.fromEntries(Object.entries(qualityByStore).map(([storeId, score]) => [storeId, roundMoney(score / 10)])),
