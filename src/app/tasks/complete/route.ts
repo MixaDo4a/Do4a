@@ -3,6 +3,7 @@ import { getCurrentEmployeeId, getCurrentRoleCodes, hasAnyRole } from "@/lib/aut
 import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
+import { getCompletionPhotoType } from "@/lib/tasks/completion-photo";
 
 function tasksUrl(request: NextRequest, message: string, detail?: string) {
   const url = new URL("/tasks", request.url);
@@ -33,9 +34,9 @@ export async function POST(request: NextRequest) {
   const canManageTasks = hasAnyRole(roles, ["developer", "super_admin"]);
   const { data: task, error: readError } = await supabase
     .from("tasks")
-    .select("id, assignee_employee_id, store_id, title, created_by, task_type")
+    .select("id, assignee_employee_id, store_id, title, created_by, task_type, requires_completion_photo")
     .eq("id", taskId)
-    .maybeSingle<{ id: string; assignee_employee_id: string | null; store_id: string; title: string; created_by: string | null; task_type: string }>();
+    .maybeSingle<{ id: string; assignee_employee_id: string | null; store_id: string; title: string; created_by: string | null; task_type: string; requires_completion_photo: boolean }>();
 
   if (readError || !task) {
     return NextResponse.redirect(tasksUrl(request, "task-error", readError?.message ?? "Задача не найдена."), 303);
@@ -79,12 +80,68 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(tasksUrl(request, "task-done"), 303);
   }
 
+  let uploadedPhotoPath: string | null = null;
+  if (task.task_type === "ordinary" && task.requires_completion_photo) {
+    if (!employeeId) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Для выполнения задачи требуется профиль сотрудника."), 303);
+    }
+    if (task.assignee_employee_id && task.assignee_employee_id !== employeeId) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Фото должен приложить сотрудник, которому назначена задача."), 303);
+    }
+    if (!task.assignee_employee_id) {
+      const { data: assignment } = await supabase.from("employee_store_assignments")
+        .select("id")
+        .eq("employee_id", employeeId)
+        .eq("store_id", task.store_id)
+        .lte("valid_from", new Date().toISOString().slice(0, 10))
+        .or(`valid_to.is.null,valid_to.gte.${new Date().toISOString().slice(0, 10)}`)
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+      if (!assignment) {
+        return NextResponse.redirect(tasksUrl(request, "task-error", "Фото должен приложить сотрудник, закреплённый за магазином задачи."), 303);
+      }
+    }
+    const photo = formData.get("completion_photo");
+    if (!(photo instanceof File) || photo.size === 0) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Для выполнения этой задачи приложите фото."), 303);
+    }
+    const photoType = await getCompletionPhotoType(photo);
+    if (!photoType) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Поддерживаются JPEG, PNG или WebP размером до 4 МБ."), 303);
+    }
+    const storagePath = `${task.id}/${crypto.randomUUID()}.${photoType.extension}`;
+    const { error: uploadError } = await supabase.storage.from("task-completion-photos").upload(storagePath, photo, {
+      contentType: photoType.mime,
+      cacheControl: "3600",
+      upsert: false,
+    });
+    if (uploadError) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Не удалось загрузить фото. Попробуйте ещё раз."), 303);
+    }
+    const { error: metadataError } = await supabase.from("task_completion_photos").insert({
+      task_id: task.id,
+      storage_path: storagePath,
+      mime_type: photoType.mime,
+      size_bytes: photo.size,
+      uploaded_by: employeeId,
+    });
+    if (metadataError) {
+      await supabase.storage.from("task-completion-photos").remove([storagePath]);
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Не удалось сохранить фото задачи."), 303);
+    }
+    uploadedPhotoPath = storagePath;
+  }
+
   const { data, error } = await supabase.rpc("set_store_task_status", {
     p_task_id: taskId,
     p_status: "done",
   }).single<{ id: string; created_by: string | null }>();
 
   if (error || !data) {
+    if (uploadedPhotoPath) {
+      await supabase.storage.from("task-completion-photos").remove([uploadedPhotoPath]);
+      await supabase.from("task_completion_photos").delete().eq("task_id", task.id);
+    }
     return NextResponse.redirect(tasksUrl(request, "task-error", error?.message ?? "Задача не найдена или уже обработана."), 303);
   }
 
