@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
   const dueAt = value(formData, "due_at");
   const priority = value(formData, "priority") || "normal";
   const recurrenceFrequency = value(formData, "recurrence_frequency");
+  const requiresCompletionPhoto = taskType === "ordinary" && formData.get("requires_completion_photo") === "true";
   const ordinarySubtaskTitles = value(formData, "ordinary_subtasks")
     .split(/\r?\n/)
     .map((item) => item.trim())
@@ -304,6 +305,7 @@ export async function POST(request: NextRequest) {
         assignee_employee_id: assigneeId,
         title,
         description: description || null,
+        requires_completion_photo: requiresCompletionPhoto,
         frequency: recurrenceFrequency,
         next_run_at: recurrenceDueAt,
         created_by: user.id,
@@ -335,6 +337,7 @@ export async function POST(request: NextRequest) {
     priority,
     status: "open" as const,
     recurrence_rule_id: recurrenceRuleIdsByKey.get(`${storeId}_${assigneeId}`) ?? null,
+    requires_completion_photo: requiresCompletionPhoto,
   }));
 
   const { data, error } = await supabase
