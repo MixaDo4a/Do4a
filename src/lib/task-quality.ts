@@ -10,6 +10,55 @@ export type TaskQuality = {
   totalCount: number;
 };
 
+export type TaskCreditShift = {
+  store_id: string;
+  shift_date: string;
+  status: string;
+  is_erroneous: boolean;
+  shift_participants: { employee_id: string }[];
+};
+
+type CreditedTask = {
+  store_id: string;
+  assignee_employee_id: string | null;
+  created_at: string;
+  due_at: string | null;
+  stores: { timezone: string | null } | null;
+};
+
+function localDateAt(value: string, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const fields = Object.fromEntries(parts.map(({ type, value: part }) => [type, part]));
+  return `${fields.year}-${fields.month}-${fields.day}`;
+}
+
+export function isTaskCreditedToEmployee(
+  task: CreditedTask,
+  employeeId: string,
+  shifts: TaskCreditShift[],
+): boolean {
+  if (task.assignee_employee_id) return task.assignee_employee_id === employeeId;
+  if (!task.due_at) return false;
+
+  const timeZone = task.stores?.timezone || "Asia/Vladivostok";
+  const createdLocalDate = localDateAt(task.created_at, timeZone);
+  const dueLocalDate = localDateAt(task.due_at, timeZone);
+
+  return shifts.some((shift) =>
+    shift.store_id === task.store_id &&
+    !shift.is_erroneous &&
+    shift.status === "closed" &&
+    shift.shift_date >= createdLocalDate &&
+    shift.shift_date <= dueLocalDate &&
+    shift.shift_participants.some((participant) => participant.employee_id === employeeId),
+  );
+}
+
 export function getTaskQualityPeriod(now = new Date()) {
   const end = now.toISOString();
   const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
