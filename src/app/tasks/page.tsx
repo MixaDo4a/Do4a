@@ -24,6 +24,7 @@ type TaskRow = {
   recurrence_rule_id: string | null;
   requires_completion_photo: boolean;
   created_by: string | null;
+  source_checklist_submission_id: string | null;
   task_type: "ordinary" | "expiration_store" | "expiration_checker" | "expiration_marketer";
   expiration_campaign_id: string | null;
   completion_outcome: "sold_out" | "writeoff" | "distributed" | null;
@@ -102,7 +103,7 @@ function buildTasksQuery(supabase: Awaited<ReturnType<typeof createSupabaseServe
   return supabase
     .from("tasks")
     .select(
-      "id, recurrence_rule_id, requires_completion_photo, created_by, task_type, expiration_campaign_id, completion_outcome, completion_comment, title, description, created_at, due_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)",
+      "id, recurrence_rule_id, requires_completion_photo, created_by, source_checklist_submission_id, task_type, expiration_campaign_id, completion_outcome, completion_comment, title, description, created_at, due_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)",
     )
     .in("status", activeTaskStatuses)
     .order("due_at", { ascending: true, nullsFirst: false })
@@ -346,6 +347,11 @@ export default async function TasksPage({ searchParams }: PageProps) {
               {(() => {
                 const campaign = task.expiration_campaign_id ? campaignById.get(task.expiration_campaign_id) : null;
                 const subtasks = subtasksByTaskId.get(task.id) ?? [];
+                const canEditTask = task.created_by === user.id || (
+                  roles.includes("store_manager")
+                  && Boolean(task.source_checklist_submission_id)
+                  && Boolean(task.stores?.id && accessibleStoreIds.includes(task.stores.id))
+                );
                 const discountLabel = campaign ? campaign.discount_type === "percent" ? `${campaign.discount_value}%` : `${new Intl.NumberFormat("ru-RU").format(campaign.discount_value)} ₽` : "";
                 return <>
               <div className="flex items-start justify-between gap-3">
@@ -417,7 +423,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
                 </div>)}
               </section> : null}
 
-              {task.task_type === "ordinary" && task.created_by === user.id && !["done", "cancelled"].includes(task.status) ? (
+              {task.task_type === "ordinary" && canEditTask && !["done", "cancelled"].includes(task.status) ? (
                 <details className="mt-4 rounded-md border border-line p-3">
                   <summary className="cursor-pointer text-sm font-semibold">Редактировать задачу</summary>
                   <form action="/tasks/edit" method="post" className="mt-3 grid gap-3">

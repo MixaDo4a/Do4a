@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentRoleCodes } from "@/lib/auth/roles";
+import { getAccessibleStores } from "@/lib/auth/stores";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseStoreDateTimeLocalInput } from "@/lib/timezone";
 
@@ -29,12 +31,31 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(new URL("/login", request.url), 303);
 
-  const { data: task, error: readError } = await supabase.from("tasks")
-    .select("id,created_by,task_type,status,stores(timezone)")
-    .eq("id", taskId)
-    .maybeSingle<{ id: string; created_by: string | null; task_type: string; status: string; stores: { timezone: string | null } | null }>();
-  if (readError || !task || task.created_by !== user.id || task.task_type !== "ordinary" || !["open", "in_progress", "overdue"].includes(task.status)) {
-    return NextResponse.redirect(tasksUrl(request, "task-error", "Редактировать можно только свою активную обычную задачу."), 303);
+  const [{ roles }, accessibleStores, { data: task, error: readError }] = await Promise.all([
+    getCurrentRoleCodes(supabase, user),
+    getAccessibleStores(supabase),
+    supabase.from("tasks")
+      .select("id,store_id,created_by,source_checklist_submission_id,task_type,status,stores(timezone)")
+      .eq("id", taskId)
+      .maybeSingle<{
+        id: string;
+        store_id: string;
+        created_by: string | null;
+        source_checklist_submission_id: string | null;
+        task_type: string;
+        status: string;
+        stores: { timezone: string | null } | null;
+      }>(),
+  ]);
+  const isCreator = task?.created_by === user.id;
+  const isManagerChecklistTask = Boolean(
+    task
+      && roles.includes("store_manager")
+      && task.source_checklist_submission_id
+      && accessibleStores.some((store) => store.id === task.store_id),
+  );
+  if (readError || !task || (!isCreator && !isManagerChecklistTask) || task.task_type !== "ordinary" || !["open", "in_progress", "overdue"].includes(task.status)) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Редактировать можно только свою активную обычную задачу или активную задачу из чек-листа своего магазина."), 303);
   }
 
   const dueAtIso = dueAt ? parseStoreDateTimeLocalInput(dueAt, task.stores?.timezone) : null;
