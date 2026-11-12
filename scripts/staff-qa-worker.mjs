@@ -101,10 +101,18 @@ if (command === "next") {
   process.stdout.write(JSON.stringify(await api(`/api/staff-telegram-qa/${encodeURIComponent(report_id)}/ask-owner`, { body: question })));
 } else if (command === "owner-answers") {
   process.stdout.write(JSON.stringify(await api("/api/staff-telegram-qa/owner-answers", { method: "GET" })));
+} else if (command === "pending-owner-questions") {
+  process.stdout.write(JSON.stringify(await api("/api/staff-telegram-qa/owner-questions/pending", { method: "GET" })));
+} else if (command === "answer-owner") {
+  const { question_id, response_text } = await readStdinJson();
+  if (!question_id || !response_text) throw new Error("question_id and response_text are required");
+  process.stdout.write(JSON.stringify(await api(`/api/staff-telegram-qa/owner-questions/${encodeURIComponent(question_id)}/answer`, {
+    body: { response_text },
+  })));
 } else if (command === "resolve-owner-question") {
   const { question_id, ...resolution } = await readStdinJson();
   if (!question_id) throw new Error("question_id is required");
   process.stdout.write(JSON.stringify(await api(`/api/staff-telegram-qa/owner-questions/${encodeURIComponent(question_id)}/resolve`, { body: resolution })));
 } else {
-  throw new Error("Command must be next, review, complete, release, prepare-release, reconcile-release, ask-owner, owner-answers, or resolve-owner-question");
+  throw new Error("Command must be next, review, complete, release, prepare-release, reconcile-release, ask-owner, owner-answers, pending-owner-questions, answer-owner, or resolve-owner-question");
 }

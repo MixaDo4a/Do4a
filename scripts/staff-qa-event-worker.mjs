@@ -196,9 +196,28 @@ async function processOwnerAnswer(answer) {
       kind: "owner_answer",
       taskId: `owner-${answer.id}`,
       imagePath: photoPath,
-      context: { kind: "owner_answer", question_id: answer.id, question: answer.question, context: answer.context, response_type: answer.response_type, response_text: answer.response_text, answered_at: answer.answered_at, report: { id: report.id, request_no: report.request_no, caption: report.caption } },
+      context: {
+        kind: "owner_answer",
+        question_id: answer.id,
+        question: answer.question,
+        context: answer.context,
+        response_type: answer.response_type,
+        response_text: answer.response_text,
+        response_source: answer.response_source,
+        operator_followup: answer.operator_followup,
+        answered_at: answer.answered_at,
+        report: { id: report.id, request_no: report.request_no, caption: report.caption },
+      },
     });
-    if (outcome.action === "retry" || outcome.action === "ask_owner") throw new Error(outcome.next_step || outcome.owner_question || "Owner response needs clarification");
+    if (outcome.action === "ask_owner") {
+      const deferred = await api(`/owner-questions/${encodeURIComponent(answer.id)}/defer`, { body: {
+        needs_clarification: true,
+        clarification: outcome.owner_question || outcome.next_step || "Нужно уточнение владельца перед продолжением.",
+      } });
+      log(`Owner answer ${String(answer.id).slice(0, 8)} needs clarification in the active Codex chat; no duplicate Telegram question sent${deferred.ok ? "" : "."}`);
+      return;
+    }
+    if (outcome.action === "retry") throw new Error(outcome.next_step || "Owner response needs retry");
     const declined = answer.response_type === "no" || /^(нет|не делаем)(?:\b|[,!.])/i.test(answer.response_text?.trim() ?? "");
     if (!declined && outcome.category === "bug" && (!/^[0-9a-f]{40,64}$/i.test(outcome.commit_sha ?? "") || !outcome.deployment_id?.trim())) {
       throw new Error("The approved code change has no verified Ready Preview deployment");
@@ -230,7 +249,7 @@ const pendingReleases = new Map();
 const pendingPreparations = new Map();
 const retryTimers = new Map();
 
-function scheduleRetry(key, delayMs = 60 * 60 * 1000) {
+function scheduleRetry(key, delayMs = 5 * 60 * 1000) {
   if (retryTimers.has(key)) return;
   const timer = setTimeout(() => {
     retryTimers.delete(key);
@@ -279,13 +298,24 @@ async function drain() {
       rerun = false;
       for (const reportId of pendingPreparations.keys()) await attemptPreparation(reportId);
       const answers = await api("/owner-answers", { method: "GET" });
+      if (answers.next_retry_at) {
+        const retryDelay = Date.parse(answers.next_retry_at) - Date.now();
+        if (Number.isFinite(retryDelay) && retryDelay > 0) scheduleRetry("owner-answer-backlog", retryDelay);
+      }
       for (const answer of answers.answers ?? []) {
         if (pendingQuestions.has(answer.id)) continue;
         pendingQuestions.add(answer.id);
         try { await processOwnerAnswer(answer); }
         catch (error) {
           log(`Owner answer ${String(answer.id).slice(0, 8)} remains pending: ${error.message}`);
-          scheduleRetry(`owner-${answer.id}`);
+          let delayMs = 5 * 60 * 1000;
+          try {
+            const deferred = await api(`/owner-questions/${encodeURIComponent(answer.id)}/defer`, { body: { needs_clarification: false } });
+            if (Number.isFinite(deferred.retry_after_seconds) && deferred.retry_after_seconds > 0) delayMs = deferred.retry_after_seconds * 1000;
+          } catch (deferError) {
+            log(`Owner answer retry schedule could not be persisted: ${deferError.message}`);
+          }
+          scheduleRetry(`owner-${answer.id}`, delayMs);
         }
         finally { pendingQuestions.delete(answer.id); }
       }
@@ -304,6 +334,7 @@ async function drain() {
     } while (rerun);
   } catch (error) {
     log(`Drain stopped; waiting for next Realtime event/reconnect: ${error.message}`);
+    scheduleRetry("drain", 5 * 60 * 1000);
   } finally {
     running = false;
     if (rerun) void drain();
