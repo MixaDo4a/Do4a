@@ -217,6 +217,7 @@ async function processOwnerQuestionCallback(callback: NonNullable<Update["callba
     p_response_type: decision,
     p_response_text: answer,
     p_actor_telegram_user_id: approverId,
+    p_response_source: "telegram",
   });
   if (error || !saved?.length) {
     await telegramCall("answerCallbackQuery", { callback_query_id: callback.id, text: "Не удалось сохранить решение.", show_alert: true }).catch(() => undefined);
@@ -245,18 +246,19 @@ async function processOwnerTextReply(message: NonNullable<Update["message"]>) {
     .select("id,telegram_message_id,status,staff_telegram_qa_reports(request_no)")
     .eq("telegram_message_id", replyMessageId).maybeSingle();
   const report = question?.staff_telegram_qa_reports as { request_no?: number } | null;
-  if (error || !question || question.status !== "pending" || !report?.request_no) return false;
+  if (error || !question || !["pending", "answered"].includes(question.status) || !report?.request_no) return false;
 
   const { data: saved, error: saveError } = await supabase.rpc("staff_answer_telegram_qa_owner_question", {
     p_question_id: question.id,
     p_response_type: "text",
     p_response_text: response.slice(0, 4000),
     p_actor_telegram_user_id: approverId,
+    p_response_source: "telegram",
   });
   if (saveError || !saved?.length) return false;
   await telegramCall("sendMessage", {
     chat_id: approverId,
-    text: `Ответ по заявке №${report.request_no} записан. Продолжу обработку.`,
+    text: `Ответ по заявке №${report.request_no} записан. Продолжу обработку без создания повторного вопроса.`,
   }).catch(() => undefined);
   return true;
 }

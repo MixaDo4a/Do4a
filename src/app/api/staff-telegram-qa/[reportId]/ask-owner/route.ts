@@ -23,6 +23,17 @@ export async function POST(request: Request, context: { params: Promise<{ report
   if (!Number.isSafeInteger(approverId)) return NextResponse.json({ error: "Owner Telegram is not configured" }, { status: 503 });
 
   const supabase = staffQaSupabase();
+  const { data: activeQuestion, error: activeQuestionError } = await supabase.from("staff_telegram_qa_owner_questions")
+    .select("id,status,question")
+    .eq("report_id", reportId).in("status", ["pending", "answered"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (activeQuestionError) return NextResponse.json({ error: "Could not check existing owner question" }, { status: 503 });
+  if (activeQuestion) {
+    return NextResponse.json({
+      error: "This report already has an unresolved owner question. Continue that question instead of sending another card.",
+      question_id: activeQuestion.id,
+      status: activeQuestion.status,
+    }, { status: 409 });
+  }
   const { data: created, error: createError } = await supabase.rpc("staff_create_telegram_qa_owner_question", {
     p_report_id: reportId,
     p_question: question,
