@@ -57,7 +57,9 @@ begin
   into v_employee
   from public.employees
   where id = p_employee_id
-    and is_active = true;
+    -- Historical closed shifts remain eligible after employee deactivation.
+    -- The employee record is still required; current activity is not.
+    ;
 
   if not found then
     raise exception 'Employee not found or inactive';
