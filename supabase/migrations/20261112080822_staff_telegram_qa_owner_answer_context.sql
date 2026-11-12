@@ -5,6 +5,11 @@ alter table public.staff_telegram_qa_owner_questions
   add column next_attempt_at timestamptz default now(),
   add column operator_followup text check (operator_followup is null or char_length(operator_followup) <= 2500);
 
+-- Do not replay answers that were already sitting in the queue before this retry workflow existed.
+update public.staff_telegram_qa_owner_questions
+   set next_attempt_at = null
+ where status = 'answered';
+
 create index staff_telegram_qa_owner_questions_retry_idx
   on public.staff_telegram_qa_owner_questions (next_attempt_at, answered_at)
   where status = 'answered' and next_attempt_at is not null;
