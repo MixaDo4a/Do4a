@@ -26,6 +26,10 @@ export function TaskCreateForm({ stores, employees }: { stores: StoreOption[]; e
         <>
           <input className="h-11 rounded-md border border-line px-3 outline-none focus:border-brand" name="title" placeholder="Название" required />
           <TaskVoiceDescription />
+          <label className="flex items-start gap-3 rounded-md border border-line p-3 text-sm">
+            <input className="mt-0.5 size-4 accent-brand" name="requires_completion_photo" type="checkbox" value="true" />
+            <span><span className="block font-medium">Обязательное фото при выполнении</span><span className="mt-1 block text-xs font-normal text-muted">Фото до 4 МБ хранится до 7 дней после закрытия задачи, затем автоматически удаляется.</span></span>
+          </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <fieldset className="rounded-md border border-line p-3 sm:col-span-2">
               <legend className="px-1 text-sm font-medium">Магазины</legend>

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
 import { TaskCreateForm } from "@/components/task-create-form";
+import { PhotoFileInput } from "@/components/photo-file-input";
 import {
   getCurrentEmployeeId,
   getCurrentRoleCodes,
@@ -21,6 +22,7 @@ import { formatStoreDateTime } from "@/lib/timezone";
 type TaskRow = {
   id: string;
   recurrence_rule_id: string | null;
+  requires_completion_photo: boolean;
   created_by: string | null;
   task_type: "ordinary" | "expiration_store" | "expiration_checker" | "expiration_marketer";
   expiration_campaign_id: string | null;
@@ -99,7 +101,7 @@ function buildTasksQuery(supabase: Awaited<ReturnType<typeof createSupabaseServe
   return supabase
     .from("tasks")
     .select(
-      "id, recurrence_rule_id, created_by, task_type, expiration_campaign_id, completion_outcome, completion_comment, title, description, created_at, due_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)",
+      "id, recurrence_rule_id, requires_completion_photo, created_by, task_type, expiration_campaign_id, completion_outcome, completion_comment, title, description, created_at, due_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)",
     )
     .in("status", activeTaskStatuses)
     .order("due_at", { ascending: true, nullsFirst: false })
@@ -416,7 +418,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   {task.task_type === "expiration_store" ? <>
                     <form action="/tasks/complete" method="post"><input name="task_id" type="hidden" value={task.id} /><input name="completion_outcome" type="hidden" value="sold_out" /><button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Весь товар распродан</button></form>
                     <form action="/tasks/complete" method="post" className="grid gap-2"><input name="task_id" type="hidden" value={task.id} /><input name="completion_outcome" type="hidden" value="writeoff" /><input className="h-10 rounded-md border border-line px-3 text-sm" name="completion_comment" placeholder="Какая часть товара останется к списанию" required /><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Не всё продано, остаток списан</button></form>
-                  </> : task.task_type === "expiration_checker" ? <form action="/tasks/complete" method="post" className="grid gap-2 sm:col-span-2"><input name="task_id" type="hidden" value={task.id} /><input name="completion_outcome" type="hidden" value="distributed" /><input className="h-10 rounded-md border border-line px-3 text-sm" name="completion_comment" placeholder="По каким магазинам распределён остаток" required /><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Остатки распределены</button></form> : task.task_type === "ordinary" ? <form action="/tasks/complete" method="post"><input name="task_id" type="hidden" value={task.id} /><button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Выполнить</button></form> : null}
+                  </> : task.task_type === "expiration_checker" ? <form action="/tasks/complete" method="post" className="grid gap-2 sm:col-span-2"><input name="task_id" type="hidden" value={task.id} /><input name="completion_outcome" type="hidden" value="distributed" /><input className="h-10 rounded-md border border-line px-3 text-sm" name="completion_comment" placeholder="По каким магазинам распределён остаток" required /><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Остатки распределены</button></form> : task.task_type === "ordinary" ? <form action="/tasks/complete" method="post" encType="multipart/form-data" className="grid gap-2"><input name="task_id" type="hidden" value={task.id} />{task.requires_completion_photo ? <PhotoFileInput accept="image/jpeg,image/png,image/webp" label="Прикрепить фото выполнения" name="completion_photo" required selectedLabel="Фото выполнения добавлено" /> : null}<button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Выполнить{task.requires_completion_photo ? " и приложить фото" : ""}</button></form> : null}
                   <form action="/tasks/fail" className="grid gap-2" method="post">
                     <input name="task_id" type="hidden" value={task.id} />
                     <input
