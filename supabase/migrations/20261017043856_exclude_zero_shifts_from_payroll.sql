@@ -56,11 +56,10 @@ begin
   select *
   into v_employee
   from public.employees
-  where id = p_employee_id
-    and is_active = true;
+  where id = p_employee_id;
 
   if not found then
-    raise exception 'Employee not found or inactive';
+    raise exception 'Employee not found';
   end if;
 
   insert into public.payroll_periods (period_month, status, calculated_at)
