@@ -62,6 +62,7 @@ type PageProps = {
 };
 
 const messageLabels: Record<string, string> = {
+  "task-updated": "Задача обновлена.",
   "task-required": "Заполните обязательные поля.",
   "task-error": "Не удалось выполнить действие с задачей.",
   "task-done": "Задача выполнена.",
@@ -413,6 +414,17 @@ export default async function TasksPage({ searchParams }: PageProps) {
 
               {task.status !== "done" && task.status !== "cancelled" ? (
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {task.task_type === "ordinary" && (hasAnyRole(roles, MANAGE_ROLES) || task.created_by === user.id) ? <details className="sm:col-span-2">
+                    <summary className="inline-flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-line px-3 text-sm font-semibold">Редактировать задачу</summary>
+                    <form action="/tasks/update" method="post" className="mt-2 grid gap-2 rounded-md border border-line p-3">
+                      <input name="task_id" type="hidden" value={task.id} />
+                      <input className="h-10 rounded-md border border-line px-3" name="title" defaultValue={task.title} required />
+                      <textarea className="min-h-20 rounded-md border border-line p-3" name="description" defaultValue={task.description ?? ""} />
+                      <input className="h-10 rounded-md border border-line px-3" name="due_at" type="datetime-local" defaultValue={task.due_at ? new Date(task.due_at).toISOString().slice(0, 16) : ""} />
+                      <select className="h-10 rounded-md border border-line px-3" name="priority" defaultValue={task.priority}><option value="low">Низкий</option><option value="normal">Обычный</option><option value="high">Высокий</option><option value="urgent">Срочно</option></select>
+                      <button className="h-10 rounded-md bg-brand px-3 text-sm font-semibold text-white">Сохранить</button>
+                    </form>
+                  </details> : null}
                   {task.task_type === "expiration_store" ? <>
                     <form action="/tasks/complete" method="post"><input name="task_id" type="hidden" value={task.id} /><input name="completion_outcome" type="hidden" value="sold_out" /><button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Весь товар распродан</button></form>
                     <form action="/tasks/complete" method="post" className="grid gap-2"><input name="task_id" type="hidden" value={task.id} /><input name="completion_outcome" type="hidden" value="writeoff" /><input className="h-10 rounded-md border border-line px-3 text-sm" name="completion_comment" placeholder="Какая часть товара останется к списанию" required /><button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line px-3 text-sm font-semibold"><CheckCircle2 size={16} /> Не всё продано, остаток списан</button></form>
