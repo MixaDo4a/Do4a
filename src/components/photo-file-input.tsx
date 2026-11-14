@@ -8,6 +8,7 @@ type PhotoFileInputProps = {
   label?: string;
   selectedLabel?: string;
   required?: boolean;
+  accept?: string;
 };
 
 const MAX_IMAGE_SIDE = 1600;
@@ -77,6 +78,7 @@ export function PhotoFileInput({
   label = "Добавить фото Z-отчета",
   selectedLabel = "Фото добавлено",
   required = false,
+  accept = "image/*",
 }: PhotoFileInputProps) {
   const [hasFile, setHasFile] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -96,7 +98,7 @@ export function PhotoFileInput({
         {fileName ? <span className="mt-0.5 block truncate text-xs font-normal text-muted">{fileName}</span> : null}
       </span>
       <input
-        accept="image/*"
+        accept={accept}
         className="sr-only"
         id={inputId}
         name={name}

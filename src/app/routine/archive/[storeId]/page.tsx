@@ -1,4 +1,5 @@
 import { Archive } from "lucide-react";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
@@ -19,11 +20,24 @@ type SessionRow = {
 };
 
 type ItemRow = {
+  id: string;
   session_id: string;
   title_snapshot: string;
   parent_title_snapshot: string | null;
   level: number;
   completed_at: string;
+};
+
+type SessionItemPhotoRow = {
+  session_item_id: string;
+  file_id: string;
+};
+
+type FileRow = {
+  id: string;
+  bucket: string;
+  path: string;
+  mime_type: string | null;
 };
 
 function formatDate(value: string) {
@@ -71,7 +85,7 @@ export default async function RoutineArchivePage({ params }: PageProps) {
     sessionIds.length > 0
       ? supabase
           .from("day_routine_session_items")
-          .select("session_id, title_snapshot, parent_title_snapshot, level, completed_at")
+          .select("id, session_id, title_snapshot, parent_title_snapshot, level, completed_at")
           .in("session_id", sessionIds)
           .order("completed_at", { ascending: true })
           .returns<ItemRow[]>()
@@ -89,9 +103,60 @@ export default async function RoutineArchivePage({ params }: PageProps) {
     throw new Error(employeesError.message);
   }
 
+  const sessionItems = items ?? [];
+  const photoUrlsByItemId = new Map<string, string[]>();
+  const sessionItemIds = sessionItems.map((item) => item.id);
+
+  if (sessionItemIds.length > 0) {
+    const { data: photos, error: photosError } = await supabase
+      .from("day_routine_session_item_photos")
+      .select("session_item_id, file_id")
+      .in("session_item_id", sessionItemIds)
+      .returns<SessionItemPhotoRow[]>();
+
+    if (photosError) {
+      throw new Error(photosError.message);
+    }
+
+    const fileIds = [...new Set((photos ?? []).map((photo) => photo.file_id))];
+    if (fileIds.length > 0) {
+      const { data: files, error: filesError } = await supabase
+        .from("files")
+        .select("id, bucket, path, mime_type")
+        .eq("bucket", "routine-photos")
+        .in("id", fileIds)
+        .returns<FileRow[]>();
+
+      if (filesError) {
+        throw new Error(filesError.message);
+      }
+
+      const fileById = new Map((files ?? []).map((file) => [file.id, file]));
+      const accessiblePhotos = (photos ?? []).flatMap((photo) => {
+        const file = fileById.get(photo.file_id);
+        return file && file.mime_type?.startsWith("image/") ? [{ ...photo, file }] : [];
+      });
+      const { data: signedFiles, error: signedFilesError } = await supabase.storage
+        .from("routine-photos")
+        .createSignedUrls(accessiblePhotos.map((photo) => photo.file.path), 60 * 60);
+
+      if (signedFilesError) {
+        throw new Error(signedFilesError.message);
+      }
+
+      accessiblePhotos.forEach((photo, index) => {
+        const signedUrl = signedFiles?.[index]?.signedUrl;
+        if (!signedUrl) return;
+        const urls = photoUrlsByItemId.get(photo.session_item_id) ?? [];
+        urls.push(signedUrl);
+        photoUrlsByItemId.set(photo.session_item_id, urls);
+      });
+    }
+  }
+
   const employeeById = new Map((employees ?? []).map((employee) => [employee.id, employee.full_name]));
   const itemsBySessionId = new Map<string, ItemRow[]>();
-  (items ?? []).forEach((item) => {
+  sessionItems.forEach((item) => {
     const next = itemsBySessionId.get(item.session_id) ?? [];
     next.push(item);
     itemsBySessionId.set(item.session_id, next);
@@ -140,6 +205,22 @@ export default async function RoutineArchivePage({ params }: PageProps) {
                         </p>
                         <p className="mt-1 text-[11px] text-muted">{formatDate(item.completed_at)}</p>
                         {item.parent_title_snapshot ? <p className="mt-1 text-[11px] text-muted">Пункт: {item.parent_title_snapshot}</p> : null}
+                        {photoUrlsByItemId.get(item.id)?.length ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {photoUrlsByItemId.get(item.id)?.map((url, index) => (
+                              <a
+                                key={`${item.id}_${index}`}
+                                aria-label={`Открыть фото: ${item.title_snapshot}`}
+                                className="block h-24 w-24 overflow-hidden rounded-md border border-line"
+                                href={url}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                <Image alt={`Фото пункта: ${item.title_snapshot}`} className="h-full w-full object-cover" height={192} src={url} unoptimized width={192} />
+                              </a>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     ))
                   )}
