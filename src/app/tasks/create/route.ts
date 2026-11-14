@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
   const assigneeEmployeeId = assigneeEmployeeIds[0] ?? "";
   const title = value(formData, "title");
   const description = value(formData, "description");
+  const subtasks = value(formData, "subtasks").split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
   const dueAt = value(formData, "due_at");
   const priority = value(formData, "priority") || "normal";
   const recurrenceFrequency = value(formData, "recurrence_frequency");
@@ -65,6 +66,9 @@ export async function POST(request: NextRequest) {
 
   if (taskType === "ordinary" && (storeIds.length === 0 || (!storeWideTask && assigneeEmployeeIds.length === 0) || !title)) {
     return NextResponse.redirect(tasksUrl(request, "task-required"), 303);
+  }
+  if (taskType === "ordinary" && (subtasks.length > 10 || subtasks.some((item) => item.length > 250))) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "До 10 подзадач по 250 символов."), 303);
   }
   if (taskType === "expiration" && (!value(formData, "product_name") || !value(formData, "expiry_date"))) {
     return NextResponse.redirect(tasksUrl(request, "task-required", "Укажите товар, срок годности и магазины."), 303);
@@ -343,6 +347,15 @@ export async function POST(request: NextRequest) {
       await supabase.from("task_recurrence_rules").delete().in("store_id", storeIds).eq("assignee_employee_id", assigneeEmployeeId).eq("title", title);
     }
     return NextResponse.redirect(tasksUrl(request, "task-error", error?.message), 303);
+  }
+
+  if (subtasks.length > 0) {
+    const { error: subtasksError } = await supabase.from("task_subtasks").insert(
+      data.flatMap((task) => subtasks.map((subtask, index) => ({ task_id: task.id, title: subtask, sort_order: index + 1 }))),
+    );
+    if (subtasksError) {
+      return NextResponse.redirect(tasksUrl(request, "task-error", "Не удалось создать подзадачи."), 303);
+    }
   }
 
   const [{ data: storeRows }, { data: employeeRow }, { data: assigneeRows }] = await Promise.all([
