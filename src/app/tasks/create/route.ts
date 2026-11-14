@@ -76,6 +76,9 @@ export async function POST(request: NextRequest) {
   if (taskType !== "ordinary" && taskType !== "expiration") {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Неизвестный тип задачи."), 303);
   }
+  if (taskType === "ordinary" && (subtasks.length > 10 || subtasks.some((item) => item.length > 250))) {
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Подзадач может быть не более 10, каждая максимум 250 символов."), 303);
+  }
 
   if (!["low", "normal", "high", "urgent"].includes(priority)) {
     return NextResponse.redirect(tasksUrl(request, "task-error", "Некорректный приоритет задачи."), 303);
