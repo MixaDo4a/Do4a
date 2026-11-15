@@ -10,6 +10,7 @@ type RecurrenceRuleRow = {
   assignee_employee_id: string;
   title: string;
   description: string | null;
+  requires_completion_photo: boolean;
   frequency: TaskRecurrenceFrequency;
   next_run_at: string;
 };
@@ -41,7 +42,7 @@ export async function POST() {
 
   const { data: rules, error } = await supabase
     .from("task_recurrence_rules")
-    .select("id, store_id, assignee_employee_id, title, description, frequency, next_run_at")
+    .select("id, store_id, assignee_employee_id, title, description, requires_completion_photo, frequency, next_run_at")
     .eq("is_active", true)
     .in("store_id", storeIds)
     .lte("next_run_at", new Date().toISOString())
@@ -80,6 +81,7 @@ export async function POST() {
             created_by: user.id,
             title: rule.title,
             description: rule.description,
+            requires_completion_photo: rule.requires_completion_photo,
             due_at: dueAt,
             priority: "normal",
             status: "open",
