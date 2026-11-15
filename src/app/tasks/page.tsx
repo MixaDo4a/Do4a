@@ -122,6 +122,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
     getCurrentEmployeeId(supabase, user),
   ]);
   const managerOnly = roles.includes("manager") && !roles.some((role) => ["store_manager", "super_admin", "developer"].includes(role));
+  const canEditTask = roles.some((role) => ["manager", "store_manager", "super_admin", "developer"].includes(role));
   const canCreateTask = hasAnyRole(roles, TASK_CREATOR_ROLES);
   const warehouseManagerOnly = roles.includes("warehouse_manager") && !hasAnyRole(roles, MANAGE_ROLES);
   const warehouseAssistantOnly = roles.includes("warehouse_assistant") && !hasAnyRole(roles, MANAGE_ROLES);
@@ -410,6 +411,24 @@ export default async function TasksPage({ searchParams }: PageProps) {
                   </form> : null}
                 </div>)}
               </section> : null}
+
+              {canEditTask && task.task_type === "ordinary" && task.status !== "done" && task.status !== "cancelled" ? (
+                <details className="mt-4 rounded-md border border-line p-3">
+                  <summary className="cursor-pointer text-sm font-semibold">Редактировать задачу</summary>
+                  <form action="/tasks/edit" method="post" className="mt-3 grid gap-2">
+                    <input name="task_id" type="hidden" value={task.id} />
+                    <input className="h-10 rounded-md border border-line px-3 text-sm" name="title" defaultValue={task.title} required />
+                    <textarea className="min-h-20 rounded-md border border-line p-3 text-sm" name="description" defaultValue={task.description ?? ""} />
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <input className="h-10 rounded-md border border-line px-3 text-sm" name="due_at" type="datetime-local" defaultValue={task.due_at ? task.due_at.slice(0, 16) : ""} />
+                      <select className="h-10 rounded-md border border-line px-3 text-sm" name="priority" defaultValue={task.priority}>
+                        <option value="low">Низкий</option><option value="normal">Обычный</option><option value="high">Высокий</option><option value="urgent">Срочный</option>
+                      </select>
+                    </div>
+                    <button className="h-10 rounded-md border border-line px-3 text-sm font-semibold">Сохранить</button>
+                  </form>
+                </details>
+              ) : null}
 
               {task.status !== "done" && task.status !== "cancelled" ? (
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
