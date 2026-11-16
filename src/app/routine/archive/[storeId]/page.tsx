@@ -22,10 +22,15 @@ type SessionRow = {
 type ItemRow = {
   id: string;
   session_id: string;
+  template_item_id: string;
   title_snapshot: string;
   parent_title_snapshot: string | null;
   level: number;
   completed_at: string;
+  day_routine_session_item_photos: Array<{
+    file_id: string;
+    files: { path: string; bucket: string } | null;
+  }>;
 };
 
 type SessionItemPhotoRow = {
@@ -85,7 +90,7 @@ export default async function RoutineArchivePage({ params }: PageProps) {
     sessionIds.length > 0
       ? supabase
           .from("day_routine_session_items")
-          .select("id, session_id, title_snapshot, parent_title_snapshot, level, completed_at")
+          .select("id, session_id, template_item_id, title_snapshot, parent_title_snapshot, level, completed_at, day_routine_session_item_photos(file_id, files(path, bucket))")
           .in("session_id", sessionIds)
           .order("completed_at", { ascending: true })
           .returns<ItemRow[]>()
@@ -162,6 +167,20 @@ export default async function RoutineArchivePage({ params }: PageProps) {
     itemsBySessionId.set(item.session_id, next);
   });
 
+  const photoUrlsByItemId = new Map<string, string[]>();
+  await Promise.all(
+    (items ?? []).map(async (item) => {
+      const urls = await Promise.all(
+        (item.day_routine_session_item_photos ?? []).map(async (photo) => {
+          if (!photo.files) return null;
+          const { data } = await supabase.storage.from(photo.files.bucket).createSignedUrl(photo.files.path, 3600);
+          return data?.signedUrl ?? null;
+        }),
+      );
+      photoUrlsByItemId.set(item.id, urls.filter((url): url is string => Boolean(url)));
+    }),
+  );
+
   return (
     <main className="app-shell min-h-dvh bg-surface px-4 pb-24 pt-4 text-ink">
       <div className="mx-auto max-w-4xl">
@@ -204,6 +223,11 @@ export default async function RoutineArchivePage({ params }: PageProps) {
                           {item.title_snapshot}
                         </p>
                         <p className="mt-1 text-[11px] text-muted">{formatDate(item.completed_at)}</p>
+                        {(photoUrlsByItemId.get(item.id) ?? []).map((url, index) => (
+                          <a key={`${item.id}_photo_${index}`} className="mt-2 block overflow-hidden rounded-xl" href={url} target="_blank" rel="noreferrer">
+                            <Image alt={`Фото: ${item.title_snapshot}`} className="h-auto w-full" height={900} src={url} unoptimized width={1200} />
+                          </a>
+                        ))}
                         {item.parent_title_snapshot ? <p className="mt-1 text-[11px] text-muted">Пункт: {item.parent_title_snapshot}</p> : null}
                         {photoUrlsByItemId.get(item.id)?.length ? (
                           <div className="mt-3 flex flex-wrap gap-2">
