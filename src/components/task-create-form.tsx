@@ -37,8 +37,8 @@ export function TaskCreateForm({ stores, employees }: { stores: StoreOption[]; e
           </label>
           <label className="grid gap-1 text-sm">
             <span>Подзадачи</span>
-            <textarea className="min-h-24 rounded-md border border-line p-3" name="subtasks" placeholder="Одна подзадача на строку" />
-            <span className="text-xs text-muted">До 10 подзадач, одна на строку.</span>
+            <textarea className="min-h-24 rounded-md border border-line p-3" name="subtasks" maxLength={2500} placeholder="Одна подзадача на строку (до 10, максимум 250 символов каждая)" />
+            <span className="text-xs text-muted">До 10 подзадач, по одной на строку, максимум 250 символов каждая.</span>
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <fieldset className="rounded-md border border-line p-3 sm:col-span-2">
