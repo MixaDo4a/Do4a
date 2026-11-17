@@ -18,9 +18,11 @@ export async function POST(request: NextRequest) {
   const taskId = field(formData, "task_id");
   const title = field(formData, "title");
   const description = field(formData, "description");
+  const storeId = field(formData, "store_id");
+  const assigneeEmployeeId = field(formData, "assignee_employee_id");
   const dueAt = field(formData, "due_at");
   const priority = field(formData, "priority") || "normal";
-  if (!taskId || !title || !["low", "normal", "high", "urgent"].includes(priority)) return redirectToTasks(request, "task-error");
+  if (!taskId || !title || title.length > 200 || description.length > 5000 || !storeId || !["low", "normal", "high", "urgent"].includes(priority)) return redirectToTasks(request, "task-error");
 
   let dueAtIso: string | null = null;
   if (dueAt) {
@@ -37,8 +39,26 @@ export async function POST(request: NextRequest) {
 
   const accessibleStoreIds = new Set((await getAccessibleStores(supabase)).map((store) => store.id));
   const { data: task, error: taskError } = await supabase.from("tasks").select("id,store_id,task_type,status").eq("id", taskId).maybeSingle();
-  if (taskError || !task || !accessibleStoreIds.has(task.store_id) || task.task_type !== "ordinary" || !["open", "in_progress", "overdue"].includes(task.status)) return redirectToTasks(request, "task-error");
+  if (taskError || !task || !accessibleStoreIds.has(task.store_id) || !accessibleStoreIds.has(storeId) || task.task_type !== "ordinary" || !["open", "in_progress", "overdue"].includes(task.status)) return redirectToTasks(request, "task-error");
 
-  const { error } = await supabase.from("tasks").update({ title, description: description || null, due_at: dueAtIso, priority, updated_at: new Date().toISOString() }).eq("id", taskId);
+  if (assigneeEmployeeId) {
+    const today = new Date().toISOString().slice(0, 10);
+    const [{ data: employee, error: employeeError }, { data: assignment, error: assignmentError }] = await Promise.all([
+      supabase.from("employees").select("id").eq("id", assigneeEmployeeId).eq("is_active", true).maybeSingle(),
+      supabase.from("employee_store_assignments").select("employee_id").eq("employee_id", assigneeEmployeeId).eq("store_id", storeId)
+        .lte("valid_from", today).or(`valid_to.is.null,valid_to.gte.${today}`).limit(1).maybeSingle(),
+    ]);
+    if (employeeError || assignmentError || !employee || !assignment) return redirectToTasks(request, "task-error");
+  }
+
+  const { error } = await supabase.from("tasks").update({
+    title,
+    description: description || null,
+    store_id: storeId,
+    assignee_employee_id: assigneeEmployeeId || null,
+    due_at: dueAtIso,
+    priority,
+    updated_at: new Date().toISOString(),
+  }).eq("id", taskId);
   return redirectToTasks(request, error ? "task-error" : "task-updated");
 }
