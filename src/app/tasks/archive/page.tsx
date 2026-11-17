@@ -22,6 +22,7 @@ type TaskRow = {
   created_at: string;
   due_at: string | null;
   completed_at: string | null;
+  requires_completion_photo: boolean;
   priority: "low" | "normal" | "high" | "urgent";
   status: "done" | "overdue" | "cancelled";
   stores: { id: string; name: string; timezone: string | null } | null;
@@ -30,7 +31,7 @@ type TaskRow = {
 };
 type CampaignRow = { id: string; product_name: string; expiry_date: string; discount_type: "percent" | "new_price"; discount_value: number };
 type SubtaskRow = { id: string; task_id: string; title: string; instructions: string; status: "open" | "done" };
-type CompletionPhotoRow = { task_id: string; storage_path: string; expires_at: string };
+type CompletionPhotoRow = { task_id: string; storage_path: string | null; expires_at: string; deleted_at: string | null };
 
 type PageProps = {
   searchParams: Promise<{
@@ -82,7 +83,7 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
 
   let query = supabase
     .from("tasks")
-    .select("id, created_by, task_type, expiration_campaign_id, completion_outcome, completion_comment, title, description, created_at, due_at, completed_at, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)")
+    .select("id, created_by, task_type, expiration_campaign_id, completion_outcome, completion_comment, title, description, created_at, due_at, completed_at, requires_completion_photo, priority, status, stores(id, name, timezone), employees(id, full_name), task_comments(id, body, created_at)")
     .in("status", ["done", "overdue", "cancelled"])
     .in("store_id", accessibleStoreIds)
     .order("completed_at", { ascending: false, nullsFirst: false })
@@ -121,15 +122,25 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
     taskIds.length
       ? supabase.from("task_subtasks").select("id,task_id,title,instructions,status").in("task_id", taskIds).order("sort_order").returns<SubtaskRow[]>()
       : Promise.resolve({ data: [] as SubtaskRow[], error: null }),
-    tasks.some((task) => task.status === "done")
-      ? supabase.from("task_completion_photos").select("task_id,storage_path,expires_at").in("task_id", tasks.filter((task) => task.status === "done").map((task) => task.id)).is("deleted_at", null).gt("expires_at", new Date().toISOString()).returns<CompletionPhotoRow[]>()
+    tasks.some((task) => task.status === "done" && task.requires_completion_photo)
+      ? supabase.from("task_completion_photos").select("task_id,storage_path,expires_at,deleted_at").in("task_id", tasks.filter((task) => task.status === "done" && task.requires_completion_photo).map((task) => task.id)).returns<CompletionPhotoRow[]>()
       : Promise.resolve({ data: [] as CompletionPhotoRow[], error: null }),
   ]);
   if (campaignResult.error) throw new Error(campaignResult.error.message);
   if (subtaskResult.error) throw new Error(subtaskResult.error.message);
   if (photoResult.error) throw new Error(photoResult.error.message);
   const completionPhotoUrls = new Map<string, string>();
+  const expiredCompletionPhotos = new Set<string>();
+  const now = Date.now();
   await Promise.all((photoResult.data ?? []).map(async (photo) => {
+    if (photo.deleted_at) {
+      expiredCompletionPhotos.add(photo.task_id);
+      return;
+    }
+    if (!photo.storage_path || new Date(photo.expires_at).getTime() <= now) {
+      expiredCompletionPhotos.add(photo.task_id);
+      return;
+    }
     const { data: signed } = await supabase.storage.from("task-completion-photos").createSignedUrl(photo.storage_path, 600);
     if (signed?.signedUrl) completionPhotoUrls.set(photo.task_id, signed.signedUrl);
   }));
@@ -201,8 +212,8 @@ export default async function TasksArchivePage({ searchParams }: PageProps) {
               {completionPhotoUrls.get(task.id) ? <section className="mt-3 rounded-md border border-line p-3">
                 <p className="text-sm font-semibold">Фото выполнения</p>
                 <Image alt={`Фото выполнения задачи «${cleanText(task.title, "Задача")}`} className="mt-2 max-h-96 w-auto rounded-md object-contain" height={960} unoptimized src={completionPhotoUrls.get(task.id)!} width={1280} />
-                <p className="mt-2 text-xs text-muted">Фото удаляется автоматически по сроку хранения.</p>
-              </section> : null}
+                <p className="mt-2 text-xs text-muted">Фото хранится 7 дней после завершения задачи.</p>
+              </section> : expiredCompletionPhotos.has(task.id) ? <p className="mt-3 rounded-md border border-line p-3 text-sm text-muted">Фото удалено по истечении срока хранения.</p> : null}
                   {task.completion_outcome ? <div className="mt-3 rounded-md bg-surface p-3 text-sm">
                     <p className="font-semibold">Итог: {task.completion_outcome === "sold_out" ? "товар распродан" : task.completion_outcome === "writeoff" ? "часть товара отмечена к списанию" : "остатки распределены"}</p>
                     {task.completion_comment ? <p className="mt-1 text-muted">{cleanText(task.completion_comment, "Комментарий")}</p> : null}

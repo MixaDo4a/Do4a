@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/cron/task-completion-photos",
-      "schedule": "15 3 * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
