@@ -32,7 +32,7 @@ export function TaskCreateForm({ stores, employees }: { stores: StoreOption[]; e
           </label>
           <label className="flex items-start gap-3 rounded-md border border-line p-3 text-sm">
             <input className="mt-0.5 size-4 accent-brand" name="requires_completion_photo" type="checkbox" value="true" />
-            <span><span className="block font-medium">Обязательное фото при выполнении</span><span className="mt-1 block text-xs font-normal text-muted">Фото будет доступно управляющим магазина до 6 дней, затем удалится с сервера.</span></span>
+            <span><span className="block font-medium">Обязательное фото при выполнении</span><span className="mt-1 block text-xs font-normal text-muted">Фото будет доступно управляющим магазина 7 дней после выполнения задачи, затем удалится с сервера.</span></span>
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <fieldset className="rounded-md border border-line p-3 sm:col-span-2">
