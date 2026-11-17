@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { DashboardView, type DashboardData, type StoreMonthlyMetric } from "@/components/dashboard-view";
+import { DashboardView, type ClosedShiftDashboardItem, type DashboardData, type StoreMonthlyMetric } from "@/components/dashboard-view";
 import { ChecklistDashboardView } from "@/components/checklist-dashboard-view";
-import { getAccessibleStores } from "@/lib/auth/stores";
+import { getAccessibleStores, getCurrentEmployeeScope } from "@/lib/auth/stores";
 import { getCurrentRoleCodes, hasAnyRole } from "@/lib/auth/roles";
 import { loadAcademyPayLevels } from "@/lib/payroll/academy-level.server";
 import { forecastStorePlan } from "@/lib/store-plan-forecast";
@@ -9,7 +9,7 @@ import { isRetailStoreForMotivation } from "@/lib/store-motivation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type PageProps = { searchParams: Promise<{
-  period?: string; overviewPeriod?: string; employeesPeriod?: string; storesPeriod?: string; goalsPeriod?: string;
+  period?: string; overviewPeriod?: string; employeesPeriod?: string; storesPeriod?: string; goalsPeriod?: string; shiftsPeriod?: string;
   mainTab?: string; tab?: string; message?: string; detail?: string;
 }> };
 type Relation<T> = T | T[] | null;
@@ -131,9 +131,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     employees: validPeriod(params.employeesPeriod ?? fallbackPeriod),
     stores: validPeriod(params.storesPeriod ?? fallbackPeriod),
     goals: validPeriod(params.goalsPeriod ?? addMonths(currentMonth, 1)),
+    shifts: validPeriod(params.shiftsPeriod ?? fallbackPeriod),
   };
   const mainTab = params.mainTab === "stores" ? "stores" : "overview";
-  const storeTab = params.tab === "stores" || params.tab === "goals" ? params.tab : "employees";
+  const storeTab = params.tab === "stores" || params.tab === "goals" || params.tab === "shifts" ? params.tab : "employees";
   const period = mainTab === "overview" ? periods.overview : periods[storeTab];
   const periodStart = `${period}-01`;
   const periodEnd = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 0)).toISOString().slice(0, 10);
@@ -156,9 +157,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const canWithdrawVault = roles.includes("super_admin");
   if (!hasAnyRole(roles, ["store_manager", "auditor", "super_admin", "developer"])) redirect("/");
 
-  const [accessibleStores, vaultBalanceResult] = await Promise.all([
+  const [accessibleStores, vaultBalanceResult, employeeScope] = await Promise.all([
     getAccessibleStores(supabase),
     supabase.rpc("get_vault_cash_balance"),
+    getCurrentEmployeeScope(),
   ]);
   const vaultBalance = vaultBalanceResult.error || vaultBalanceResult.data === null
     ? null
@@ -201,7 +203,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     return <ChecklistDashboardView period={period} submittedCount={submittedChecklists.length} averageScore={averageScore} missingEmployees={missingEmployees} vaultBalance={vaultBalance} />;
   }
   if (!storeIds.length) {
-    return <DashboardView initialPeriod={period} periods={periods} initialMainTab={mainTab} initialStoreTab={storeTab} stores={[]} storeMetrics={[]} employeeMetrics={[]} missingChecklistEmployees={[]} openShifts={0} vaultBalance={vaultBalance} canDepositVault={canDepositVault} canWithdrawVault={canWithdrawVault} message={params.message} detail={params.detail} />;
+    return <DashboardView initialPeriod={period} periods={periods} initialMainTab={mainTab} initialStoreTab={storeTab} stores={[]} storeMetrics={[]} employeeMetrics={[]} missingChecklistEmployees={[]} closedShifts={[]} closedShiftParentCity="Все города" openShifts={0} vaultBalance={vaultBalance} canDepositVault={canDepositVault} canWithdrawVault={canWithdrawVault} message={params.message} detail={params.detail} />;
   }
 
   const [storeDetailsResult, plansResult, nextPlanRowsResult, shiftRows, taskRows, checklistRows, scheduleRows, cashRows, assignments, payrollPeriod, historicalRowsResult, historicalDayRows, yearlyShiftRows, yearPlansResult] = await Promise.all([
@@ -258,6 +260,27 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const storeDetails = storeDetailsResult.data ?? [];
   const storeById = new Map(storeDetails.map((store) => [store.id, store]));
   const relevantShiftRows = shiftRows.filter((shift) => !(storeById.get(shift.store_id)?.name === "Урбан" && shift.shift_date < "2026-08-01"));
+  const closedShiftItems: ClosedShiftDashboardItem[] = relevantShiftRows
+    .filter((shift) => shift.status === "closed" || shift.status === "auto_closed")
+    .map((shift) => {
+      const store = storeById.get(shift.store_id);
+      const report = one(shift.shift_closing_reports);
+      return {
+        id: shift.id,
+        storeId: shift.store_id,
+        storeName: store?.name ?? "Магазин",
+        city: store?.city ?? "Без города",
+        shiftDate: shift.shift_date,
+        status: shift.status as "closed" | "auto_closed",
+        closedAt: shift.closed_at,
+        isErroneous: shift.is_erroneous,
+        employees: shift.shift_participants.map((participant) => one(participant.employees)?.full_name).filter((name): name is string => Boolean(name)),
+        netRevenue: report ? asNumber(report.net_revenue) : null,
+        receiptCount: report?.receipt_count ?? null,
+        itemsSoldCount: report?.items_sold_count ?? null,
+      };
+    })
+    .sort((left, right) => right.shiftDate.localeCompare(left.shiftDate) || left.storeName.localeCompare(right.storeName, "ru"));
   const dailyHistoryByStore = new Map<string, HistoricalDayRow[]>();
   for (const row of historicalDayRows) {
     const dailyRows = dailyHistoryByStore.get(row.store_id) ?? [];
@@ -666,6 +689,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     storeMetrics={storeMetrics}
     employeeMetrics={employeeMetrics}
     missingChecklistEmployees={missingChecklistEmployees}
+    closedShifts={closedShiftItems}
+    closedShiftParentCity={employeeScope.city ?? "Все города"}
     openShifts={openShifts}
     vaultBalance={vaultBalance}
     canDepositVault={canDepositVault}
