@@ -5,10 +5,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { dispatchPushNotificationsFromEvent } from "@/lib/push";
 import { getCompletionPhotoType } from "@/lib/tasks/completion-photo";
 
-function tasksUrl(request: NextRequest, message: string, detail?: string) {
+function tasksUrl(request: NextRequest, message: string, detail?: string, employeeId?: string | null) {
   const url = new URL("/tasks", request.url);
   url.searchParams.set("message", message);
   if (detail) url.searchParams.set("detail", detail);
+  if (employeeId) url.searchParams.set("employeeId", employeeId);
   return url;
 }
 
@@ -29,8 +30,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url), 303);
   }
 
-  const { employeeId } = await getCurrentEmployeeId();
-  const { roles } = await getCurrentRoleCodes();
+  const { employeeId } = await getCurrentEmployeeId(supabase, user);
+  const { roles } = await getCurrentRoleCodes(supabase, user);
   const canManageTasks = hasAnyRole(roles, ["developer", "super_admin"]);
   const { data: task, error: readError } = await supabase
     .from("tasks")
@@ -39,12 +40,12 @@ export async function POST(request: NextRequest) {
     .maybeSingle<{ id: string; assignee_employee_id: string | null; store_id: string; title: string; created_by: string | null; task_type: string; requires_completion_photo: boolean }>();
 
   if (readError || !task) {
-    return NextResponse.redirect(tasksUrl(request, "task-error", readError?.message ?? "Задача не найдена."), 303);
+    return NextResponse.redirect(tasksUrl(request, "task-error", readError?.message ?? "Задача не найдена.", employeeId), 303);
   }
 
   const canAccessStore = (await getAccessibleStores(supabase)).some((store) => store.id === task.store_id);
   if (!canManageTasks && task.assignee_employee_id !== employeeId && !canAccessStore) {
-    return NextResponse.redirect(tasksUrl(request, "task-error", "Недостаточно прав для изменения задачи."), 303);
+    return NextResponse.redirect(tasksUrl(request, "task-error", "Недостаточно прав для изменения задачи.", employeeId), 303);
   }
 
   if (task.task_type === "expiration_store" || task.task_type === "expiration_checker") {
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
       p_comment: completionComment,
     });
     const completion = completionResult as { task_type: string; outcome: string } | null;
-    if (completionError || !completion) return NextResponse.redirect(tasksUrl(request, "task-error", completionError?.message ?? "Не удалось завершить сроковую задачу."), 303);
+    if (completionError || !completion) return NextResponse.redirect(tasksUrl(request, "task-error", completionError?.message ?? "Не удалось завершить сроковую задачу.", employeeId), 303);
     if (task.created_by) {
       const { data: creator } = await supabase.from("profiles").select("employee_id").eq("id", task.created_by).maybeSingle<{ employee_id: string | null }>();
       if (creator?.employee_id && creator.employee_id !== employeeId) {
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
       await supabase.storage.from("task-completion-photos").remove([uploadedPhotoPath]);
       await supabase.from("task_completion_photos").delete().eq("task_id", task.id);
     }
-    return NextResponse.redirect(tasksUrl(request, "task-error", error?.message ?? "Задача не найдена или уже обработана."), 303);
+    return NextResponse.redirect(tasksUrl(request, "task-error", error?.message ?? "Задача не найдена или уже обработана.", employeeId), 303);
   }
 
   const [{ data: storeRow }, { data: employeeRow }] = await Promise.all([
@@ -196,7 +197,7 @@ export async function POST(request: NextRequest) {
     }).catch(() => null);
   }
 
-  return NextResponse.redirect(tasksUrl(request, "task-done"), 303);
+  return NextResponse.redirect(tasksUrl(request, "task-done", undefined, employeeId), 303);
 }
 
 
