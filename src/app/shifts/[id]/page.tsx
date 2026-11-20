@@ -343,7 +343,15 @@ export default async function ShiftDetailsPage({ params, searchParams }: ShiftDe
   const managerOnlyRole = roles.includes("store_manager") && !hasAnyRole(roles, ["super_admin", "developer"]);
   const managerStores = roles.includes("store_manager") ? await getAccessibleStores(supabase) : [];
   const managerHasStoreAccess = managerStores.some((store) => store.id === shift.store_id);
-  const canCorrectWork = managementRole && (hasAnyRole(roles, ["super_admin", "developer"]) || managerHasStoreAccess);
+  const payrollMonth = `${shift.shift_date.slice(0, 7)}-01`;
+  const { data: payrollPeriod, error: payrollPeriodError } = await supabase.from("payroll_periods")
+    .select("status").eq("period_month", payrollMonth).maybeSingle<{ status: string }>();
+  if (payrollPeriodError) throw new Error(payrollPeriodError.message);
+  const payrollMonthClosed = payrollPeriod?.status === "closed";
+  const superAdmin = roles.includes("super_admin");
+  const canCorrectWork = managementRole && (payrollMonthClosed
+    ? superAdmin
+    : superAdmin || roles.includes("developer") || (roles.includes("store_manager") && managerHasStoreAccess));
   const canEditClosedReport = canCorrectWork && (shift.status === "closed" || shift.status === "auto_closed");
   const canShowManagerAudit = managerOnlyRole && managerHasStoreAccess && canEditClosedReport;
   const shiftIsOpen = shift.status === "opened" || shift.status === "correction_required";

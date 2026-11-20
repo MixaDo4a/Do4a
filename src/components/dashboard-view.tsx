@@ -81,6 +81,9 @@ type Props = DashboardData & {
   vaultBalance: number | null;
   canDepositVault: boolean;
   canWithdrawVault: boolean;
+  closeMonthPeriod: string;
+  closeMonthClosed: boolean;
+  canCloseMonth: boolean;
   message?: string;
   detail?: string;
 };
@@ -275,7 +278,7 @@ function Bars({ points, period, emptyLabel }: { points: DailyPoint[]; period: st
   </div>;
 }
 
-export function DashboardView({ initialPeriod, periods, initialMainTab, initialStoreTab, stores, storeMetrics, employeeMetrics, missingChecklistEmployees, closedShifts, closedShiftParentCity, openShifts, vaultBalance, canDepositVault, canWithdrawVault, message, detail }: Props) {
+export function DashboardView({ initialPeriod, periods, initialMainTab, initialStoreTab, stores, storeMetrics, employeeMetrics, missingChecklistEmployees, closedShifts, closedShiftParentCity, openShifts, vaultBalance, canDepositVault, canWithdrawVault, closeMonthPeriod, closeMonthClosed, canCloseMonth, message, detail }: Props) {
   const router = useRouter();
   const [city, setCity] = useState("");
   const [storeId, setStoreId] = useState("");
@@ -370,6 +373,9 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
     "vault-withdrawal-over-balance": "Нельзя списать больше текущего остатка сейфа.",
     "vault-withdrawal-denied": "Списывать из сейфа может только супер-администратор.",
     "vault-withdrawal-error": "Не удалось выполнить списание из сейфа.",
+    "month-closed": "Месяц закрыт, зарплата зафиксирована.",
+    "month-already-closed": "Этот месяц уже закрыт.",
+    "month-close-error": "Не удалось закрыть месяц.",
   };
   const messageText = message === "task-created" ? "Задача создана и уведомления отправлены." : message === "dashboard-goals-saved" || message === "dashboard-bulk-goals-saved" ? "Цели магазинов сохранены." : message === "dashboard-error" ? detail ?? "Не удалось сохранить изменения." : (message ? vaultMessages[message] : null) ?? null;
   const dashboardReturnTo = `/dashboard?${new URLSearchParams({ overviewPeriod: periodChoices.overview, employeesPeriod: periodChoices.employees, storesPeriod: periodChoices.stores, goalsPeriod: periodChoices.goals, mainTab, tab }).toString()}`;
@@ -397,8 +403,16 @@ export function DashboardView({ initialPeriod, periods, initialMainTab, initialS
       </header>
 
       {messageText ? <div role="status" className={`shrink-0 rounded-md border px-3 py-2 text-xs ${isErrorMessage ? "border-red-400/25 bg-red-950/40 text-red-100" : "border-emerald-400/20 bg-emerald-950/25 text-emerald-100"}`}>
-        {messageText}{detail && message !== "dashboard-error" && !isErrorMessage ? <span className="ml-2 text-white/50">{detail}</span> : null}
+        {messageText}{detail && message !== "dashboard-error" ? <span className="ml-2 text-white/50">{detail}</span> : null}
       </div> : null}
+
+      {!closeMonthClosed && canCloseMonth ? <section className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-md border border-amber-300/20 bg-amber-950/20 px-3 py-2.5">
+        <div><h2 className="text-sm font-semibold">Месяц {localMonthName(closeMonthPeriod)} не закрыт</h2><p className="text-xs text-white/55">Перед закрытием будет сформирован расчёт зарплаты. После закрытия менять показатели смен сможет только суперадминистратор.</p></div>
+        <form action="/dashboard/close-month" method="post">
+          <input type="hidden" name="period_month" value={`${closeMonthPeriod}-01`} />
+          <button type="submit" className="h-9 rounded-md border border-amber-300/30 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 hover:bg-amber-300/20">Закрыть месяц</button>
+        </form>
+      </section> : closeMonthClosed ? <p className="shrink-0 rounded-md border border-emerald-300/15 bg-emerald-950/20 px-3 py-2 text-xs text-emerald-100">Месяц {localMonthName(closeMonthPeriod)} закрыт. Зарплата зафиксирована; редактировать смены может только суперадминистратор.</p> : null}
 
       <nav className="flex shrink-0 items-center gap-1 border-b border-white/10" aria-label="Разделы дашборда" role="tablist">
         <button type="button" role="tab" aria-selected={mainTab === "overview"} onClick={() => navigateTo("overview", tab)} className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition ${mainTab === "overview" ? "border-brand text-white" : "border-transparent text-white/45 hover:text-white/80"}`}>Общие показатели по городу</button>

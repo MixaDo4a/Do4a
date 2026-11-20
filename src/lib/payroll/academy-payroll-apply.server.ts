@@ -137,13 +137,14 @@ export async function applyAcademyPayrollToCalculatedRows(
   const db = createSupabaseServiceRoleClient();
 
   const [{ data: period, error: periodError }, { data: employees, error: employeesError }, { data: stores, error: storesError }, { data: modes, error: modesError }] = await Promise.all([
-    db.from("payroll_periods").select("id").eq("period_month", periodMonth).maybeSingle<{ id: string }>(),
+    db.from("payroll_periods").select("id, status").eq("period_month", periodMonth).maybeSingle<{ id: string; status: string }>(),
     db.from("employees").select("id, full_name, employee_status, is_active").order("full_name").returns<EmployeeRow[]>(),
     db.from("stores").select("id, name, city, timezone, workday_start_time, workday_end_time").returns<StoreRow[]>(),
     db.from("city_payroll_modes").select("city, effective_from, calculation_mode, created_at").lte("effective_from", periodMonth).order("effective_from", { ascending: false }).order("created_at", { ascending: false }).returns<ModeRow[]>(),
   ]);
   for (const error of [periodError, employeesError, storesError, modesError]) if (error) throw new Error(error.message);
   if (!period?.id) throw new Error("Payroll period was not created before Academy calculation");
+  if (period.status === "closed") throw new Error("Payroll for this month is closed");
 
   const activeEmployees = employees ?? [];
   const allEmployeeIds = activeEmployees.map((employee) => employee.id);
