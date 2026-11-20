@@ -32,6 +32,21 @@ type ItemRow = {
     files: { path: string; bucket: string } | null;
   }>;
 };
+type Relation<T> = T | T[] | null;
+type PhotoArchiveRow = {
+  file_id: string;
+  files: Relation<{ path: string; bucket: string; mime_type: string | null }>;
+  day_routine_session_items: Relation<{
+    id: string;
+    title_snapshot: string;
+    completed_at: string;
+    day_routine_sessions: Relation<SessionRow & { store_id: string }>;
+  }>;
+};
+
+function one<T>(value: Relation<T>): T | null {
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("ru-RU", {
@@ -96,6 +111,42 @@ export default async function RoutineArchivePage({ params }: PageProps) {
     throw new Error(employeesError.message);
   }
 
+  const { data: archivedPhotoRows, error: archivedPhotoError } = await supabase
+    .from("day_routine_session_item_photos")
+    .select("file_id, files!inner(path, bucket, mime_type), day_routine_session_items!inner(id, title_snapshot, completed_at, day_routine_sessions!inner(id, routine_kind, routine_date, started_at, completed_at, employee_id, store_id))")
+    .eq("day_routine_session_items.day_routine_sessions.store_id", storeId)
+    .limit(200)
+    .returns<PhotoArchiveRow[]>();
+
+  if (archivedPhotoError) throw new Error(archivedPhotoError.message);
+
+  const archivedPhotos = await Promise.all((archivedPhotoRows ?? []).map(async (row) => {
+    const file = one(row.files);
+    const item = one(row.day_routine_session_items);
+    const session = item ? one(item.day_routine_sessions) : null;
+    if (!file || !item || !session || file.bucket !== "routine-photos" || !file.mime_type?.startsWith("image/")) return null;
+    const { data, error } = await supabase.storage.from(file.bucket).createSignedUrl(file.path, 60 * 60);
+    if (error || !data?.signedUrl) return null;
+    return { ...session, itemTitle: item.title_snapshot, photoUrl: data.signedUrl };
+  }));
+  const photosBySession = new Map<string, NonNullable<(typeof archivedPhotos)[number]>[]>();
+  for (const photo of archivedPhotos) {
+    if (!photo) continue;
+    const rows = photosBySession.get(photo.id) ?? [];
+    rows.push(photo);
+    photosBySession.set(photo.id, rows);
+  }
+  const archivedPhotoSessions = [...photosBySession.values()]
+    .map((photos) => photos[0])
+    .filter((session): session is NonNullable<typeof session> => Boolean(session))
+    .sort((left, right) => right.routine_date.localeCompare(left.routine_date));
+  const photoEmployeeIds = [...new Set(archivedPhotoSessions.map((session) => session.employee_id))];
+  const { data: photoEmployees, error: photoEmployeesError } = photoEmployeeIds.length
+    ? await supabase.from("employees").select("id, full_name").in("id", photoEmployeeIds).returns<{ id: string; full_name: string }[]>()
+    : { data: [] as { id: string; full_name: string }[], error: null };
+  if (photoEmployeesError) throw new Error(photoEmployeesError.message);
+  const photoEmployeeNames = new Map((photoEmployees ?? []).map((employee) => [employee.id, employee.full_name]));
+
   const employeeById = new Map((employees ?? []).map((employee) => [employee.id, employee.full_name]));
   const itemsBySessionId = new Map<string, ItemRow[]>();
   (items ?? []).forEach((item) => {
@@ -124,6 +175,28 @@ export default async function RoutineArchivePage({ params }: PageProps) {
         <SectionHeader icon={Archive} title={`Архив распорядка · ${store.name}`} showBack />
         <section className="mt-4 ui-panel p-4 shadow-soft">
           <p className="text-sm text-muted">{store.city}</p>
+        </section>
+
+        <section className="mt-4 ui-panel p-4 shadow-soft">
+          <h2 className="font-semibold">Фотографии утреннего и вечернего распорядка</h2>
+          <p className="mt-1 text-sm text-muted">Все сохранённые фото по магазину, включая более старые записи.</p>
+          {archivedPhotoSessions.length === 0 ? <p className="mt-3 text-sm text-muted">Прикреплённых фотографий пока нет.</p> : (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {archivedPhotoSessions.map((session) => (
+                <article key={session.id} className="rounded-xl border border-line/80 bg-[#0d090a]/92 p-3">
+                  <h3 className="text-sm font-semibold">{session.routine_kind === "morning" ? "Утро" : "Вечер"} · {session.routine_date}</h3>
+                  <p className="mt-1 text-xs text-muted">{photoEmployeeNames.get(session.employee_id) ?? "Сотрудник"}</p>
+                  <div className="mt-2 grid gap-2">
+                    {(photosBySession.get(session.id) ?? []).map((photo, index) => (
+                      <a key={`${session.id}_${index}_${photo.itemTitle}`} href={photo.photoUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg">
+                        <Image alt={`Фото пункта: ${photo.itemTitle}`} className="h-auto w-full" height={900} src={photo.photoUrl} unoptimized width={1200} />
+                      </a>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         <div className="mt-4 grid gap-4">
