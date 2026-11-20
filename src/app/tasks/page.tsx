@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { SectionHeader } from "@/components/section-header";
 import { TaskCreateForm } from "@/components/task-create-form";
 import { PhotoFileInput } from "@/components/photo-file-input";
+import { TaskAssignmentFields } from "@/components/task-assignment-fields";
 import {
   getCurrentEmployeeId,
   getCurrentRoleCodes,
@@ -221,6 +222,16 @@ export default async function TasksPage({ searchParams }: PageProps) {
         })
       : employeesInAccessibleStores;
 
+  const taskAssignmentStores = accessibleStores.map(({ id, name }) => ({ id, name }));
+  const taskAssignmentEmployees = employeesInAccessibleStores.map((employee) => ({
+    id: employee.id,
+    fullName: employee.full_name,
+    storeIds: employee.employee_store_assignments
+      .filter((assignment) => accessibleStoreIds.includes(assignment.store_id)
+        && assignment.valid_from <= today && (!assignment.valid_to || assignment.valid_to >= today))
+      .map((assignment) => assignment.store_id),
+  }));
+
   const campaignAssignees = employeesInAccessibleStores.map((employee) => ({ id: employee.id, name: employee.full_name, roles: employeeRoles.get(employee.id) ?? [] }));
   const normalAssignees = taskAssignees.map((employee) => ({ id: employee.id, name: employee.full_name, roles: employeeRoles.get(employee.id) ?? [] }));
   const assigneeById = new Map([...campaignAssignees, ...normalAssignees].map((employee) => [employee.id, employee]));
@@ -430,6 +441,7 @@ export default async function TasksPage({ searchParams }: PageProps) {
                     <input type="hidden" name="task_id" value={task.id} />
                     <input className="h-11 rounded-md border border-line px-3" name="title" defaultValue={task.title} maxLength={200} required />
                     <textarea className="min-h-20 rounded-md border border-line px-3 py-2" name="description" defaultValue={task.description ?? ""} maxLength={5000} placeholder="Описание" />
+                    <TaskAssignmentFields stores={taskAssignmentStores} employees={taskAssignmentEmployees} initialStoreId={task.stores?.id ?? ""} initialAssigneeId={task.employees?.id ?? ""} />
                     <div className="grid gap-3 sm:grid-cols-2">
                       <input className="h-11 rounded-md border border-line px-3" name="due_at" type="datetime-local" defaultValue={formatStoreDateTimeLocalInput(task.due_at, task.stores?.timezone)} />
                       <select className="h-11 rounded-md border border-line px-3" name="priority" defaultValue={task.priority}>
